@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
+import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
 import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './routes/_authenticated/inspection.setup.$propertyId'
 import { Route as AuthenticatedInspectionIdSignRouteImport } from './routes/_authenticated/inspection.$id.sign'
 import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_authenticated/inspection.$id.review'
@@ -46,6 +47,11 @@ const AuthenticatedPropertyNewRoute =
     path: '/property/new',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
+  id: '/property/$id',
+  path: '/property/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInspectionSetupPropertyIdRoute =
   AuthenticatedInspectionSetupPropertyIdRouteImport.update({
     id: '/inspection/setup/$propertyId',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
+  '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/inspections': typeof AuthenticatedInspectionsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/property/$id': typeof AuthenticatedPropertyIdRoute
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
   '/_authenticated/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/_authenticated/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/inspections'
+    | '/property/$id'
     | '/property/new'
     | '/inspection/$id/capture'
     | '/inspection/$id/report'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/inspections'
     | '/'
+    | '/property/$id'
     | '/property/new'
     | '/inspection/$id/capture'
     | '/inspection/$id/report'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/inspections'
     | '/_authenticated/'
+    | '/_authenticated/property/$id'
     | '/_authenticated/property/new'
     | '/_authenticated/inspection/$id/capture'
     | '/_authenticated/inspection/$id/report'
@@ -191,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertyNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/property/$id': {
+      id: '/_authenticated/property/$id'
+      path: '/property/$id'
+      fullPath: '/property/$id'
+      preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/inspection/setup/$propertyId': {
       id: '/_authenticated/inspection/setup/$propertyId'
       path: '/inspection/setup/$propertyId'
@@ -232,6 +251,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedInspectionsRoute: typeof AuthenticatedInspectionsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedPropertyIdRoute: typeof AuthenticatedPropertyIdRoute
   AuthenticatedPropertyNewRoute: typeof AuthenticatedPropertyNewRoute
   AuthenticatedInspectionIdCaptureRoute: typeof AuthenticatedInspectionIdCaptureRoute
   AuthenticatedInspectionIdReportRoute: typeof AuthenticatedInspectionIdReportRoute
@@ -243,6 +263,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInspectionsRoute: AuthenticatedInspectionsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedPropertyIdRoute: AuthenticatedPropertyIdRoute,
   AuthenticatedPropertyNewRoute: AuthenticatedPropertyNewRoute,
   AuthenticatedInspectionIdCaptureRoute: AuthenticatedInspectionIdCaptureRoute,
   AuthenticatedInspectionIdReportRoute: AuthenticatedInspectionIdReportRoute,
