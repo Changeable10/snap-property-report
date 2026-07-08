@@ -54,7 +54,25 @@ function CapturePage() {
     queryKey: ["inspection", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("inspections").select("id, property_id, user_id").eq("id", id).single();
+        .from("inspections").select("id, property_id, user_id, inspection_type").eq("id", id).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: previousInspection } = useQuery({
+    queryKey: ["previous-inspection", inspection?.property_id, id],
+    enabled: !!inspection?.property_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inspections")
+        .select("id")
+        .eq("property_id", inspection!.property_id)
+        .neq("id", id)
+        .in("status", ["completed", "signed"])
+        .order("inspection_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -231,7 +249,13 @@ function CapturePage() {
   function goNext() {
     if (!rooms) return;
     if (index >= rooms.length - 1) {
-      navigate({ to: "/inspection/$id/review", params: { id } });
+      const hasPrev = !!previousInspection?.id;
+      const type = inspection?.inspection_type;
+      if (hasPrev && (type === "routine" || type === "exit")) {
+        navigate({ to: "/inspection/$id/compare", params: { id } });
+      } else {
+        navigate({ to: "/inspection/$id/review", params: { id } });
+      }
       return;
     }
     setIndex((i) => Math.min(rooms.length - 1, i + 1));
