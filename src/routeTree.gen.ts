@@ -20,7 +20,6 @@ import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './ro
 import { Route as AuthenticatedInspectionIdSignRouteImport } from './routes/_authenticated/inspection.$id.sign'
 import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_authenticated/inspection.$id.review'
 import { Route as AuthenticatedInspectionIdReportRouteImport } from './routes/_authenticated/inspection.$id.report'
-import { Route as AuthenticatedInspectionIdCaptureRouteImport } from './routes/_authenticated/inspection.$id.capture'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -82,12 +81,6 @@ const AuthenticatedInspectionIdReportRoute =
     path: '/inspection/$id/report',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedInspectionIdCaptureRoute =
-  AuthenticatedInspectionIdCaptureRouteImport.update({
-    id: '/inspection/$id/capture',
-    path: '/inspection/$id/capture',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -96,7 +89,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
-  '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -109,7 +101,6 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
-  '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -124,7 +115,6 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/property/$id': typeof AuthenticatedPropertyIdRoute
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
-  '/_authenticated/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/_authenticated/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/_authenticated/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/_authenticated/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -139,7 +129,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/property/$id'
     | '/property/new'
-    | '/inspection/$id/capture'
     | '/inspection/$id/report'
     | '/inspection/$id/review'
     | '/inspection/$id/sign'
@@ -152,7 +141,6 @@ export interface FileRouteTypes {
     | '/'
     | '/property/$id'
     | '/property/new'
-    | '/inspection/$id/capture'
     | '/inspection/$id/report'
     | '/inspection/$id/review'
     | '/inspection/$id/sign'
@@ -166,7 +154,6 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/property/$id'
     | '/_authenticated/property/new'
-    | '/_authenticated/inspection/$id/capture'
     | '/_authenticated/inspection/$id/report'
     | '/_authenticated/inspection/$id/review'
     | '/_authenticated/inspection/$id/sign'
@@ -257,13 +244,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/inspection/$id/capture': {
-      id: '/_authenticated/inspection/$id/capture'
-      path: '/inspection/$id/capture'
-      fullPath: '/inspection/$id/capture'
-      preLoaderRoute: typeof AuthenticatedInspectionIdCaptureRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
   }
 }
 
@@ -273,7 +253,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedPropertyIdRoute: typeof AuthenticatedPropertyIdRoute
   AuthenticatedPropertyNewRoute: typeof AuthenticatedPropertyNewRoute
-  AuthenticatedInspectionIdCaptureRoute: typeof AuthenticatedInspectionIdCaptureRoute
   AuthenticatedInspectionIdReportRoute: typeof AuthenticatedInspectionIdReportRoute
   AuthenticatedInspectionIdReviewRoute: typeof AuthenticatedInspectionIdReviewRoute
   AuthenticatedInspectionIdSignRoute: typeof AuthenticatedInspectionIdSignRoute
@@ -286,7 +265,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedPropertyIdRoute: AuthenticatedPropertyIdRoute,
   AuthenticatedPropertyNewRoute: AuthenticatedPropertyNewRoute,
-  AuthenticatedInspectionIdCaptureRoute: AuthenticatedInspectionIdCaptureRoute,
   AuthenticatedInspectionIdReportRoute: AuthenticatedInspectionIdReportRoute,
   AuthenticatedInspectionIdReviewRoute: AuthenticatedInspectionIdReviewRoute,
   AuthenticatedInspectionIdSignRoute: AuthenticatedInspectionIdSignRoute,
