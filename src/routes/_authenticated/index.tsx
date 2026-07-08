@@ -4,7 +4,7 @@ import { Plus, Bed, Bath, Home as HomeIcon, Building2 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { mockProperties, type Property, type PropertyType } from "@/lib/mock-data";
 
-export const Route = createFileRoute("/_authenticated/_authenticated/")({
+export const Route = createFileRoute("/_authenticated/")({
   component: Index,
 });
 
