@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageShell } from "@/components/PageShell";
 import { mockProperties } from "@/lib/mock-data";
 
-export const Route = createFileRoute("/property/$id")({
+export const Route = createFileRoute("/_authenticated/_authenticated/property/$id")({
   head: () => ({ meta: [{ title: "Property — Snapsure" }] }),
   component: PropertyDetail,
 });
