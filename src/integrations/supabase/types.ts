@@ -14,6 +14,127 @@ export type Database = {
   }
   public: {
     Tables: {
+      inspection_items: {
+        Row: {
+          condition: Database["public"]["Enums"]["condition_type"]
+          created_at: string
+          description: string | null
+          id: string
+          inspection_id: string
+          item_name: string
+          maintenance_notes: string | null
+          maintenance_required: boolean
+          room_id: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          condition?: Database["public"]["Enums"]["condition_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          inspection_id: string
+          item_name: string
+          maintenance_notes?: string | null
+          maintenance_required?: boolean
+          room_id: string
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          condition?: Database["public"]["Enums"]["condition_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          inspection_id?: string
+          item_name?: string
+          maintenance_notes?: string | null
+          maintenance_required?: boolean
+          room_id?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_photos: {
+        Row: {
+          ai_classification: Json | null
+          captured_at: string
+          created_at: string
+          id: string
+          inspection_id: string
+          inspection_item_id: string | null
+          photo_url: string
+          room_id: string
+          user_id: string
+          voice_transcript: string | null
+        }
+        Insert: {
+          ai_classification?: Json | null
+          captured_at?: string
+          created_at?: string
+          id?: string
+          inspection_id: string
+          inspection_item_id?: string | null
+          photo_url: string
+          room_id: string
+          user_id: string
+          voice_transcript?: string | null
+        }
+        Update: {
+          ai_classification?: Json | null
+          captured_at?: string
+          created_at?: string
+          id?: string
+          inspection_id?: string
+          inspection_item_id?: string | null
+          photo_url?: string
+          room_id?: string
+          user_id?: string
+          voice_transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_photos_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_photos_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_photos_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspections: {
         Row: {
           completed_at: string | null
@@ -152,6 +273,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      condition_type: "good" | "fair" | "poor" | "damaged"
       inspection_status: "in_progress" | "completed"
       inspection_type: "entry" | "routine" | "exit"
     }
@@ -281,6 +403,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      condition_type: ["good", "fair", "poor", "damaged"],
       inspection_status: ["in_progress", "completed"],
       inspection_type: ["entry", "routine", "exit"],
     },

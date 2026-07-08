@@ -1,31 +1,59 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Camera, Mic, ChevronLeft, ChevronRight } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ConditionBadge } from "@/components/ConditionBadge";
+import { parseTranscript, type Condition } from "@/lib/parse-transcript";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
   component: CapturePage,
 });
 
-interface Room {
-  id: string;
-  name: string;
-  sort_order: number;
+interface Room { id: string; name: string; sort_order: number }
+interface PhotoRow {
+  id: string; room_id: string; photo_url: string; captured_at: string;
+  voice_transcript: string | null;
+}
+interface ItemRow {
+  id: string; room_id: string; item_name: string;
+  condition: Condition; description: string | null;
+}
+
+const CONDITION_DOT: Record<Condition, string> = {
+  good: "bg-condition-good",
+  fair: "bg-condition-fair",
+  poor: "bg-condition-poor",
+  damaged: "bg-condition-damaged",
+};
+
+// signed url cache
+function useSignedUrl(path: string | undefined) {
+  const [url, setUrl] = useState<string | undefined>();
+  useEffect(() => {
+    let cancel = false;
+    if (!path) { setUrl(undefined); return; }
+    supabase.storage.from("inspection-photos").createSignedUrl(path, 3600).then(({ data }) => {
+      if (!cancel) setUrl(data?.signedUrl);
+    });
+    return () => { cancel = true; };
+  }, [path]);
+  return url;
 }
 
 function CapturePage() {
   const { id } = Route.useParams();
+  const qc = useQueryClient();
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("inspections")
-        .select("id, property_id")
-        .eq("id", id)
-        .single();
+        .from("inspections").select("id, property_id, user_id").eq("id", id).single();
       if (error) throw error;
       return data;
     },
@@ -35,8 +63,7 @@ function CapturePage() {
     queryKey: ["rooms", inspection?.property_id],
     enabled: !!inspection?.property_id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rooms")
+      const { data, error } = await supabase.from("rooms")
         .select("id,name,sort_order")
         .eq("property_id", inspection!.property_id)
         .order("sort_order", { ascending: true });
@@ -45,85 +72,188 @@ function CapturePage() {
     },
   });
 
+  const { data: photos } = useQuery({
+    queryKey: ["inspection-photos", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_photos")
+        .select("id,room_id,photo_url,captured_at,voice_transcript")
+        .eq("inspection_id", id)
+        .order("captured_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PhotoRow[];
+    },
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ["inspection-items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items")
+        .select("id,room_id,item_name,condition,description")
+        .eq("inspection_id", id)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as ItemRow[];
+    },
+  });
+
   const [index, setIndex] = useState(0);
-  const [photos, setPhotos] = useState<Record<string, string>>({});
   const [visited, setVisited] = useState<Set<string>>(new Set());
-  const [done, setDone] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
 
-  // Mark current room as visited whenever it changes
   useEffect(() => {
     if (!current) return;
-    setVisited((prev) => {
-      if (prev.has(current.id)) return prev;
-      const next = new Set(prev);
-      next.add(current.id);
-      return next;
-    });
+    setVisited((prev) => prev.has(current.id) ? prev : new Set(prev).add(current.id));
   }, [current?.id]);
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  const roomPhotos = useMemo(
+    () => (photos ?? []).filter((p) => p.room_id === current?.id),
+    [photos, current?.id],
+  );
+  const roomItems = useMemo(
+    () => (items ?? []).filter((i) => i.room_id === current?.id),
+    [items, current?.id],
+  );
+
+  const doneRoomIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items ?? []) set.add(it.room_id);
+    return set;
+  }, [items]);
+
+  const progressPct = total > 0 ? (visited.size / total) * 100 : 0;
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !current) return;
-    const url = URL.createObjectURL(file);
-    setPhotos((prev) => ({ ...prev, [current.id]: url }));
-    setDone((prev) => {
-      const next = new Set(prev);
-      next.add(current.id);
-      return next;
-    });
     e.target.value = "";
+    if (!file || !current || !inspection) return;
+    const path = `${inspection.user_id}/${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
+    const { error: upErr } = await supabase.storage
+      .from("inspection-photos").upload(path, file, { contentType: file.type });
+    if (upErr) { toast.error(upErr.message); return; }
+    const { error: insErr } = await supabase.from("inspection_photos").insert({
+      user_id: inspection.user_id,
+      inspection_id: id,
+      room_id: current.id,
+      photo_url: path,
+    });
+    if (insErr) { toast.error(insErr.message); return; }
+    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
   }
 
-  function goPrev() {
-    setIndex((i) => Math.max(0, i - 1));
-  }
-  function goNext() {
-    if (!rooms) return;
-    const nextIdx = Math.min(rooms.length - 1, index + 1);
-    setIndex(nextIdx);
-    const nextRoom = rooms[nextIdx];
-    if (nextRoom) {
-      setVisited((prev) => {
-        const next = new Set(prev);
-        next.add(nextRoom.id);
-        return next;
-      });
+  // ---- Voice recording ----
+  const [recording, setRecording] = useState(false);
+  const [transcript, setTranscript] = useState<string>("");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  async function startRecording() {
+    if (!current) return;
+    setTranscript("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      recorderRef.current = mr;
+      mr.start();
+
+      const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SR) {
+        const rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-NZ";
+        let finalText = "";
+        rec.onresult = (ev: any) => {
+          let interim = "";
+          for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            const r = ev.results[i];
+            if (r.isFinal) finalText += r[0].transcript + " ";
+            else interim += r[0].transcript;
+          }
+          setTranscript((finalText + interim).trim());
+        };
+        rec.onerror = () => {};
+        recognitionRef.current = rec;
+        rec.start();
+      } else {
+        toast.message("Voice transcription isn't supported in this browser.");
+      }
+      setRecording(true);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Microphone permission denied");
     }
   }
 
-  const progressPct = total > 0 ? (visited.size / total) * 100 : 0;
-  const photo = current ? photos[current.id] : undefined;
+  async function stopRecording() {
+    setRecording(false);
+    try { recognitionRef.current?.stop(); } catch {}
+    try { recorderRef.current?.stop(); } catch {}
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    // Allow final results
+    setTimeout(() => { void saveTranscript(); }, 400);
+  }
+
+  async function saveTranscript() {
+    if (!current || !inspection) return;
+    const text = transcript.trim();
+    if (!text) return;
+    // Attach transcript to most recent photo (if any)
+    const latestPhoto = [...roomPhotos].pop();
+    if (latestPhoto) {
+      await supabase.from("inspection_photos")
+        .update({ voice_transcript: text })
+        .eq("id", latestPhoto.id);
+    }
+    const parsed = parseTranscript(text);
+    if (parsed.length > 0) {
+      const rows = parsed.map((p, i) => ({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: current.id,
+        item_name: p.item_name,
+        condition: p.condition,
+        description: p.description,
+        sort_order: (roomItems.length + i) * 10,
+      }));
+      const { error } = await supabase.from("inspection_items").insert(rows);
+      if (error) { toast.error(error.message); return; }
+    }
+    qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+  }
+
+  function goPrev() { setIndex((i) => Math.max(0, i - 1)); setTranscript(""); }
+  function goNext() {
+    if (!rooms) return;
+    setIndex((i) => Math.min(rooms.length - 1, i + 1));
+    setTranscript("");
+  }
+
+  const countsByCondition = useMemo(() => {
+    const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
+    for (const it of roomItems) c[it.condition]++;
+    return c;
+  }, [roomItems]);
 
   return (
     <div className="min-h-screen bg-background pb-32">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
-          <Link
-            to="/"
-            className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal"
-          >
-            <ArrowLeft className="size-4" />
-            Exit
+          <Link to="/" className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal">
+            <ArrowLeft className="size-4" /> Exit
           </Link>
           {total > 0 && current ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
-                <h1 className="truncate text-xl font-bold tracking-tight text-foreground">
-                  {current.name}
-                </h1>
-                <span className="shrink-0 text-sm font-medium text-muted-foreground">
-                  {index + 1} of {total}
-                </span>
+                <h1 className="truncate text-xl font-bold tracking-tight text-foreground">{current.name}</h1>
+                <span className="shrink-0 text-sm font-medium text-muted-foreground">{index + 1} of {total}</span>
               </div>
               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-teal-light">
-                <div
-                  className="h-full bg-teal transition-all"
-                  style={{ width: `${progressPct}%` }}
-                />
+                <div className="h-full bg-teal transition-all" style={{ width: `${progressPct}%` }} />
               </div>
             </>
           ) : (
@@ -133,73 +263,185 @@ function CapturePage() {
       </header>
 
       <main className="mx-auto max-w-md px-5 py-6">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={onFile}
-          className="hidden"
-        />
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={!current}
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
-        >
-          <Camera className="size-5" />
-          Capture photo
-        </button>
-
-        {photo ? (
-          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
-            <img src={photo} alt="Captured" className="h-48 w-full object-cover" />
+        {roomPhotos.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={!current}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+          >
+            <Camera className="size-5" /> Capture photo
+          </button>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 text-sm font-semibold text-teal"
+            >
+              <Plus className="size-5" />
+              Add close-up
+            </button>
           </div>
-        ) : null}
+        )}
 
         <button
           type="button"
-          disabled
-          className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+          onClick={recording ? stopRecording : startRecording}
+          disabled={!current}
+          className={`mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl px-5 text-base font-semibold shadow-sm transition-colors disabled:opacity-60 ${
+            recording
+              ? "bg-red-600 text-white hover:bg-red-700"
+              : "bg-teal text-teal-foreground hover:bg-teal-dark"
+          }`}
         >
-          <Mic className="size-5" />
-          Describe this room
+          {recording ? <><Square className="size-5 fill-white" /> Stop recording</> : <><Mic className="size-5" /> Describe this room</>}
         </button>
+
+        {recording && <Waveform />}
+
+        {transcript && (
+          <blockquote className="mt-4 rounded-r-lg border-l-4 border-teal bg-teal/5 px-4 py-3 text-sm italic text-foreground">
+            "{transcript}"
+          </blockquote>
+        )}
 
         <section className="mt-8">
-          <h2 className="mb-2 text-sm font-semibold text-foreground">Detected items</h2>
-          <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-            AI-detected items will appear here after you capture a photo and voice note.
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              {roomItems.length} {roomItems.length === 1 ? "item" : "items"} detected
+            </h2>
+            {roomItems.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {(Object.entries(countsByCondition) as [Condition, number][]).map(([c, n]) =>
+                  n > 0 ? (
+                    <span key={c} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${CONDITION_DOT[c]}`}>
+                      {n} {c}
+                    </span>
+                  ) : null
+                )}
+              </div>
+            )}
           </div>
+
+          {roomItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              Detected items will appear here after you capture a photo and voice note.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {roomItems.map((it) => (
+                <ItemCard key={it.id} item={it} onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
+              ))}
+            </ul>
+          )}
         </section>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={goPrev}
-            disabled={index === 0}
-            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40"
-          >
-            <ChevronLeft className="size-4" />
-            Previous
+          <button type="button" onClick={goPrev} disabled={index === 0}
+            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40">
+            <ChevronLeft className="size-4" /> Previous
           </button>
           <span className="text-xs font-medium text-muted-foreground">
-            {done.size} of {total} done
+            {doneRoomIds.size} of {total} done
           </span>
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={!rooms || index >= (rooms.length - 1)}
-            className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40"
-          >
-            Next
-            <ChevronRight className="size-4" />
+          <button type="button" onClick={goNext} disabled={!rooms || index >= (rooms.length - 1)}
+            className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40">
+            Next <ChevronRight className="size-4" />
           </button>
         </div>
       </nav>
     </div>
+  );
+}
+
+function PhotoThumb({ path }: { path: string }) {
+  const url = useSignedUrl(path);
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
+      {url && <img src={url} alt="Captured" className="h-full w-full object-cover" />}
+      <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-condition-good text-white shadow ring-2 ring-white">
+        <Check className="size-3.5" strokeWidth={3} />
+      </span>
+    </div>
+  );
+}
+
+function Waveform() {
+  return (
+    <div className="mt-3 flex h-10 items-center justify-center gap-1">
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <span
+          key={i}
+          className="inline-block w-1.5 rounded-full bg-red-500"
+          style={{
+            animation: `wave 900ms ease-in-out ${i * 90}ms infinite`,
+            height: "40%",
+          }}
+        />
+      ))}
+      <style>{`@keyframes wave { 0%,100% { height: 20%; } 50% { height: 100%; } }`}</style>
+    </div>
+  );
+}
+
+function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(item.item_name);
+  const [condition, setCondition] = useState<Condition>(item.condition);
+  const [description, setDescription] = useState(item.description ?? "");
+
+  async function save() {
+    const { error } = await supabase.from("inspection_items")
+      .update({ item_name: name, condition, description })
+      .eq("id", item.id);
+    if (error) { toast.error(error.message); return; }
+    setEditing(false);
+    onEdited();
+  }
+
+  if (editing) {
+    return (
+      <li className="rounded-xl border border-border bg-card p-3 space-y-2">
+        <input value={name} onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm" />
+        <select value={condition} onChange={(e) => setCondition(e.target.value as Condition)}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm">
+          <option value="good">Good</option>
+          <option value="fair">Fair</option>
+          <option value="poor">Poor</option>
+          <option value="damaged">Damaged</option>
+        </select>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm" />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground">Cancel</button>
+          <button onClick={save} className="rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-teal-foreground">Save</button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+      <span className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${CONDITION_DOT[item.condition]}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+          <ConditionBadge condition={item.condition} />
+        </div>
+        {item.description && (
+          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+        )}
+      </div>
+      <button onClick={() => setEditing(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
+        <Pencil className="size-4" />
+      </button>
+    </li>
   );
 }
