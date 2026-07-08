@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      inspections: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          inspection_date: string
+          inspection_type: Database["public"]["Enums"]["inspection_type"]
+          inspector_name: string
+          notes: string | null
+          property_id: string
+          status: Database["public"]["Enums"]["inspection_status"]
+          tenant_names: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspection_date?: string
+          inspection_type: Database["public"]["Enums"]["inspection_type"]
+          inspector_name: string
+          notes?: string | null
+          property_id: string
+          status?: Database["public"]["Enums"]["inspection_status"]
+          tenant_names?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspection_date?: string
+          inspection_type?: Database["public"]["Enums"]["inspection_type"]
+          inspector_name?: string
+          notes?: string | null
+          property_id?: string
+          status?: Database["public"]["Enums"]["inspection_status"]
+          tenant_names?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       properties: {
         Row: {
           address: string
@@ -99,7 +152,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      inspection_status: "in_progress" | "completed"
+      inspection_type: "entry" | "routine" | "exit"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -226,6 +280,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      inspection_status: ["in_progress", "completed"],
+      inspection_type: ["entry", "routine", "exit"],
+    },
   },
 } as const
