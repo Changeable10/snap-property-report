@@ -135,6 +135,53 @@ export type Database = {
           },
         ]
       }
+      inspection_signatures: {
+        Row: {
+          created_at: string
+          id: string
+          inspection_id: string
+          ip_address: string | null
+          signature_data: string
+          signed_at: string
+          signer_name: string
+          signer_role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inspection_id: string
+          ip_address?: string | null
+          signature_data: string
+          signed_at?: string
+          signer_name: string
+          signer_role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inspection_id?: string
+          ip_address?: string | null
+          signature_data?: string
+          signed_at?: string
+          signer_name?: string
+          signer_role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_signatures_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspections: {
         Row: {
           completed_at: string | null
@@ -274,7 +321,7 @@ export type Database = {
     }
     Enums: {
       condition_type: "good" | "fair" | "poor" | "damaged"
-      inspection_status: "in_progress" | "completed"
+      inspection_status: "in_progress" | "completed" | "signed"
       inspection_type: "entry" | "routine" | "exit"
     }
     CompositeTypes: {
@@ -404,7 +451,7 @@ export const Constants = {
   public: {
     Enums: {
       condition_type: ["good", "fair", "poor", "damaged"],
-      inspection_status: ["in_progress", "completed"],
+      inspection_status: ["in_progress", "completed", "signed"],
       inspection_type: ["entry", "routine", "exit"],
     },
   },
