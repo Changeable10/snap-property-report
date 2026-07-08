@@ -145,13 +145,14 @@ function PropertyDetail() {
       </header>
 
       <main className="mx-auto max-w-md px-5 py-6">
-        <button
-          type="button"
+        <Link
+          to="/inspection/setup/$propertyId"
+          params={{ propertyId: id }}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark"
         >
           <ClipboardList className="size-5" />
           New inspection
-        </button>
+        </Link>
 
         <section className="mt-8">
           <h2 className="mb-3 text-lg font-semibold text-foreground">Rooms</h2>
