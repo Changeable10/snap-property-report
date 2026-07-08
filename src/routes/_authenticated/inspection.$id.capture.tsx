@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -48,6 +48,7 @@ function useSignedUrl(path: string | undefined) {
 function CapturePage() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -229,6 +230,10 @@ function CapturePage() {
   function goPrev() { setIndex((i) => Math.max(0, i - 1)); setTranscript(""); }
   function goNext() {
     if (!rooms) return;
+    if (index >= rooms.length - 1) {
+      navigate({ to: "/inspection/$id/review", params: { id } });
+      return;
+    }
     setIndex((i) => Math.min(rooms.length - 1, i + 1));
     setTranscript("");
   }
@@ -350,9 +355,9 @@ function CapturePage() {
           <span className="text-xs font-medium text-muted-foreground">
             {doneRoomIds.size} of {total} done
           </span>
-          <button type="button" onClick={goNext} disabled={!rooms || index >= (rooms.length - 1)}
+          <button type="button" onClick={goNext} disabled={!rooms}
             className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40">
-            Next <ChevronRight className="size-4" />
+            {rooms && index >= rooms.length - 1 ? "Finish" : "Next"} <ChevronRight className="size-4" />
           </button>
         </div>
       </nav>
