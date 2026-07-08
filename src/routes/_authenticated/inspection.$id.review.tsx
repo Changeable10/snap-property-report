@@ -1,13 +1,309 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PageShell } from "@/components/PageShell";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ChevronDown, Pencil, Wrench } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { ConditionBadge } from "@/components/ConditionBadge";
+import type { Condition } from "@/lib/parse-transcript";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/review")({
   head: () => ({ meta: [{ title: "Review — Snapsure" }] }),
-  component: () => (
-    <PageShell
-      title="Review inspection"
-      subtitle="Check AI-structured notes before generating the report."
-      showBack
-    />
-  ),
+  component: ReviewPage,
 });
+
+interface Room { id: string; name: string; sort_order: number }
+interface ItemRow {
+  id: string; room_id: string; item_name: string;
+  condition: Condition; description: string | null;
+  maintenance_required: boolean; maintenance_notes: string | null;
+}
+
+const CONDITIONS: Condition[] = ["good", "fair", "poor", "damaged"];
+const COND_LABEL: Record<Condition, string> = {
+  good: "Good", fair: "Fair", poor: "Poor", damaged: "Damaged",
+};
+const COND_BG: Record<Condition, string> = {
+  good: "bg-condition-good",
+  fair: "bg-condition-fair",
+  poor: "bg-condition-poor",
+  damaged: "bg-condition-damaged",
+};
+
+function ReviewPage() {
+  const { id } = Route.useParams();
+  const qc = useQueryClient();
+
+  const { data: inspection } = useQuery({
+    queryKey: ["inspection", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inspections")
+        .select("id, property_id, status, completed_at")
+        .eq("id", id).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: rooms } = useQuery({
+    queryKey: ["rooms", inspection?.property_id],
+    enabled: !!inspection?.property_id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("rooms")
+        .select("id,name,sort_order")
+        .eq("property_id", inspection!.property_id)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Room[];
+    },
+  });
+
+  const { data: items } = useQuery({
+    queryKey: ["inspection-items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items")
+        .select("id,room_id,item_name,condition,description,maintenance_required,maintenance_notes")
+        .eq("inspection_id", id)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as ItemRow[];
+    },
+  });
+
+  // Mark inspection completed once when review is opened
+  useEffect(() => {
+    if (!inspection) return;
+    if (inspection.status === "completed") return;
+    (async () => {
+      const { error } = await supabase.from("inspections")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", id);
+      if (!error) qc.invalidateQueries({ queryKey: ["inspection", id] });
+    })();
+  }, [inspection?.status, id]);
+
+  const counts = useMemo(() => {
+    const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
+    for (const it of items ?? []) c[it.condition]++;
+    return c;
+  }, [items]);
+
+  const totalItems = (items ?? []).length;
+  const roomsWithItems = useMemo(() => {
+    const s = new Set<string>();
+    for (const it of items ?? []) s.add(it.room_id);
+    return s;
+  }, [items]);
+
+  const maintenanceItems = useMemo(
+    () => (items ?? []).filter((i) => i.maintenance_required),
+    [items],
+  );
+
+  const roomsById = useMemo(() => {
+    const m = new Map<string, Room>();
+    for (const r of rooms ?? []) m.set(r.id, r);
+    return m;
+  }, [rooms]);
+
+  const itemsByRoom = useMemo(() => {
+    const m = new Map<string, ItemRow[]>();
+    for (const it of items ?? []) {
+      const arr = m.get(it.room_id) ?? [];
+      arr.push(it);
+      m.set(it.room_id, arr);
+    }
+    return m;
+  }, [items]);
+
+  const [openRoom, setOpenRoom] = useState<string | null>(null);
+
+  return (
+    <div className="min-h-screen bg-background pb-32">
+      <header className="border-b border-border px-5 pt-6 pb-4">
+        <div className="mx-auto max-w-md">
+          <Link to="/inspection/$id/capture" params={{ id }}
+            className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal">
+            <ArrowLeft className="size-4" /> Back
+          </Link>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Review inspection</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Check the AI-structured notes before generating the report.</p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-md px-5 py-6 space-y-6">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Items inspected" value={totalItems} />
+          <StatCard label="Rooms completed" value={`${roomsWithItems.size} / ${rooms?.length ?? 0}`} />
+        </div>
+
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+            {CONDITIONS.map((c) => {
+              const pct = totalItems > 0 ? (counts[c] / totalItems) * 100 : 0;
+              if (pct === 0) return null;
+              return <span key={c} className={COND_BG[c]} style={{ width: `${pct}%` }} />;
+            })}
+          </div>
+          <ul className="mt-4 space-y-2">
+            {CONDITIONS.map((c) => (
+              <li key={c} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className={`inline-block size-2.5 rounded-full ${COND_BG[c]}`} />
+                  <span className="font-medium text-foreground">{COND_LABEL[c]}</span>
+                </span>
+                <span className="text-muted-foreground tabular-nums">{counts[c]}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {maintenanceItems.length > 0 && (
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Wrench className="size-4 text-condition-poor" /> Maintenance required
+            </h2>
+            <ul className="space-y-2">
+              {maintenanceItems.map((it) => (
+                <li key={it.id} className="rounded-xl border border-border bg-card p-3 border-l-4 border-l-condition-poor">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-muted-foreground">{roomsById.get(it.room_id)?.name ?? "Room"}</p>
+                      <p className="mt-0.5 text-sm font-semibold text-foreground">{it.item_name}</p>
+                      {it.maintenance_notes && (
+                        <p className="mt-1 text-xs text-muted-foreground">{it.maintenance_notes}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-condition-poor/15 px-2 py-0.5 text-[11px] font-semibold text-condition-poor ring-1 ring-inset ring-condition-poor/30">
+                      Priority
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Rooms</h2>
+          <ul className="space-y-2">
+            {(rooms ?? []).map((r) => {
+              const roomItems = itemsByRoom.get(r.id) ?? [];
+              const rc: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
+              for (const it of roomItems) rc[it.condition]++;
+              const open = openRoom === r.id;
+              return (
+                <li key={r.id} className="overflow-hidden rounded-xl border border-border bg-card">
+                  <button
+                    type="button"
+                    onClick={() => setOpenRoom(open ? null : r.id)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{r.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {roomItems.length} {roomItems.length === 1 ? "item" : "items"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {CONDITIONS.map((c) => rc[c] > 0 ? (
+                        <span key={c} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${COND_BG[c]}`}>
+                          {rc[c]}
+                        </span>
+                      ) : null)}
+                    </div>
+                    <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+                  </button>
+                  {open && (
+                    <ul className="border-t border-border divide-y divide-border">
+                      {roomItems.length === 0 ? (
+                        <li className="px-4 py-3 text-xs text-muted-foreground">No items captured for this room.</li>
+                      ) : roomItems.map((it) => (
+                        <ReviewItemRow key={it.id} item={it}
+                          onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-md items-center gap-3">
+          <Link to="/inspection/$id/capture" params={{ id }}
+            className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-semibold text-foreground">
+            Edit
+          </Link>
+          <Link to="/inspection/$id/report" params={{ id }}
+            className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-teal text-sm font-semibold text-teal-foreground hover:bg-teal-dark">
+            Generate report
+          </Link>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function ReviewItemRow({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [condition, setCondition] = useState<Condition>(item.condition);
+  const [description, setDescription] = useState(item.description ?? "");
+
+  async function save() {
+    const { error } = await supabase.from("inspection_items")
+      .update({ condition, description })
+      .eq("id", item.id);
+    if (error) { toast.error(error.message); return; }
+    setEditing(false);
+    onEdited();
+  }
+
+  if (editing) {
+    return (
+      <li className="space-y-2 px-4 py-3">
+        <p className="text-sm font-semibold text-foreground">{item.item_name}</p>
+        <select value={condition} onChange={(e) => setCondition(e.target.value as Condition)}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm">
+          {CONDITIONS.map((c) => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
+        </select>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm" />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground">Cancel</button>
+          <button onClick={save} className="rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-teal-foreground">Save</button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-start gap-3 px-4 py-3">
+      <span className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${COND_BG[item.condition]}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+          <ConditionBadge condition={item.condition} />
+        </div>
+        {item.description && (
+          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+        )}
+      </div>
+      <button onClick={() => setEditing(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
+        <Pencil className="size-4" />
+      </button>
+    </li>
+  );
+}
