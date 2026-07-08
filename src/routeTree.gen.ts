@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
@@ -20,68 +21,72 @@ import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_a
 import { Route as AuthenticatedInspectionIdReportRouteImport } from './routes/_authenticated/inspection.$id.report'
 import { Route as AuthenticatedInspectionIdCaptureRouteImport } from './routes/_authenticated/inspection.$id.capture'
 
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
-  id: '/_authenticated/',
-  path: '/',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/_authenticated/settings',
+  id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInspectionsRoute =
   AuthenticatedInspectionsRouteImport.update({
-    id: '/_authenticated/inspections',
+    id: '/inspections',
     path: '/inspections',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPropertyNewRoute =
   AuthenticatedPropertyNewRouteImport.update({
-    id: '/_authenticated/property/new',
+    id: '/property/new',
     path: '/property/new',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
-  id: '/_authenticated/property/$id',
+  id: '/property/$id',
   path: '/property/$id',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInspectionSetupPropertyIdRoute =
   AuthenticatedInspectionSetupPropertyIdRouteImport.update({
-    id: '/_authenticated/inspection/setup/$propertyId',
+    id: '/inspection/setup/$propertyId',
     path: '/inspection/setup/$propertyId',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedInspectionIdSignRoute =
   AuthenticatedInspectionIdSignRouteImport.update({
-    id: '/_authenticated/inspection/$id/sign',
+    id: '/inspection/$id/sign',
     path: '/inspection/$id/sign',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedInspectionIdReviewRoute =
   AuthenticatedInspectionIdReviewRouteImport.update({
-    id: '/_authenticated/inspection/$id/review',
+    id: '/inspection/$id/review',
     path: '/inspection/$id/review',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedInspectionIdReportRoute =
   AuthenticatedInspectionIdReportRouteImport.update({
-    id: '/_authenticated/inspection/$id/report',
+    id: '/inspection/$id/report',
     path: '/inspection/$id/report',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedInspectionIdCaptureRoute =
   AuthenticatedInspectionIdCaptureRouteImport.update({
-    id: '/_authenticated/inspection/$id/capture',
+    id: '/inspection/$id/capture',
     path: '/inspection/$id/capture',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof AuthenticatedIndexRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/': typeof AuthenticatedIndexRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
@@ -104,6 +109,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/_authenticated/inspections': typeof AuthenticatedInspectionsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -118,9 +124,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/inspections'
     | '/settings'
-    | '/'
     | '/property/$id'
     | '/property/new'
     | '/inspection/$id/capture'
@@ -142,6 +148,7 @@ export interface FileRouteTypes {
     | '/inspection/setup/$propertyId'
   id:
     | '__root__'
+    | '/_authenticated'
     | '/_authenticated/inspections'
     | '/_authenticated/settings'
     | '/_authenticated/'
@@ -155,6 +162,92 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspections': {
+      id: '/_authenticated/inspections'
+      path: '/inspections'
+      fullPath: '/inspections'
+      preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/property/new': {
+      id: '/_authenticated/property/new'
+      path: '/property/new'
+      fullPath: '/property/new'
+      preLoaderRoute: typeof AuthenticatedPropertyNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/property/$id': {
+      id: '/_authenticated/property/$id'
+      path: '/property/$id'
+      fullPath: '/property/$id'
+      preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/setup/$propertyId': {
+      id: '/_authenticated/inspection/setup/$propertyId'
+      path: '/inspection/setup/$propertyId'
+      fullPath: '/inspection/setup/$propertyId'
+      preLoaderRoute: typeof AuthenticatedInspectionSetupPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/sign': {
+      id: '/_authenticated/inspection/$id/sign'
+      path: '/inspection/$id/sign'
+      fullPath: '/inspection/$id/sign'
+      preLoaderRoute: typeof AuthenticatedInspectionIdSignRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/review': {
+      id: '/_authenticated/inspection/$id/review'
+      path: '/inspection/$id/review'
+      fullPath: '/inspection/$id/review'
+      preLoaderRoute: typeof AuthenticatedInspectionIdReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/report': {
+      id: '/_authenticated/inspection/$id/report'
+      path: '/inspection/$id/report'
+      fullPath: '/inspection/$id/report'
+      preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/capture': {
+      id: '/_authenticated/inspection/$id/capture'
+      path: '/inspection/$id/capture'
+      fullPath: '/inspection/$id/capture'
+      preLoaderRoute: typeof AuthenticatedInspectionIdCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+  }
+}
+
+interface AuthenticatedRouteRouteChildren {
   AuthenticatedInspectionsRoute: typeof AuthenticatedInspectionsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -167,82 +260,7 @@ export interface RootRouteChildren {
   AuthenticatedInspectionSetupPropertyIdRoute: typeof AuthenticatedInspectionSetupPropertyIdRoute
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/_authenticated/': {
-      id: '/_authenticated/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspections': {
-      id: '/_authenticated/inspections'
-      path: '/inspections'
-      fullPath: '/inspections'
-      preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/property/new': {
-      id: '/_authenticated/property/new'
-      path: '/property/new'
-      fullPath: '/property/new'
-      preLoaderRoute: typeof AuthenticatedPropertyNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/property/$id': {
-      id: '/_authenticated/property/$id'
-      path: '/property/$id'
-      fullPath: '/property/$id'
-      preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspection/setup/$propertyId': {
-      id: '/_authenticated/inspection/setup/$propertyId'
-      path: '/inspection/setup/$propertyId'
-      fullPath: '/inspection/setup/$propertyId'
-      preLoaderRoute: typeof AuthenticatedInspectionSetupPropertyIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspection/$id/sign': {
-      id: '/_authenticated/inspection/$id/sign'
-      path: '/inspection/$id/sign'
-      fullPath: '/inspection/$id/sign'
-      preLoaderRoute: typeof AuthenticatedInspectionIdSignRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspection/$id/review': {
-      id: '/_authenticated/inspection/$id/review'
-      path: '/inspection/$id/review'
-      fullPath: '/inspection/$id/review'
-      preLoaderRoute: typeof AuthenticatedInspectionIdReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspection/$id/report': {
-      id: '/_authenticated/inspection/$id/report'
-      path: '/inspection/$id/report'
-      fullPath: '/inspection/$id/report'
-      preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/inspection/$id/capture': {
-      id: '/_authenticated/inspection/$id/capture'
-      path: '/inspection/$id/capture'
-      fullPath: '/inspection/$id/capture'
-      preLoaderRoute: typeof AuthenticatedInspectionIdCaptureRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-  }
-}
-
-const rootRouteChildren: RootRouteChildren = {
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInspectionsRoute: AuthenticatedInspectionsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
@@ -254,6 +272,13 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedInspectionIdSignRoute: AuthenticatedInspectionIdSignRoute,
   AuthenticatedInspectionSetupPropertyIdRoute:
     AuthenticatedInspectionSetupPropertyIdRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+const rootRouteChildren: RootRouteChildren = {
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
