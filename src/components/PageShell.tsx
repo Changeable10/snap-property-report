@@ -6,7 +6,7 @@ import { BottomNav } from "./BottomNav";
 interface PageShellProps {
   title: string;
   subtitle?: string;
-  backTo?: string;
+  showBack?: boolean;
   children?: ReactNode;
   showNav?: boolean;
 }
@@ -14,7 +14,7 @@ interface PageShellProps {
 export function PageShell({
   title,
   subtitle,
-  backTo,
+  showBack,
   children,
   showNav = true,
 }: PageShellProps) {
@@ -22,9 +22,9 @@ export function PageShell({
     <div className="min-h-screen bg-background pb-24">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
-          {backTo ? (
+          {showBack ? (
             <Link
-              to={backTo}
+              to="/"
               className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal"
             >
               <ArrowLeft className="size-4" />
