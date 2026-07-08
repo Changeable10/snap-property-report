@@ -27,6 +27,32 @@ interface Room {
   sort_order: number;
 }
 
+type InspectionStatus = "in_progress" | "completed" | "signed";
+interface InspectionRow {
+  id: string;
+  inspection_type: "entry" | "routine" | "exit";
+  inspection_date: string;
+  status: InspectionStatus;
+}
+
+const STATUS_LABEL: Record<InspectionStatus, string> = {
+  in_progress: "In progress",
+  completed: "Completed",
+  signed: "Signed",
+};
+const STATUS_STYLE: Record<InspectionStatus, string> = {
+  in_progress: "bg-condition-fair/15 text-condition-fair ring-condition-fair/40",
+  completed: "bg-teal-light text-teal-dark ring-teal/30",
+  signed: "bg-condition-good/15 text-condition-good ring-condition-good/40",
+};
+const TYPE_LABEL: Record<InspectionRow["inspection_type"], string> = {
+  entry: "Entry", routine: "Routine", exit: "Exit",
+};
+function formatDMY(d: string) {
+  const [y, m, day] = d.split("T")[0].split("-");
+  return `${day}/${m}/${y}`;
+}
+
 function PropertyDetail() {
   const { id } = Route.useParams();
   const { user } = Route.useRouteContext();
@@ -55,6 +81,19 @@ function PropertyDetail() {
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Room[];
+    },
+  });
+
+  const { data: inspections } = useQuery({
+    queryKey: ["inspections", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inspections")
+        .select("id,inspection_type,inspection_date,status")
+        .eq("property_id", id)
+        .order("inspection_date", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as InspectionRow[];
     },
   });
 
@@ -239,9 +278,39 @@ function PropertyDetail() {
 
         <section className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-foreground">Inspection history</h2>
-          <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-            No inspections yet.
-          </div>
+          {!inspections || inspections.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              No inspections yet.
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {inspections.map((ins) => {
+                const clickable = ins.status === "completed" || ins.status === "signed";
+                const content = (
+                  <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {TYPE_LABEL[ins.inspection_type]} inspection
+                      </p>
+                      <p className="text-xs text-muted-foreground">{formatDMY(ins.inspection_date)}</p>
+                    </div>
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
+                      {STATUS_LABEL[ins.status]}
+                    </span>
+                  </div>
+                );
+                return (
+                  <li key={ins.id}>
+                    {clickable ? (
+                      <Link to="/inspection/$id/review" params={{ id: ins.id }} className="block">
+                        {content}
+                      </Link>
+                    ) : content}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       </main>
     </div>
