@@ -16,7 +16,7 @@ function PropertyDetail() {
       subtitle={
         property ? `${property.suburb} ${property.postcode}` : "Property details"
       }
-      backTo="/"
+      showBack
     />
   );
 }

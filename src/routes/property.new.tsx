@@ -7,7 +7,7 @@ export const Route = createFileRoute("/property/new")({
     <PageShell
       title="Add property"
       subtitle="Enter address and details for the rental."
-      backTo="/"
+      showBack
     />
   ),
 });

@@ -7,7 +7,7 @@ export const Route = createFileRoute("/inspection/$id/report")({
     <PageShell
       title="Report preview"
       subtitle="Compliant NZ tenancy inspection report."
-      backTo="/"
+      showBack
     />
   ),
 });

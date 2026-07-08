@@ -7,7 +7,7 @@ export const Route = createFileRoute("/inspection/setup/$propertyId")({
     <PageShell
       title="Inspection setup"
       subtitle="Choose inspection type and rooms to capture."
-      backTo="/"
+      showBack
     />
   ),
 });

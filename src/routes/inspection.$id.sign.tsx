@@ -7,7 +7,7 @@ export const Route = createFileRoute("/inspection/$id/sign")({
     <PageShell
       title="Signature"
       subtitle="Collect signatures to finalise the inspection."
-      backTo="/"
+      showBack
       showNav={false}
     />
   ),

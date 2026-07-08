@@ -7,7 +7,7 @@ export const Route = createFileRoute("/inspection/$id/review")({
     <PageShell
       title="Review inspection"
       subtitle="Check AI-structured notes before generating the report."
-      backTo="/"
+      showBack
     />
   ),
 });

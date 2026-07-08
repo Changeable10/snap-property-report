@@ -7,7 +7,7 @@ export const Route = createFileRoute("/inspection/$id/capture")({
     <PageShell
       title="Room capture"
       subtitle="Photograph and voice-record each room."
-      backTo="/"
+      showBack
       showNav={false}
     />
   ),
