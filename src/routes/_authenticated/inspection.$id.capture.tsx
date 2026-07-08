@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, Mic, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -54,16 +54,15 @@ function CapturePage() {
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
 
-  // Mark first room visited once loaded
-  useMemo(() => {
-    if (current && !visited.has(current.id)) {
-      setVisited((prev) => {
-        const next = new Set(prev);
-        next.add(current.id);
-        return next;
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Mark current room as visited whenever it changes
+  useEffect(() => {
+    if (!current) return;
+    setVisited((prev) => {
+      if (prev.has(current.id)) return prev;
+      const next = new Set(prev);
+      next.add(current.id);
+      return next;
+    });
   }, [current?.id]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
