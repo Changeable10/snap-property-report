@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      comparison_results: {
+        Row: {
+          change_type: Database["public"]["Enums"]["comparison_change_type"]
+          created_at: string
+          current_condition:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          description: string | null
+          id: string
+          inspection_id: string
+          item_name: string
+          previous_condition:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          room_id: string
+          severity: Database["public"]["Enums"]["comparison_severity"]
+          status: Database["public"]["Enums"]["comparison_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          change_type: Database["public"]["Enums"]["comparison_change_type"]
+          created_at?: string
+          current_condition?:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          description?: string | null
+          id?: string
+          inspection_id: string
+          item_name: string
+          previous_condition?:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          room_id: string
+          severity?: Database["public"]["Enums"]["comparison_severity"]
+          status?: Database["public"]["Enums"]["comparison_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          change_type?: Database["public"]["Enums"]["comparison_change_type"]
+          created_at?: string
+          current_condition?:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          description?: string | null
+          id?: string
+          inspection_id?: string
+          item_name?: string
+          previous_condition?:
+            | Database["public"]["Enums"]["condition_type"]
+            | null
+          room_id?: string
+          severity?: Database["public"]["Enums"]["comparison_severity"]
+          status?: Database["public"]["Enums"]["comparison_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comparison_results_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparison_results_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspection_items: {
         Row: {
           condition: Database["public"]["Enums"]["condition_type"]
@@ -320,6 +395,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      comparison_change_type:
+        | "new"
+        | "removed"
+        | "deterioration"
+        | "improvement"
+        | "new_damage"
+        | "repair"
+      comparison_severity: "minor" | "moderate" | "significant"
+      comparison_status: "pending" | "confirmed" | "dismissed"
       condition_type: "good" | "fair" | "poor" | "damaged"
       inspection_status: "in_progress" | "completed" | "signed"
       inspection_type: "entry" | "routine" | "exit"
@@ -450,6 +534,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      comparison_change_type: [
+        "new",
+        "removed",
+        "deterioration",
+        "improvement",
+        "new_damage",
+        "repair",
+      ],
+      comparison_severity: ["minor", "moderate", "significant"],
+      comparison_status: ["pending", "confirmed", "dismissed"],
       condition_type: ["good", "fair", "poor", "damaged"],
       inspection_status: ["in_progress", "completed", "signed"],
       inspection_type: ["entry", "routine", "exit"],
