@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageShell } from "@/components/PageShell";
 
-export const Route = createFileRoute("/inspection/$id/review")({
+export const Route = createFileRoute("/_authenticated/inspection/$id/review")({
   head: () => ({ meta: [{ title: "Review — Snapsure" }] }),
   component: () => (
     <PageShell
