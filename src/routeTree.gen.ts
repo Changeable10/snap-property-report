@@ -9,38 +9,174 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as InspectionsRouteImport } from './routes/inspections'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PropertyNewRouteImport } from './routes/property.new'
+import { Route as PropertyIdRouteImport } from './routes/property.$id'
+import { Route as InspectionSetupPropertyIdRouteImport } from './routes/inspection.setup.$propertyId'
+import { Route as InspectionIdSignRouteImport } from './routes/inspection.$id.sign'
+import { Route as InspectionIdReviewRouteImport } from './routes/inspection.$id.review'
+import { Route as InspectionIdReportRouteImport } from './routes/inspection.$id.report'
+import { Route as InspectionIdCaptureRouteImport } from './routes/inspection.$id.capture'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspectionsRoute = InspectionsRouteImport.update({
+  id: '/inspections',
+  path: '/inspections',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PropertyNewRoute = PropertyNewRouteImport.update({
+  id: '/property/new',
+  path: '/property/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PropertyIdRoute = PropertyIdRouteImport.update({
+  id: '/property/$id',
+  path: '/property/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspectionSetupPropertyIdRoute =
+  InspectionSetupPropertyIdRouteImport.update({
+    id: '/inspection/setup/$propertyId',
+    path: '/inspection/setup/$propertyId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const InspectionIdSignRoute = InspectionIdSignRouteImport.update({
+  id: '/inspection/$id/sign',
+  path: '/inspection/$id/sign',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspectionIdReviewRoute = InspectionIdReviewRouteImport.update({
+  id: '/inspection/$id/review',
+  path: '/inspection/$id/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspectionIdReportRoute = InspectionIdReportRouteImport.update({
+  id: '/inspection/$id/report',
+  path: '/inspection/$id/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspectionIdCaptureRoute = InspectionIdCaptureRouteImport.update({
+  id: '/inspection/$id/capture',
+  path: '/inspection/$id/capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/inspections': typeof InspectionsRoute
+  '/settings': typeof SettingsRoute
+  '/property/$id': typeof PropertyIdRoute
+  '/property/new': typeof PropertyNewRoute
+  '/inspection/$id/capture': typeof InspectionIdCaptureRoute
+  '/inspection/$id/report': typeof InspectionIdReportRoute
+  '/inspection/$id/review': typeof InspectionIdReviewRoute
+  '/inspection/$id/sign': typeof InspectionIdSignRoute
+  '/inspection/setup/$propertyId': typeof InspectionSetupPropertyIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/inspections': typeof InspectionsRoute
+  '/settings': typeof SettingsRoute
+  '/property/$id': typeof PropertyIdRoute
+  '/property/new': typeof PropertyNewRoute
+  '/inspection/$id/capture': typeof InspectionIdCaptureRoute
+  '/inspection/$id/report': typeof InspectionIdReportRoute
+  '/inspection/$id/review': typeof InspectionIdReviewRoute
+  '/inspection/$id/sign': typeof InspectionIdSignRoute
+  '/inspection/setup/$propertyId': typeof InspectionSetupPropertyIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/inspections': typeof InspectionsRoute
+  '/settings': typeof SettingsRoute
+  '/property/$id': typeof PropertyIdRoute
+  '/property/new': typeof PropertyNewRoute
+  '/inspection/$id/capture': typeof InspectionIdCaptureRoute
+  '/inspection/$id/report': typeof InspectionIdReportRoute
+  '/inspection/$id/review': typeof InspectionIdReviewRoute
+  '/inspection/$id/sign': typeof InspectionIdSignRoute
+  '/inspection/setup/$propertyId': typeof InspectionSetupPropertyIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/inspections'
+    | '/settings'
+    | '/property/$id'
+    | '/property/new'
+    | '/inspection/$id/capture'
+    | '/inspection/$id/report'
+    | '/inspection/$id/review'
+    | '/inspection/$id/sign'
+    | '/inspection/setup/$propertyId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/inspections'
+    | '/settings'
+    | '/property/$id'
+    | '/property/new'
+    | '/inspection/$id/capture'
+    | '/inspection/$id/report'
+    | '/inspection/$id/review'
+    | '/inspection/$id/sign'
+    | '/inspection/setup/$propertyId'
+  id:
+    | '__root__'
+    | '/'
+    | '/inspections'
+    | '/settings'
+    | '/property/$id'
+    | '/property/new'
+    | '/inspection/$id/capture'
+    | '/inspection/$id/report'
+    | '/inspection/$id/review'
+    | '/inspection/$id/sign'
+    | '/inspection/setup/$propertyId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InspectionsRoute: typeof InspectionsRoute
+  SettingsRoute: typeof SettingsRoute
+  PropertyIdRoute: typeof PropertyIdRoute
+  PropertyNewRoute: typeof PropertyNewRoute
+  InspectionIdCaptureRoute: typeof InspectionIdCaptureRoute
+  InspectionIdReportRoute: typeof InspectionIdReportRoute
+  InspectionIdReviewRoute: typeof InspectionIdReviewRoute
+  InspectionIdSignRoute: typeof InspectionIdSignRoute
+  InspectionSetupPropertyIdRoute: typeof InspectionSetupPropertyIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspections': {
+      id: '/inspections'
+      path: '/inspections'
+      fullPath: '/inspections'
+      preLoaderRoute: typeof InspectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +184,70 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/property/new': {
+      id: '/property/new'
+      path: '/property/new'
+      fullPath: '/property/new'
+      preLoaderRoute: typeof PropertyNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/property/$id': {
+      id: '/property/$id'
+      path: '/property/$id'
+      fullPath: '/property/$id'
+      preLoaderRoute: typeof PropertyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspection/setup/$propertyId': {
+      id: '/inspection/setup/$propertyId'
+      path: '/inspection/setup/$propertyId'
+      fullPath: '/inspection/setup/$propertyId'
+      preLoaderRoute: typeof InspectionSetupPropertyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspection/$id/sign': {
+      id: '/inspection/$id/sign'
+      path: '/inspection/$id/sign'
+      fullPath: '/inspection/$id/sign'
+      preLoaderRoute: typeof InspectionIdSignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspection/$id/review': {
+      id: '/inspection/$id/review'
+      path: '/inspection/$id/review'
+      fullPath: '/inspection/$id/review'
+      preLoaderRoute: typeof InspectionIdReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspection/$id/report': {
+      id: '/inspection/$id/report'
+      path: '/inspection/$id/report'
+      fullPath: '/inspection/$id/report'
+      preLoaderRoute: typeof InspectionIdReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspection/$id/capture': {
+      id: '/inspection/$id/capture'
+      path: '/inspection/$id/capture'
+      fullPath: '/inspection/$id/capture'
+      preLoaderRoute: typeof InspectionIdCaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InspectionsRoute: InspectionsRoute,
+  SettingsRoute: SettingsRoute,
+  PropertyIdRoute: PropertyIdRoute,
+  PropertyNewRoute: PropertyNewRoute,
+  InspectionIdCaptureRoute: InspectionIdCaptureRoute,
+  InspectionIdReportRoute: InspectionIdReportRoute,
+  InspectionIdReviewRoute: InspectionIdReviewRoute,
+  InspectionIdSignRoute: InspectionIdSignRoute,
+  InspectionSetupPropertyIdRoute: InspectionSetupPropertyIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
