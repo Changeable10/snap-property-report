@@ -404,13 +404,7 @@ function CapturePage() {
   function goNext() {
     if (!rooms) return;
     if (index >= rooms.length - 1) {
-      const hasPrev = !!previousInspection?.id;
-      const type = inspection?.inspection_type;
-      if (hasPrev && (type === "routine" || type === "exit")) {
-        navigate({ to: "/inspection/$id/compare", params: { id } });
-      } else {
-        navigate({ to: "/inspection/$id/review", params: { id } });
-      }
+      navigate({ to: "/inspection/$id/review", params: { id } });
       return;
     }
     setIndex((i) => Math.min(rooms.length - 1, i + 1));
