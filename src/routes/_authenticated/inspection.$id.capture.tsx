@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
@@ -22,6 +22,7 @@ interface PhotoRow {
 interface ItemRow {
   id: string; room_id: string; item_name: string;
   condition: Condition; description: string | null;
+  sources: string[] | null; confidence: number | null;
 }
 
 const CONDITION_DOT: Record<Condition, string> = {
@@ -107,7 +108,7 @@ function CapturePage() {
     queryKey: ["inspection-items", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_items")
-        .select("id,room_id,item_name,condition,description")
+        .select("id,room_id,item_name,condition,description,sources,confidence")
         .eq("inspection_id", id)
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -118,6 +119,8 @@ function CapturePage() {
   const [index, setIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState(false);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
@@ -160,6 +163,82 @@ function CapturePage() {
     });
     if (insErr) { toast.error(insErr.message); return; }
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    void analyzePhoto(file, current.id, current.name);
+  }
+
+  async function analyzePhoto(file: File, roomId: string, roomName: string) {
+    if (!inspection) return;
+    setAnalyzing(true);
+    setAnalyzeError(false);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+          const s = String(r.result ?? "");
+          resolve(s.includes(",") ? s.split(",")[1] : s);
+        };
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000),
+      );
+      const call = supabase.functions.invoke("analyze-photo", {
+        body: { image_base64: base64, mime_type: file.type, room_type: roomName },
+      });
+      const { data, error } = (await Promise.race([call, timeout])) as any;
+      if (error) throw error;
+      const aiItems: Array<{
+        name: string; condition: Condition; description?: string;
+        maintenance_required?: boolean; maintenance_notes?: string;
+        confidence?: number;
+      }> = Array.isArray(data?.items) ? data.items : [];
+      if (aiItems.length === 0) { setAnalyzing(false); return; }
+
+      // Merge with existing items in this room (case-insensitive name match).
+      const existing = (items ?? []).filter((i) => i.room_id === roomId);
+      const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+      const toInsert: any[] = [];
+      const nowSort = existing.length * 10;
+      let idx = 0;
+      for (const ai of aiItems) {
+        if (!ai?.name) continue;
+        const key = ai.name.toLowerCase();
+        const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
+        const existingItem = byName.get(key);
+        if (existingItem) {
+          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
+          await supabase.from("inspection_items").update({
+            sources,
+            confidence: ai.confidence ?? existingItem.confidence,
+          }).eq("id", existingItem.id);
+          continue;
+        }
+        toInsert.push({
+          user_id: inspection.user_id,
+          inspection_id: id,
+          room_id: roomId,
+          item_name: ai.name,
+          condition: cond,
+          description: ai.description || null,
+          maintenance_required: !!ai.maintenance_required,
+          maintenance_notes: ai.maintenance_notes || null,
+          sources: ["photo"],
+          confidence: typeof ai.confidence === "number" ? ai.confidence : null,
+          sort_order: nowSort + idx * 10,
+        });
+        idx++;
+      }
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
+        if (insErr) throw insErr;
+      }
+      qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+    } catch (err: any) {
+      setAnalyzeError(true);
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   // ---- Voice recording ----
