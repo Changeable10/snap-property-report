@@ -230,18 +230,33 @@ function CapturePage() {
     // Build a per-item map. General condition (mode 1) sets a baseline for
     // all standard items with an EMPTY description. Specific mentions
     // (mode 2) override with their own condition + description.
-    const parsed = parseTranscript(text);
+    const parsed = parseTranscript(text, current.name);
     const general = detectGeneralCondition(text);
     const existingNames = new Set(roomItems.map((it) => it.item_name));
-    const perItem = new Map<string, { condition: Condition; description: string }>();
+    const perItem = new Map<string, {
+      condition: Condition;
+      description: string;
+      maintenance_required: boolean;
+      maintenance_notes: string | null;
+    }>();
 
     if (general) {
       for (const name of getStandardItemsForRoom(current.name)) {
-        perItem.set(name, { condition: general, description: "" });
+        perItem.set(name, {
+          condition: general,
+          description: "",
+          maintenance_required: general === "damaged" || general === "poor",
+          maintenance_notes: null,
+        });
       }
     }
     for (const p of parsed) {
-      perItem.set(p.item_name, { condition: p.condition, description: p.description });
+      perItem.set(p.item_name, {
+        condition: p.condition,
+        description: p.description,
+        maintenance_required: !!p.maintenance_required,
+        maintenance_notes: p.maintenance_notes ?? null,
+      });
     }
 
     const entries = Array.from(perItem.entries()).filter(([name]) => !existingNames.has(name));
@@ -253,6 +268,8 @@ function CapturePage() {
         item_name: name,
         condition: val.condition,
         description: val.description ? val.description : null,
+        maintenance_required: val.maintenance_required,
+        maintenance_notes: val.maintenance_notes,
         sort_order: (roomItems.length + i) * 10,
       }));
       const { error } = await supabase.from("inspection_items").insert(rows);
