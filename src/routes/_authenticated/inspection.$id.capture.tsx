@@ -121,9 +121,21 @@ function CapturePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState(false);
+  const didInitIndex = useRef(false);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
+
+  // On first load, jump to the first room without any saved items (resume).
+  useEffect(() => {
+    if (didInitIndex.current) return;
+    if (!rooms || !items) return;
+    didInitIndex.current = true;
+    if (items.length === 0) return;
+    const withItems = new Set(items.map((i) => i.room_id));
+    const firstEmpty = rooms.findIndex((r) => !withItems.has(r.id));
+    if (firstEmpty > 0) setIndex(firstEmpty);
+  }, [rooms, items]);
 
   useEffect(() => {
     if (!current) return;
