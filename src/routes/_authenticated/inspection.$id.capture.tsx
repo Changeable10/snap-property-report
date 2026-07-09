@@ -504,3 +504,92 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
     </li>
   );
 }
+
+function ManualAddItem({
+  roomId, inspectionId, userId, nextSortOrder, onAdded,
+}: {
+  roomId: string;
+  inspectionId: string;
+  userId: string | undefined;
+  nextSortOrder: number;
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [condition, setCondition] = useState<Condition>("good");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim() || !userId) return;
+    setSaving(true);
+    const { error } = await supabase.from("inspection_items").insert({
+      user_id: userId,
+      inspection_id: inspectionId,
+      room_id: roomId,
+      item_name: name.trim(),
+      condition,
+      description: description.trim() || null,
+      sort_order: nextSortOrder,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setName(""); setCondition("good"); setDescription("");
+    setOpen(false);
+    onAdded();
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 px-4 text-sm font-semibold text-teal"
+      >
+        <Plus className="size-4" /> Manually add item
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-border bg-card p-3">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Item name (e.g. Curtains)"
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <select
+        value={condition}
+        onChange={(e) => setCondition(e.target.value as Condition)}
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      >
+        <option value="good">Good</option>
+        <option value="fair">Fair</option>
+        <option value="poor">Poor</option>
+        <option value="damaged">Damaged</option>
+      </select>
+      <input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => { setOpen(false); setName(""); setDescription(""); }}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={!name.trim() || saving}
+          className="rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-teal-foreground disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Add item"}
+        </button>
+      </div>
+    </div>
+  );
+}
