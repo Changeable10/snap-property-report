@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Download, PenLine, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  generateReportPdf, reportFilename,
+  generateReportPdf, reportFilename, refNumber,
   type PdfProperty, type PdfInspection, type PdfRoom,
   type PdfItem, type PdfPhoto, type PdfSignature,
 } from "@/lib/report-pdf";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/report")({
   head: () => ({ meta: [{ title: "Report — Snapsure" }] }),
@@ -17,9 +18,11 @@ export const Route = createFileRoute("/_authenticated/inspection/$id/report")({
 
 function ReportPage() {
   const { id } = Route.useParams();
+  const isMobile = useIsMobile();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [filename, setFilename] = useState<string>("inspection-report.pdf");
   const [generating, setGenerating] = useState(true);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -105,6 +108,7 @@ function ReportPage() {
       });
       createdUrl = URL.createObjectURL(blob);
       if (!cancelled) {
+        setPdfBlob(blob);
         setPdfUrl(createdUrl);
         setGenerating(false);
       } else {
@@ -125,24 +129,43 @@ function ReportPage() {
   }, [inspection, property, rooms, items, photos, signatures]);
 
   function download() {
-    if (!pdfUrl) return;
+    if (!pdfBlob) return;
+    const url = URL.createObjectURL(pdfBlob);
     const a = document.createElement("a");
-    a.href = pdfUrl;
+    a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function share() {
-    if (!pdfUrl) return;
+    if (!pdfBlob) return;
+    const file = new File([pdfBlob], filename, { type: "application/pdf" });
+    const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+    if (nav.canShare && nav.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: filename });
+        return;
+      } catch { /* user cancelled */ return; }
+    }
     try {
-      await navigator.clipboard.writeText(pdfUrl);
+      await navigator.clipboard.writeText(pdfUrl ?? "");
       toast.success("Report link copied to clipboard");
     } catch {
-      toast.error("Couldn't copy link");
+      toast.error("Couldn't share report");
     }
   }
+
+  const summary = useMemo(() => {
+    const counts = { excellent: 0, good: 0, fair: 0, poor: 0, damaged: 0 } as Record<string, number>;
+    (items ?? []).forEach((i) => {
+      const c = String(i.condition ?? "").toLowerCase();
+      if (c in counts) counts[c] += 1;
+    });
+    return counts;
+  }, [items]);
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -158,16 +181,27 @@ function ReportPage() {
       </header>
 
       <main className="mx-auto max-w-md px-5 py-6">
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          {generating || !pdfUrl ? (
-            <div className="flex aspect-[1/1.4] items-center justify-center text-sm text-muted-foreground">
-              Generating report…
-            </div>
-          ) : (
-            <iframe title="Report preview" src={pdfUrl}
-              className="block h-[70vh] w-full border-0" />
-          )}
-        </div>
+        {isMobile ? (
+          <MobileSummary
+            generating={generating}
+            inspection={inspection}
+            property={property}
+            itemCount={items?.length ?? 0}
+            maintenanceCount={items?.filter((i) => i.maintenance_required).length ?? 0}
+            counts={summary}
+          />
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+            {generating || !pdfUrl ? (
+              <div className="flex aspect-[1/1.4] items-center justify-center text-sm text-muted-foreground">
+                Generating report…
+              </div>
+            ) : (
+              <iframe title="Report preview" src={pdfUrl}
+                className="block h-[70vh] w-full border-0" />
+            )}
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-1 gap-2">
           <Link to="/inspection/$id/sign" params={{ id }}
@@ -175,17 +209,101 @@ function ReportPage() {
             <PenLine className="size-4" /> Sign report
           </Link>
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={download} disabled={!pdfUrl}
+            <button type="button" onClick={download} disabled={!pdfBlob}
               className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-semibold text-foreground disabled:opacity-50">
               <Download className="size-4" /> Download PDF
             </button>
-            <button type="button" onClick={share} disabled={!pdfUrl}
+            <button type="button" onClick={share} disabled={!pdfBlob}
               className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-semibold text-foreground disabled:opacity-50">
               <Share2 className="size-4" /> Share
             </button>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MobileSummary({
+  generating, inspection, property, itemCount, maintenanceCount, counts,
+}: {
+  generating: boolean;
+  inspection: PdfInspection | undefined;
+  property: PdfProperty | undefined;
+  itemCount: number;
+  maintenanceCount: number;
+  counts: Record<string, number>;
+}) {
+  const ref = inspection ? refNumber(inspection.id) : "—";
+  const address = property
+    ? [property.address, property.suburb, property.city, property.postcode].filter(Boolean).join(", ")
+    : "—";
+  const type = inspection?.inspection_type
+    ? inspection.inspection_type.charAt(0).toUpperCase() + inspection.inspection_type.slice(1)
+    : "—";
+  const date = inspection?.inspection_date
+    ? new Date(inspection.inspection_date).toLocaleDateString("en-NZ", {
+        day: "numeric", month: "short", year: "numeric",
+      })
+    : "—";
+
+  const bars: Array<[string, string, number]> = [
+    ["Excellent", "bg-emerald-500", counts.excellent ?? 0],
+    ["Good", "bg-teal", counts.good ?? 0],
+    ["Fair", "bg-amber-400", counts.fair ?? 0],
+    ["Poor", "bg-orange-500", counts.poor ?? 0],
+    ["Damaged", "bg-red-500", counts.damaged ?? 0],
+  ];
+  const total = bars.reduce((s, [, , n]) => s + n, 0) || 1;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      {generating ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Preparing report…</p>
+      ) : (
+        <>
+          <div className="mb-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Report</p>
+            <p className="text-base font-semibold text-foreground">{ref}</p>
+          </div>
+          <dl className="space-y-3 text-sm">
+            <Row label="Property" value={address} />
+            <Row label="Inspection" value={`${type} · ${date}`} />
+            <Row label="Items" value={`${itemCount} inspected · ${maintenanceCount} need maintenance`} />
+          </dl>
+          <div className="mt-5">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Condition breakdown</p>
+            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+              {bars.map(([label, color, n]) =>
+                n > 0 ? (
+                  <div key={label} className={color} style={{ width: `${(n / total) * 100}%` }} />
+                ) : null,
+              )}
+            </div>
+            <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-foreground">
+              {bars.map(([label, color, n]) => (
+                <li key={label} className="flex items-center gap-2">
+                  <span className={`size-2 rounded-full ${color}`} />
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="ml-auto font-medium">{n}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="mt-4 rounded-lg bg-muted p-3 text-center text-xs text-muted-foreground">
+            Tap Download PDF to view or save the full report.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right font-medium text-foreground">{value}</dd>
     </div>
   );
 }
