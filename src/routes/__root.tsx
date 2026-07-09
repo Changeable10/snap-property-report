@@ -84,14 +84,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Capture rental property condition with photos and voice. Snapsure turns it into a compliant NZ tenancy inspection report — no forms.",
       },
       { name: "author", content: "Snapsure" },
-      { property: "og:title", content: "Snapsure — AI Property Inspections" },
+      { property: "og:title", content: "Snapsure — AI Property Inspections for NZ Rentals" },
       {
         property: "og:description",
         content:
-          "Photograph and voice-record rental properties room by room. AI writes the compliant inspection report.",
+          "Capture rental property condition with photos and voice. Snapsure turns it into a compliant NZ tenancy inspection report — no forms.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Snapsure — AI Property Inspections for NZ Rentals" },
+      { name: "twitter:description", content: "Capture rental property condition with photos and voice. Snapsure turns it into a compliant NZ tenancy inspection report — no forms." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png" },
     ],
     links: [
       {
