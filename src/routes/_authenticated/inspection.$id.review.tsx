@@ -193,7 +193,9 @@ function ReviewPage() {
             {(rooms ?? []).map((r) => {
               const roomItems = itemsByRoom.get(r.id) ?? [];
               const rc: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
-              for (const it of roomItems) rc[it.condition]++;
+              for (const it of roomItems) {
+                if (it.condition && it.condition in rc) rc[it.condition]++;
+              }
               const open = openRoom === r.id;
               return (
                 <li key={r.id} className="overflow-hidden rounded-xl border border-border bg-card">
