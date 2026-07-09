@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
-import { parseTranscript, type Condition } from "@/lib/parse-transcript";
+import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
@@ -240,6 +240,26 @@ function CapturePage() {
       }));
       const { error } = await supabase.from("inspection_items").insert(rows);
       if (error) { toast.error(error.message); return; }
+    } else {
+      const general = detectGeneralCondition(text);
+      if (general) {
+        const existingNames = new Set(roomItems.map((i) => i.item_name));
+        const standard = getStandardItemsForRoom(current.name).filter((n) => !existingNames.has(n));
+        if (standard.length > 0) {
+          const rows = standard.map((name, i) => ({
+            user_id: inspection.user_id,
+            inspection_id: id,
+            room_id: current.id,
+            item_name: name,
+            condition: general,
+            description: text,
+            sort_order: (roomItems.length + i) * 10,
+          }));
+          const { error } = await supabase.from("inspection_items").insert(rows);
+          if (error) { toast.error(error.message); return; }
+          toast.success(`Added ${standard.length} standard items as ${general}`);
+        }
+      }
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
@@ -366,6 +386,16 @@ function CapturePage() {
                 <ItemCard key={it.id} item={it} onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
               ))}
             </ul>
+          )}
+
+          {current && (
+            <ManualAddItem
+              roomId={current.id}
+              inspectionId={id}
+              userId={inspection?.user_id}
+              nextSortOrder={roomItems.length * 10}
+              onAdded={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })}
+            />
           )}
         </section>
       </main>
