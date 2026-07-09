@@ -285,7 +285,6 @@ function PropertyDetail() {
           ) : (
             <ul className="flex flex-col gap-2">
               {inspections.map((ins) => {
-                const clickable = ins.status === "completed" || ins.status === "signed";
                 const content = (
                   <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
                     <div className="min-w-0 flex-1">
@@ -299,13 +298,17 @@ function PropertyDetail() {
                     </span>
                   </div>
                 );
+                const target =
+                  ins.status === "in_progress"
+                    ? { to: "/inspection/$id/capture" as const }
+                    : ins.status === "completed"
+                    ? { to: "/inspection/$id/review" as const }
+                    : { to: "/inspection/$id/report" as const };
                 return (
                   <li key={ins.id}>
-                    {clickable ? (
-                      <Link to="/inspection/$id/review" params={{ id: ins.id }} className="block">
-                        {content}
-                      </Link>
-                    ) : content}
+                    <Link to={target.to} params={{ id: ins.id }} className="block">
+                      {content}
+                    </Link>
                   </li>
                 );
               })}
