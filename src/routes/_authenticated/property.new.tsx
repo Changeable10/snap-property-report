@@ -77,14 +77,23 @@ function NewProperty() {
     setSaving(true);
     setError(null);
     try {
+      const addressTrim = address.trim();
+      const suburbTrim = suburb.trim();
+      const cityTrim = city.trim();
+      const postcodeTrim = postcode.trim();
+      if (!addressTrim || !suburbTrim || !cityTrim || !postcodeTrim) {
+        setError("Address, suburb, city and postcode are all required.");
+        setSaving(false);
+        return;
+      }
       const { data: property, error: propErr } = await supabase
         .from("properties")
         .insert({
           user_id: user.id,
-          address,
-          suburb,
-          city,
-          postcode,
+          address: addressTrim,
+          suburb: suburbTrim,
+          city: cityTrim,
+          postcode: postcodeTrim,
           property_type: propertyType,
           bedrooms,
           bathrooms,
