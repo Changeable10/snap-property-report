@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
-import { parseTranscript, type Condition } from "@/lib/parse-transcript";
+import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
@@ -240,6 +240,26 @@ function CapturePage() {
       }));
       const { error } = await supabase.from("inspection_items").insert(rows);
       if (error) { toast.error(error.message); return; }
+    } else {
+      const general = detectGeneralCondition(text);
+      if (general) {
+        const existingNames = new Set(roomItems.map((i) => i.item_name));
+        const standard = getStandardItemsForRoom(current.name).filter((n) => !existingNames.has(n));
+        if (standard.length > 0) {
+          const rows = standard.map((name, i) => ({
+            user_id: inspection.user_id,
+            inspection_id: id,
+            room_id: current.id,
+            item_name: name,
+            condition: general,
+            description: text,
+            sort_order: (roomItems.length + i) * 10,
+          }));
+          const { error } = await supabase.from("inspection_items").insert(rows);
+          if (error) { toast.error(error.message); return; }
+          toast.success(`Added ${standard.length} standard items as ${general}`);
+        }
+      }
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
@@ -367,6 +387,16 @@ function CapturePage() {
               ))}
             </ul>
           )}
+
+          {current && (
+            <ManualAddItem
+              roomId={current.id}
+              inspectionId={id}
+              userId={inspection?.user_id}
+              nextSortOrder={roomItems.length * 10}
+              onAdded={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })}
+            />
+          )}
         </section>
       </main>
 
@@ -472,5 +502,94 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
         <Pencil className="size-4" />
       </button>
     </li>
+  );
+}
+
+function ManualAddItem({
+  roomId, inspectionId, userId, nextSortOrder, onAdded,
+}: {
+  roomId: string;
+  inspectionId: string;
+  userId: string | undefined;
+  nextSortOrder: number;
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [condition, setCondition] = useState<Condition>("good");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim() || !userId) return;
+    setSaving(true);
+    const { error } = await supabase.from("inspection_items").insert({
+      user_id: userId,
+      inspection_id: inspectionId,
+      room_id: roomId,
+      item_name: name.trim(),
+      condition,
+      description: description.trim() || null,
+      sort_order: nextSortOrder,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setName(""); setCondition("good"); setDescription("");
+    setOpen(false);
+    onAdded();
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 px-4 text-sm font-semibold text-teal"
+      >
+        <Plus className="size-4" /> Manually add item
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-border bg-card p-3">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Item name (e.g. Curtains)"
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <select
+        value={condition}
+        onChange={(e) => setCondition(e.target.value as Condition)}
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      >
+        <option value="good">Good</option>
+        <option value="fair">Fair</option>
+        <option value="poor">Poor</option>
+        <option value="damaged">Damaged</option>
+      </select>
+      <input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => { setOpen(false); setName(""); setDescription(""); }}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={!name.trim() || saving}
+          className="rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-teal-foreground disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Add item"}
+        </button>
+      </div>
+    </div>
   );
 }
