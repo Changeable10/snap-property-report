@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Download, PenLine, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 import {
   generateReportPdf, reportFilename,
