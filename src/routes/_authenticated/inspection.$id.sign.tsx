@@ -59,6 +59,14 @@ function SignPage() {
   const bothSigned = !!landlordSig && !!tenantSig;
   const isFinalised = inspection?.status === "signed";
 
+  // Latch: once we're on the completion screen, never leave it until the user
+  // taps "Back to dashboard". This prevents any query refetch or transient
+  // undefined state from re-rendering the signature UI.
+  const [showCompletion, setShowCompletion] = useState(false);
+  useEffect(() => {
+    if (isFinalised) setShowCompletion(true);
+  }, [isFinalised]);
+
   const [tenantMode, setTenantMode] = useState<"choose" | "device" | "sent">("choose");
   const [tenantEmail, setTenantEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
@@ -82,10 +90,11 @@ function SignPage() {
     const { error } = await supabase.from("inspections")
       .update({ status: "signed" }).eq("id", id);
     if (error) { toast.error(error.message); return; }
+    setShowCompletion(true);
     qc.invalidateQueries({ queryKey: ["inspection", id] });
   }
 
-  if (isFinalised && inspection) {
+  if (showCompletion) {
     return (
       <CompletionScreen
         inspectionId={id}
