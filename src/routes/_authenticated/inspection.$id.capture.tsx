@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
@@ -22,6 +22,7 @@ interface PhotoRow {
 interface ItemRow {
   id: string; room_id: string; item_name: string;
   condition: Condition; description: string | null;
+  sources: string[] | null; confidence: number | null;
 }
 
 const CONDITION_DOT: Record<Condition, string> = {
@@ -107,7 +108,7 @@ function CapturePage() {
     queryKey: ["inspection-items", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_items")
-        .select("id,room_id,item_name,condition,description")
+        .select("id,room_id,item_name,condition,description,sources,confidence")
         .eq("inspection_id", id)
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -118,6 +119,8 @@ function CapturePage() {
   const [index, setIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState(false);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
@@ -160,6 +163,82 @@ function CapturePage() {
     });
     if (insErr) { toast.error(insErr.message); return; }
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    void analyzePhoto(file, current.id, current.name);
+  }
+
+  async function analyzePhoto(file: File, roomId: string, roomName: string) {
+    if (!inspection) return;
+    setAnalyzing(true);
+    setAnalyzeError(false);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+          const s = String(r.result ?? "");
+          resolve(s.includes(",") ? s.split(",")[1] : s);
+        };
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000),
+      );
+      const call = supabase.functions.invoke("analyze-photo", {
+        body: { image_base64: base64, mime_type: file.type, room_type: roomName },
+      });
+      const { data, error } = (await Promise.race([call, timeout])) as any;
+      if (error) throw error;
+      const aiItems: Array<{
+        name: string; condition: Condition; description?: string;
+        maintenance_required?: boolean; maintenance_notes?: string;
+        confidence?: number;
+      }> = Array.isArray(data?.items) ? data.items : [];
+      if (aiItems.length === 0) { setAnalyzing(false); return; }
+
+      // Merge with existing items in this room (case-insensitive name match).
+      const existing = (items ?? []).filter((i) => i.room_id === roomId);
+      const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+      const toInsert: any[] = [];
+      const nowSort = existing.length * 10;
+      let idx = 0;
+      for (const ai of aiItems) {
+        if (!ai?.name) continue;
+        const key = ai.name.toLowerCase();
+        const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
+        const existingItem = byName.get(key);
+        if (existingItem) {
+          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
+          await supabase.from("inspection_items").update({
+            sources,
+            confidence: ai.confidence ?? existingItem.confidence,
+          }).eq("id", existingItem.id);
+          continue;
+        }
+        toInsert.push({
+          user_id: inspection.user_id,
+          inspection_id: id,
+          room_id: roomId,
+          item_name: ai.name,
+          condition: cond,
+          description: ai.description || null,
+          maintenance_required: !!ai.maintenance_required,
+          maintenance_notes: ai.maintenance_notes || null,
+          sources: ["photo"],
+          confidence: typeof ai.confidence === "number" ? ai.confidence : null,
+          sort_order: nowSort + idx * 10,
+        });
+        idx++;
+      }
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
+        if (insErr) throw insErr;
+      }
+      qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+    } catch (err: any) {
+      setAnalyzeError(true);
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   // ---- Voice recording ----
@@ -232,12 +311,15 @@ function CapturePage() {
     // (mode 2) override with their own condition + description.
     const parsed = parseTranscript(text, current.name);
     const general = detectGeneralCondition(text);
-    const existingNames = new Set(roomItems.map((it) => it.item_name));
+    const existingByName = new Map(
+      roomItems.map((it) => [it.item_name.toLowerCase(), it] as const),
+    );
     const perItem = new Map<string, {
       condition: Condition;
       description: string;
       maintenance_required: boolean;
       maintenance_notes: string | null;
+      fromSpecific: boolean;
     }>();
 
     if (general) {
@@ -247,6 +329,7 @@ function CapturePage() {
           description: "",
           maintenance_required: general === "damaged" || general === "poor",
           maintenance_notes: null,
+          fromSpecific: false,
         });
       }
     }
@@ -256,12 +339,31 @@ function CapturePage() {
         description: p.description,
         maintenance_required: !!p.maintenance_required,
         maintenance_notes: p.maintenance_notes ?? null,
+        fromSpecific: true,
       });
     }
 
-    const entries = Array.from(perItem.entries()).filter(([name]) => !existingNames.has(name));
-    if (entries.length > 0) {
-      const rows = entries.map(([name, val], i) => ({
+    const entries = Array.from(perItem.entries());
+    const toInsert: any[] = [];
+    let addIdx = 0;
+    for (const [name, val] of entries) {
+      const existing = existingByName.get(name.toLowerCase());
+      if (existing) {
+        // Voice overrides existing (e.g. photo detection) for this item.
+        const sources = Array.from(new Set([...(existing.sources ?? []), "voice"]));
+        // If voice only sets a baseline (no specific mention) AND the existing
+        // item already has richer info, only merge the source tag.
+        const patch: any = { sources };
+        if (val.fromSpecific) {
+          patch.condition = val.condition;
+          patch.description = val.description || null;
+          patch.maintenance_required = val.maintenance_required;
+          patch.maintenance_notes = val.maintenance_notes;
+        }
+        await supabase.from("inspection_items").update(patch).eq("id", existing.id);
+        continue;
+      }
+      toInsert.push({
         user_id: inspection.user_id,
         inspection_id: id,
         room_id: current.id,
@@ -270,14 +372,17 @@ function CapturePage() {
         description: val.description ? val.description : null,
         maintenance_required: val.maintenance_required,
         maintenance_notes: val.maintenance_notes,
-        sort_order: (roomItems.length + i) * 10,
-      }));
-      const { error } = await supabase.from("inspection_items").insert(rows);
+        sources: ["voice"],
+        sort_order: (roomItems.length + addIdx) * 10,
+      });
+      addIdx++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("inspection_items").insert(toInsert);
       if (error) { toast.error(error.message); return; }
-      const specific = parsed.length;
-      if (general && specific > 0) toast.success(`Added ${entries.length} items (${specific} with notes)`);
-      else if (general) toast.success(`Marked ${entries.length} items as ${general}`);
-      else toast.success(`Added ${entries.length} ${entries.length === 1 ? "item" : "items"}`);
+    }
+    if (entries.length > 0) {
+      toast.success(`Voice notes applied to ${entries.length} ${entries.length === 1 ? "item" : "items"}`);
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
@@ -369,6 +474,17 @@ function CapturePage() {
         </button>
 
         {recording && <Waveform />}
+
+        {analyzing && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+            <Loader2 className="size-4 animate-spin" /> Analysing photo…
+          </div>
+        )}
+        {analyzeError && !analyzing && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertTriangle className="size-4" /> Photo analysis unavailable — continue with voice or manual entry.
+          </div>
+        )}
 
         {transcript && (
           <blockquote className="mt-4 rounded-r-lg border-l-4 border-teal bg-teal/5 px-4 py-3 text-sm italic text-foreground">
@@ -504,16 +620,29 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
     );
   }
 
+  const sources = item.sources ?? [];
+  const hasPhoto = sources.includes("photo");
+  const hasVoice = sources.includes("voice");
+  const lowConfidence =
+    hasPhoto && typeof item.confidence === "number" && item.confidence < 0.7;
+
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+    <li className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${lowConfidence ? "border-amber-400 bg-amber-50/40" : "border-border"}`}>
       <span className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${CONDITION_DOT[item.condition]}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+            {hasPhoto && <Camera className="size-3.5 shrink-0 text-teal" aria-label="From photo analysis" />}
+            {hasVoice && <Mic className="size-3.5 shrink-0 text-teal" aria-label="From voice" />}
+          </div>
           <ConditionBadge condition={item.condition} />
         </div>
         {item.description && (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+        )}
+        {lowConfidence && (
+          <p className="mt-1 text-[11px] font-medium text-amber-700">Low confidence — please review</p>
         )}
       </div>
       <button onClick={() => setEditing(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">

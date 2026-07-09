@@ -92,6 +92,7 @@ export type Database = {
       inspection_items: {
         Row: {
           condition: Database["public"]["Enums"]["condition_type"]
+          confidence: number | null
           created_at: string
           description: string | null
           id: string
@@ -101,11 +102,13 @@ export type Database = {
           maintenance_required: boolean
           room_id: string
           sort_order: number
+          sources: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           condition?: Database["public"]["Enums"]["condition_type"]
+          confidence?: number | null
           created_at?: string
           description?: string | null
           id?: string
@@ -115,11 +118,13 @@ export type Database = {
           maintenance_required?: boolean
           room_id: string
           sort_order?: number
+          sources?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           condition?: Database["public"]["Enums"]["condition_type"]
+          confidence?: number | null
           created_at?: string
           description?: string | null
           id?: string
@@ -129,6 +134,7 @@ export type Database = {
           maintenance_required?: boolean
           room_id?: string
           sort_order?: number
+          sources?: string[]
           updated_at?: string
           user_id?: string
         }
