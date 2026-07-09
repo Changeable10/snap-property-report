@@ -227,39 +227,40 @@ function CapturePage() {
         .update({ voice_transcript: text })
         .eq("id", latestPhoto.id);
     }
+    // Build a per-item map. General condition (mode 1) sets a baseline for
+    // all standard items with an EMPTY description. Specific mentions
+    // (mode 2) override with their own condition + description.
     const parsed = parseTranscript(text);
-    if (parsed.length > 0) {
-      const rows = parsed.map((p, i) => ({
+    const general = detectGeneralCondition(text);
+    const existingNames = new Set(roomItems.map((it) => it.item_name));
+    const perItem = new Map<string, { condition: Condition; description: string }>();
+
+    if (general) {
+      for (const name of getStandardItemsForRoom(current.name)) {
+        perItem.set(name, { condition: general, description: "" });
+      }
+    }
+    for (const p of parsed) {
+      perItem.set(p.item_name, { condition: p.condition, description: p.description });
+    }
+
+    const entries = Array.from(perItem.entries()).filter(([name]) => !existingNames.has(name));
+    if (entries.length > 0) {
+      const rows = entries.map(([name, val], i) => ({
         user_id: inspection.user_id,
         inspection_id: id,
         room_id: current.id,
-        item_name: p.item_name,
-        condition: p.condition,
-        description: p.description,
+        item_name: name,
+        condition: val.condition,
+        description: val.description ? val.description : null,
         sort_order: (roomItems.length + i) * 10,
       }));
       const { error } = await supabase.from("inspection_items").insert(rows);
       if (error) { toast.error(error.message); return; }
-    } else {
-      const general = detectGeneralCondition(text);
-      if (general) {
-        const existingNames = new Set(roomItems.map((i) => i.item_name));
-        const standard = getStandardItemsForRoom(current.name).filter((n) => !existingNames.has(n));
-        if (standard.length > 0) {
-          const rows = standard.map((name, i) => ({
-            user_id: inspection.user_id,
-            inspection_id: id,
-            room_id: current.id,
-            item_name: name,
-            condition: general,
-            description: text,
-            sort_order: (roomItems.length + i) * 10,
-          }));
-          const { error } = await supabase.from("inspection_items").insert(rows);
-          if (error) { toast.error(error.message); return; }
-          toast.success(`Added ${standard.length} standard items as ${general}`);
-        }
-      }
+      const specific = parsed.length;
+      if (general && specific > 0) toast.success(`Added ${entries.length} items (${specific} with notes)`);
+      else if (general) toast.success(`Marked ${entries.length} items as ${general}`);
+      else toast.success(`Added ${entries.length} ${entries.length === 1 ? "item" : "items"}`);
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
