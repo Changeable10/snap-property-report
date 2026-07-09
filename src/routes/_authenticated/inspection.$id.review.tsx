@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Wrench } from "lucide-react";
@@ -74,7 +74,7 @@ function ReviewPage() {
   // Mark inspection completed once when review is opened
   useEffect(() => {
     if (!inspection) return;
-    if (inspection.status === "completed") return;
+    if (inspection.status === "completed" || inspection.status === "signed") return;
     (async () => {
       const { error } = await supabase.from("inspections")
         .update({ status: "completed", completed_at: new Date().toISOString() })
@@ -85,7 +85,9 @@ function ReviewPage() {
 
   const counts = useMemo(() => {
     const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
-    for (const it of items ?? []) c[it.condition]++;
+    for (const it of items ?? []) {
+      if (it.condition && it.condition in c) c[it.condition]++;
+    }
     return c;
   }, [items]);
 
@@ -191,7 +193,9 @@ function ReviewPage() {
             {(rooms ?? []).map((r) => {
               const roomItems = itemsByRoom.get(r.id) ?? [];
               const rc: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
-              for (const it of roomItems) rc[it.condition]++;
+              for (const it of roomItems) {
+                if (it.condition && it.condition in rc) rc[it.condition]++;
+              }
               const open = openRoom === r.id;
               return (
                 <li key={r.id} className="overflow-hidden rounded-xl border border-border bg-card">

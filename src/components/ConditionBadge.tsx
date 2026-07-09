@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 import type { Condition } from "@/lib/mock-data";
 
+const FALLBACK_STYLE = "bg-muted text-muted-foreground ring-border";
+
 const styles: Record<Condition, string> = {
   good: "bg-condition-good/15 text-condition-good ring-condition-good/30",
   fair: "bg-condition-fair/15 text-condition-fair ring-condition-fair/30",
@@ -16,20 +18,23 @@ const labels: Record<Condition, string> = {
 };
 
 interface ConditionBadgeProps {
-  condition: Condition;
+  condition: Condition | string | null | undefined;
   className?: string;
 }
 
 export function ConditionBadge({ condition, className }: ConditionBadgeProps) {
+  const key = (condition ?? "") as Condition;
+  const style = styles[key] ?? FALLBACK_STYLE;
+  const label = labels[key] ?? (condition ? String(condition) : "Unknown");
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
-        styles[condition],
+        style,
         className,
       )}
     >
-      {labels[condition]}
+      {label}
     </span>
   );
 }
