@@ -311,12 +311,15 @@ function CapturePage() {
     // (mode 2) override with their own condition + description.
     const parsed = parseTranscript(text, current.name);
     const general = detectGeneralCondition(text);
-    const existingNames = new Set(roomItems.map((it) => it.item_name));
+    const existingByName = new Map(
+      roomItems.map((it) => [it.item_name.toLowerCase(), it] as const),
+    );
     const perItem = new Map<string, {
       condition: Condition;
       description: string;
       maintenance_required: boolean;
       maintenance_notes: string | null;
+      fromSpecific: boolean;
     }>();
 
     if (general) {
@@ -326,6 +329,7 @@ function CapturePage() {
           description: "",
           maintenance_required: general === "damaged" || general === "poor",
           maintenance_notes: null,
+          fromSpecific: false,
         });
       }
     }
@@ -335,12 +339,31 @@ function CapturePage() {
         description: p.description,
         maintenance_required: !!p.maintenance_required,
         maintenance_notes: p.maintenance_notes ?? null,
+        fromSpecific: true,
       });
     }
 
-    const entries = Array.from(perItem.entries()).filter(([name]) => !existingNames.has(name));
-    if (entries.length > 0) {
-      const rows = entries.map(([name, val], i) => ({
+    const entries = Array.from(perItem.entries());
+    const toInsert: any[] = [];
+    let addIdx = 0;
+    for (const [name, val] of entries) {
+      const existing = existingByName.get(name.toLowerCase());
+      if (existing) {
+        // Voice overrides existing (e.g. photo detection) for this item.
+        const sources = Array.from(new Set([...(existing.sources ?? []), "voice"]));
+        // If voice only sets a baseline (no specific mention) AND the existing
+        // item already has richer info, only merge the source tag.
+        const patch: any = { sources };
+        if (val.fromSpecific) {
+          patch.condition = val.condition;
+          patch.description = val.description || null;
+          patch.maintenance_required = val.maintenance_required;
+          patch.maintenance_notes = val.maintenance_notes;
+        }
+        await supabase.from("inspection_items").update(patch).eq("id", existing.id);
+        continue;
+      }
+      toInsert.push({
         user_id: inspection.user_id,
         inspection_id: id,
         room_id: current.id,
@@ -349,14 +372,17 @@ function CapturePage() {
         description: val.description ? val.description : null,
         maintenance_required: val.maintenance_required,
         maintenance_notes: val.maintenance_notes,
-        sort_order: (roomItems.length + i) * 10,
-      }));
-      const { error } = await supabase.from("inspection_items").insert(rows);
+        sources: ["voice"],
+        sort_order: (roomItems.length + addIdx) * 10,
+      });
+      addIdx++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("inspection_items").insert(toInsert);
       if (error) { toast.error(error.message); return; }
-      const specific = parsed.length;
-      if (general && specific > 0) toast.success(`Added ${entries.length} items (${specific} with notes)`);
-      else if (general) toast.success(`Marked ${entries.length} items as ${general}`);
-      else toast.success(`Added ${entries.length} ${entries.length === 1 ? "item" : "items"}`);
+    }
+    if (entries.length > 0) {
+      toast.success(`Voice notes applied to ${entries.length} ${entries.length === 1 ? "item" : "items"}`);
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
