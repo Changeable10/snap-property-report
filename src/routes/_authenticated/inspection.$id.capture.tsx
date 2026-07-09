@@ -620,16 +620,29 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
     );
   }
 
+  const sources = item.sources ?? [];
+  const hasPhoto = sources.includes("photo");
+  const hasVoice = sources.includes("voice");
+  const lowConfidence =
+    hasPhoto && typeof item.confidence === "number" && item.confidence < 0.7;
+
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+    <li className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${lowConfidence ? "border-amber-400 bg-amber-50/40" : "border-border"}`}>
       <span className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${CONDITION_DOT[item.condition]}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
+            {hasPhoto && <Camera className="size-3.5 shrink-0 text-teal" aria-label="From photo analysis" />}
+            {hasVoice && <Mic className="size-3.5 shrink-0 text-teal" aria-label="From voice" />}
+          </div>
           <ConditionBadge condition={item.condition} />
         </div>
         {item.description && (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+        )}
+        {lowConfidence && (
+          <p className="mt-1 text-[11px] font-medium text-amber-700">Low confidence — please review</p>
         )}
       </div>
       <button onClick={() => setEditing(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
