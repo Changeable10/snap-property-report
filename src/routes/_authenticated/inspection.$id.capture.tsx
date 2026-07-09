@@ -475,6 +475,17 @@ function CapturePage() {
 
         {recording && <Waveform />}
 
+        {analyzing && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+            <Loader2 className="size-4 animate-spin" /> Analysing photo…
+          </div>
+        )}
+        {analyzeError && !analyzing && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertTriangle className="size-4" /> Photo analysis unavailable — continue with voice or manual entry.
+          </div>
+        )}
+
         {transcript && (
           <blockquote className="mt-4 rounded-r-lg border-l-4 border-teal bg-teal/5 px-4 py-3 text-sm italic text-foreground">
             "{transcript}"
