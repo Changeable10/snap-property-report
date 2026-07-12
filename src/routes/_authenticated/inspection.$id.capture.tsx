@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
