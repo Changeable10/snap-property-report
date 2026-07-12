@@ -99,7 +99,10 @@ export type Database = {
           inspection_id: string
           item_name: string
           maintenance_notes: string | null
+          maintenance_priority: Database["public"]["Enums"]["maintenance_priority"]
           maintenance_required: boolean
+          maintenance_resolved: boolean
+          maintenance_resolved_at: string | null
           room_id: string
           sort_order: number
           sources: string[]
@@ -115,7 +118,10 @@ export type Database = {
           inspection_id: string
           item_name: string
           maintenance_notes?: string | null
+          maintenance_priority?: Database["public"]["Enums"]["maintenance_priority"]
           maintenance_required?: boolean
+          maintenance_resolved?: boolean
+          maintenance_resolved_at?: string | null
           room_id: string
           sort_order?: number
           sources?: string[]
@@ -131,7 +137,10 @@ export type Database = {
           inspection_id?: string
           item_name?: string
           maintenance_notes?: string | null
+          maintenance_priority?: Database["public"]["Enums"]["maintenance_priority"]
           maintenance_required?: boolean
+          maintenance_resolved?: boolean
+          maintenance_resolved_at?: string | null
           room_id?: string
           sort_order?: number
           sources?: string[]
@@ -358,6 +367,56 @@ export type Database = {
         }
         Relationships: []
       }
+      property_contacts: {
+        Row: {
+          company: string | null
+          contact_name: string
+          contact_role: string
+          created_at: string
+          email: string | null
+          id: string
+          notes: string | null
+          phone: string | null
+          property_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          contact_name: string
+          contact_role: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          property_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          contact_name?: string
+          contact_role?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          property_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_contacts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string
@@ -413,6 +472,7 @@ export type Database = {
       condition_type: "good" | "fair" | "poor" | "damaged"
       inspection_status: "in_progress" | "completed" | "signed"
       inspection_type: "entry" | "routine" | "exit"
+      maintenance_priority: "low" | "medium" | "high"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -553,6 +613,7 @@ export const Constants = {
       condition_type: ["good", "fair", "poor", "damaged"],
       inspection_status: ["in_progress", "completed", "signed"],
       inspection_type: ["entry", "routine", "exit"],
+      maintenance_priority: ["low", "medium", "high"],
     },
   },
 } as const
