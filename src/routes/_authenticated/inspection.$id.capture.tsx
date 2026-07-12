@@ -944,8 +944,9 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
   const sources = item.sources ?? [];
   const hasPhoto = sources.includes("photo");
   const hasVoice = sources.includes("voice");
+  const hasVideo = sources.includes("video");
   const lowConfidence =
-    hasPhoto && typeof item.confidence === "number" && item.confidence < 0.7;
+    (hasPhoto || hasVideo) && typeof item.confidence === "number" && item.confidence < 0.7;
 
   return (
     <li className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${lowConfidence ? "border-amber-400 bg-amber-50/40" : "border-border"}`}>
@@ -955,6 +956,7 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
           <div className="flex min-w-0 items-center gap-1.5">
             <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
             {hasPhoto && <Camera className="size-3.5 shrink-0 text-teal" aria-label="From photo analysis" />}
+            {hasVideo && <Video className="size-3.5 shrink-0 text-teal" aria-label="From video walkthrough" />}
             {hasVoice && <Mic className="size-3.5 shrink-0 text-teal" aria-label="From voice" />}
           </div>
           <ConditionBadge condition={item.condition} />
