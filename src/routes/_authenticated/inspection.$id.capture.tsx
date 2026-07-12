@@ -698,25 +698,86 @@ function CapturePage() {
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
         {roomPhotos.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={!current}
-            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
-          >
-            <Camera className="size-5" /> Capture photo
-          </button>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+          <div className={`grid gap-3 ${videoSupported ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 text-sm font-semibold text-teal"
+              disabled={!current}
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
             >
-              <Plus className="size-5" />
-              Add close-up
+              <Camera className="size-5" /> Capture photo
             </button>
+            {videoSupported && (
+              <button
+                type="button"
+                onClick={startVideoWalkthrough}
+                disabled={!current || videoProcessing}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+              >
+                <Video className="size-5" /> Video walkthrough
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 text-sm font-semibold text-teal"
+              >
+                <Plus className="size-5" />
+                Add close-up
+              </button>
+            </div>
+            {videoSupported && (
+              <button
+                type="button"
+                onClick={startVideoWalkthrough}
+                disabled={!current || videoProcessing}
+                className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+              >
+                <Video className="size-4" /> Video walkthrough
+              </button>
+            )}
+          </>
+        )}
+
+        {videoError && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertTriangle className="size-4" /> {videoError}
+          </div>
+        )}
+
+        {videoRecording && (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
+            <div className="relative">
+              <video ref={videoPreviewRef} muted playsInline className="w-full aspect-video bg-black object-cover" />
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+                <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
+                REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={stopVideoWalkthrough}
+              className="flex min-h-12 w-full items-center justify-center gap-2 bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              <Square className="size-4 fill-white" /> Stop recording
+            </button>
+          </div>
+        )}
+
+        {videoProcessing && (
+          <div className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-4 text-sm font-medium text-teal">
+            <Loader2 className="size-5 animate-spin" />
+            <p>Extracting frames and analysing room</p>
+            {videoProgress.total > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Analysing frame {videoProgress.current} of {videoProgress.total}
+              </p>
+            )}
           </div>
         )}
 
