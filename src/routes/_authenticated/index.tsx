@@ -71,6 +71,12 @@ const PRIORITY_STYLE: Record<Priority, string> = {
   medium: "bg-condition-poor/15 text-condition-poor ring-condition-poor/40",
   low: "bg-condition-fair/15 text-condition-fair ring-condition-fair/40",
 };
+const COND_BG: Record<Condition, string> = {
+  good: "bg-condition-good",
+  fair: "bg-condition-fair",
+  poor: "bg-condition-poor",
+  damaged: "bg-condition-damaged",
+};
 
 function greetingFor(d: Date) {
   const h = d.getHours();
@@ -369,7 +375,7 @@ function Index() {
                           counts[c] > 0 ? (
                             <span
                               key={c}
-                              className={`h-full bg-condition-${c}`}
+                              className={`h-full ${COND_BG[c]}`}
                               style={{ width: `${(counts[c] / total) * 100}%` }}
                             />
                           ) : null,
