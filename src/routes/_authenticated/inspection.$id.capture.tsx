@@ -123,6 +123,27 @@ function CapturePage() {
   const [analyzeError, setAnalyzeError] = useState(false);
   const didInitIndex = useRef(false);
 
+  // ---- Video walkthrough state ----
+  const [videoSupported, setVideoSupported] = useState(true);
+  const [videoRecording, setVideoRecording] = useState(false);
+  const [videoElapsed, setVideoElapsed] = useState(0);
+  const [videoProcessing, setVideoProcessing] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const videoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const ok = typeof navigator !== "undefined"
+      && !!navigator.mediaDevices?.getUserMedia
+      && typeof window !== "undefined"
+      && typeof (window as any).MediaRecorder !== "undefined";
+    setVideoSupported(ok);
+  }, []);
+
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
 
