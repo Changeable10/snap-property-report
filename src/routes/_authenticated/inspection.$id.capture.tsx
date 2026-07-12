@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
@@ -122,6 +122,27 @@ function CapturePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState(false);
   const didInitIndex = useRef(false);
+
+  // ---- Video walkthrough state ----
+  const [videoSupported, setVideoSupported] = useState(true);
+  const [videoRecording, setVideoRecording] = useState(false);
+  const [videoElapsed, setVideoElapsed] = useState(0);
+  const [videoProcessing, setVideoProcessing] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const videoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const ok = typeof navigator !== "undefined"
+      && !!navigator.mediaDevices?.getUserMedia
+      && typeof window !== "undefined"
+      && typeof (window as any).MediaRecorder !== "undefined";
+    setVideoSupported(ok);
+  }, []);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
@@ -411,6 +432,239 @@ function CapturePage() {
     setTranscript("");
   }
 
+  // ---- Video walkthrough ----
+  async function startVideoWalkthrough() {
+    if (!current) return;
+    setVideoError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: true,
+      });
+      videoStreamRef.current = stream;
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        videoPreviewRef.current.play().catch(() => {});
+      }
+      const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+      const mime = mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      videoChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) videoChunksRef.current.push(e.data); };
+      videoRecorderRef.current = mr;
+      mr.start(1000);
+      setVideoRecording(true);
+      setVideoElapsed(0);
+      videoTimerRef.current = setInterval(() => setVideoElapsed((s) => s + 1), 1000);
+    } catch (err: any) {
+      setVideoSupported(false);
+      setVideoError("Video recording is not available on this device. Use Capture photo instead.");
+      toast.error("Camera permission denied or unavailable");
+    }
+  }
+
+  async function stopVideoWalkthrough() {
+    const mr = videoRecorderRef.current;
+    if (!mr) return;
+    const stopped = new Promise<void>((resolve) => { mr.onstop = () => resolve(); });
+    try { mr.stop(); } catch {}
+    await stopped;
+    if (videoTimerRef.current) { clearInterval(videoTimerRef.current); videoTimerRef.current = null; }
+    videoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    videoStreamRef.current = null;
+    if (videoPreviewRef.current) videoPreviewRef.current.srcObject = null;
+    setVideoRecording(false);
+    const blob = new Blob(videoChunksRef.current, { type: mr.mimeType || "video/webm" });
+    videoChunksRef.current = [];
+    if (blob.size === 0) return;
+    void processVideo(blob);
+  }
+
+  async function extractFrames(blob: Blob): Promise<Array<{ base64: string; time: number }>> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const v = document.createElement("video");
+      v.preload = "auto";
+      v.muted = true;
+      (v as any).playsInline = true;
+      v.src = url;
+      const canvas = document.createElement("canvas");
+      const frames: Array<{ base64: string; time: number }> = [];
+      const cleanup = () => { URL.revokeObjectURL(url); };
+      v.onerror = () => { cleanup(); reject(new Error("video load error")); };
+      v.onloadedmetadata = async () => {
+        // Some browsers report duration=Infinity for MediaRecorder webm; seek to end to force resolve.
+        if (!isFinite(v.duration) || v.duration === 0) {
+          await new Promise<void>((res) => {
+            const onSeeked = () => { v.removeEventListener("seeked", onSeeked); res(); };
+            v.addEventListener("seeked", onSeeked);
+            try { v.currentTime = 1e9; } catch { res(); }
+          });
+        }
+        const duration = isFinite(v.duration) ? v.duration : Math.max(1, videoElapsed);
+        const w = 640;
+        const h = Math.round((v.videoHeight / (v.videoWidth || 1)) * w) || 360;
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { cleanup(); reject(new Error("canvas unavailable")); return; }
+        const times: number[] = [];
+        for (let t = 0; t < duration; t += 2) times.push(t);
+        if (times.length === 0) times.push(0);
+        for (const t of times) {
+          await new Promise<void>((res) => {
+            const onSeeked = () => { v.removeEventListener("seeked", onSeeked); res(); };
+            v.addEventListener("seeked", onSeeked);
+            try { v.currentTime = Math.min(t, Math.max(0, duration - 0.05)); } catch { res(); }
+          });
+          ctx.drawImage(v, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+          frames.push({ base64, time: t });
+        }
+        cleanup();
+        resolve(frames);
+      };
+    });
+  }
+
+  async function processVideo(blob: Blob) {
+    if (!inspection || !current) return;
+    setVideoProcessing(true);
+    setVideoProgress({ current: 0, total: 0 });
+    const roomId = current.id;
+    const roomName = current.name;
+    // Upload the full recording in the background.
+    const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
+    void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
+
+    let frames: Array<{ base64: string; time: number }> = [];
+    try {
+      frames = await extractFrames(blob);
+    } catch {
+      toast.error("Could not extract frames from the recording");
+      setVideoProcessing(false);
+      return;
+    }
+    if (frames.length === 0) { setVideoProcessing(false); return; }
+    setVideoProgress({ current: 0, total: frames.length });
+
+    type AiItem = {
+      name: string; condition: Condition; description?: string;
+      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
+    };
+    const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
+    const merged = new Map<string, {
+      name: string; condition: Condition; confidence: number;
+      descriptions: Set<string>; maintenance_required: boolean;
+      maintenance_notes: Set<string>; bestFrameIdx: number; bestFrameConf: number;
+    }>();
+
+    for (let i = 0; i < frames.length; i++) {
+      setVideoProgress({ current: i + 1, total: frames.length });
+      try {
+        const call = supabase.functions.invoke("analyze-photo", {
+          body: { image_base64: frames[i].base64, mime_type: "image/jpeg", room_type: roomName },
+        });
+        const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
+        const { data, error } = (await Promise.race([call, timeout])) as any;
+        if (error) continue;
+        const aiItems: AiItem[] = Array.isArray(data?.items) ? data.items : [];
+        for (const ai of aiItems) {
+          if (!ai?.name) continue;
+          const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
+          const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
+          const key = ai.name.toLowerCase().trim();
+          const prev = merged.get(key);
+          if (!prev) {
+            merged.set(key, {
+              name: ai.name,
+              condition: cond,
+              confidence: conf,
+              descriptions: ai.description ? new Set([ai.description.trim()]) : new Set(),
+              maintenance_required: !!ai.maintenance_required,
+              maintenance_notes: ai.maintenance_notes ? new Set([ai.maintenance_notes.trim()]) : new Set(),
+              bestFrameIdx: i,
+              bestFrameConf: conf,
+            });
+          } else {
+            if (rank[cond] > rank[prev.condition]) prev.condition = cond;
+            if (conf > prev.confidence) prev.confidence = conf;
+            if (ai.description) prev.descriptions.add(ai.description.trim());
+            if (ai.maintenance_required) prev.maintenance_required = true;
+            if (ai.maintenance_notes) prev.maintenance_notes.add(ai.maintenance_notes.trim());
+            if (conf > prev.bestFrameConf) { prev.bestFrameConf = conf; prev.bestFrameIdx = i; }
+          }
+        }
+      } catch {
+        // continue on error
+      }
+    }
+
+    // Upload best frames per item (deduped by frame index) and record photo rows.
+    const frameIdxToPath = new Map<number, string>();
+    for (const m of merged.values()) {
+      if (frameIdxToPath.has(m.bestFrameIdx)) continue;
+      const bin = Uint8Array.from(atob(frames[m.bestFrameIdx].base64), (c) => c.charCodeAt(0));
+      const path = `${inspection.user_id}/${id}/${roomId}/frame-${crypto.randomUUID()}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos").upload(path, bin, { contentType: "image/jpeg" });
+      if (upErr) continue;
+      frameIdxToPath.set(m.bestFrameIdx, path);
+      await supabase.from("inspection_photos").insert({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        photo_url: path,
+      });
+    }
+
+    // Merge into inspection_items (matching by name, video source).
+    const existing = (items ?? []).filter((i) => i.room_id === roomId);
+    const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+    const toInsert: any[] = [];
+    const nowSort = existing.length * 10;
+    let insIdx = 0;
+    for (const m of merged.values()) {
+      const key = m.name.toLowerCase();
+      const existingItem = byName.get(key);
+      const description = Array.from(m.descriptions).filter(Boolean).join(" ") || null;
+      const notes = Array.from(m.maintenance_notes).filter(Boolean).join(" ") || null;
+      if (existingItem) {
+        const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
+        const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
+        await supabase.from("inspection_items").update({
+          sources,
+          condition: nextCond,
+          description: existingItem.description ? existingItem.description : description,
+          confidence: m.confidence || existingItem.confidence,
+        }).eq("id", existingItem.id);
+        continue;
+      }
+      toInsert.push({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        item_name: m.name,
+        condition: m.condition,
+        description,
+        maintenance_required: m.maintenance_required,
+        maintenance_notes: notes,
+        sources: ["video"],
+        confidence: m.confidence,
+        sort_order: nowSort + insIdx * 10,
+      });
+      insIdx++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("inspection_items").insert(toInsert);
+      if (error) toast.error(error.message);
+    }
+    qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    setVideoProcessing(false);
+    if (merged.size > 0) toast.success(`Detected ${merged.size} ${merged.size === 1 ? "item" : "items"} from walkthrough`);
+  }
+
   const countsByCondition = useMemo(() => {
     const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
     for (const it of roomItems) c[it.condition]++;
@@ -444,25 +698,86 @@ function CapturePage() {
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
         {roomPhotos.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={!current}
-            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
-          >
-            <Camera className="size-5" /> Capture photo
-          </button>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+          <div className={`grid gap-3 ${videoSupported ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 text-sm font-semibold text-teal"
+              disabled={!current}
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
             >
-              <Plus className="size-5" />
-              Add close-up
+              <Camera className="size-5" /> Capture photo
             </button>
+            {videoSupported && (
+              <button
+                type="button"
+                onClick={startVideoWalkthrough}
+                disabled={!current || videoProcessing}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-base font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+              >
+                <Video className="size-5" /> Video walkthrough
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-teal/40 bg-teal/5 text-sm font-semibold text-teal"
+              >
+                <Plus className="size-5" />
+                Add close-up
+              </button>
+            </div>
+            {videoSupported && (
+              <button
+                type="button"
+                onClick={startVideoWalkthrough}
+                disabled={!current || videoProcessing}
+                className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+              >
+                <Video className="size-4" /> Video walkthrough
+              </button>
+            )}
+          </>
+        )}
+
+        {videoError && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertTriangle className="size-4" /> {videoError}
+          </div>
+        )}
+
+        {videoRecording && (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
+            <div className="relative">
+              <video ref={videoPreviewRef} muted playsInline className="w-full aspect-video bg-black object-cover" />
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+                <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
+                REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={stopVideoWalkthrough}
+              className="flex min-h-12 w-full items-center justify-center gap-2 bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              <Square className="size-4 fill-white" /> Stop recording
+            </button>
+          </div>
+        )}
+
+        {videoProcessing && (
+          <div className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-4 text-sm font-medium text-teal">
+            <Loader2 className="size-5 animate-spin" />
+            <p>Extracting frames and analysing room</p>
+            {videoProgress.total > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Analysing frame {videoProgress.current} of {videoProgress.total}
+              </p>
+            )}
           </div>
         )}
 
@@ -629,8 +944,9 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
   const sources = item.sources ?? [];
   const hasPhoto = sources.includes("photo");
   const hasVoice = sources.includes("voice");
+  const hasVideo = sources.includes("video");
   const lowConfidence =
-    hasPhoto && typeof item.confidence === "number" && item.confidence < 0.7;
+    (hasPhoto || hasVideo) && typeof item.confidence === "number" && item.confidence < 0.7;
 
   return (
     <li className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${lowConfidence ? "border-amber-400 bg-amber-50/40" : "border-border"}`}>
@@ -640,6 +956,7 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
           <div className="flex min-w-0 items-center gap-1.5">
             <p className="truncate text-sm font-semibold text-foreground">{item.item_name}</p>
             {hasPhoto && <Camera className="size-3.5 shrink-0 text-teal" aria-label="From photo analysis" />}
+            {hasVideo && <Video className="size-3.5 shrink-0 text-teal" aria-label="From video walkthrough" />}
             {hasVoice && <Mic className="size-3.5 shrink-0 text-teal" aria-label="From voice" />}
           </div>
           <ConditionBadge condition={item.condition} />
