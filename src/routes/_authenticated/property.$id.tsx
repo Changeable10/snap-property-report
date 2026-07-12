@@ -773,6 +773,3 @@ function ContactForm({
     </form>
   );
 }
-    </div>
-  );
-}
