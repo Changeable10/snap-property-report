@@ -432,6 +432,239 @@ function CapturePage() {
     setTranscript("");
   }
 
+  // ---- Video walkthrough ----
+  async function startVideoWalkthrough() {
+    if (!current) return;
+    setVideoError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: true,
+      });
+      videoStreamRef.current = stream;
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        videoPreviewRef.current.play().catch(() => {});
+      }
+      const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+      const mime = mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      videoChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) videoChunksRef.current.push(e.data); };
+      videoRecorderRef.current = mr;
+      mr.start(1000);
+      setVideoRecording(true);
+      setVideoElapsed(0);
+      videoTimerRef.current = setInterval(() => setVideoElapsed((s) => s + 1), 1000);
+    } catch (err: any) {
+      setVideoSupported(false);
+      setVideoError("Video recording is not available on this device. Use Capture photo instead.");
+      toast.error("Camera permission denied or unavailable");
+    }
+  }
+
+  async function stopVideoWalkthrough() {
+    const mr = videoRecorderRef.current;
+    if (!mr) return;
+    const stopped = new Promise<void>((resolve) => { mr.onstop = () => resolve(); });
+    try { mr.stop(); } catch {}
+    await stopped;
+    if (videoTimerRef.current) { clearInterval(videoTimerRef.current); videoTimerRef.current = null; }
+    videoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    videoStreamRef.current = null;
+    if (videoPreviewRef.current) videoPreviewRef.current.srcObject = null;
+    setVideoRecording(false);
+    const blob = new Blob(videoChunksRef.current, { type: mr.mimeType || "video/webm" });
+    videoChunksRef.current = [];
+    if (blob.size === 0) return;
+    void processVideo(blob);
+  }
+
+  async function extractFrames(blob: Blob): Promise<Array<{ base64: string; time: number }>> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const v = document.createElement("video");
+      v.preload = "auto";
+      v.muted = true;
+      (v as any).playsInline = true;
+      v.src = url;
+      const canvas = document.createElement("canvas");
+      const frames: Array<{ base64: string; time: number }> = [];
+      const cleanup = () => { URL.revokeObjectURL(url); };
+      v.onerror = () => { cleanup(); reject(new Error("video load error")); };
+      v.onloadedmetadata = async () => {
+        // Some browsers report duration=Infinity for MediaRecorder webm; seek to end to force resolve.
+        if (!isFinite(v.duration) || v.duration === 0) {
+          await new Promise<void>((res) => {
+            const onSeeked = () => { v.removeEventListener("seeked", onSeeked); res(); };
+            v.addEventListener("seeked", onSeeked);
+            try { v.currentTime = 1e9; } catch { res(); }
+          });
+        }
+        const duration = isFinite(v.duration) ? v.duration : Math.max(1, videoElapsed);
+        const w = 640;
+        const h = Math.round((v.videoHeight / (v.videoWidth || 1)) * w) || 360;
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { cleanup(); reject(new Error("canvas unavailable")); return; }
+        const times: number[] = [];
+        for (let t = 0; t < duration; t += 2) times.push(t);
+        if (times.length === 0) times.push(0);
+        for (const t of times) {
+          await new Promise<void>((res) => {
+            const onSeeked = () => { v.removeEventListener("seeked", onSeeked); res(); };
+            v.addEventListener("seeked", onSeeked);
+            try { v.currentTime = Math.min(t, Math.max(0, duration - 0.05)); } catch { res(); }
+          });
+          ctx.drawImage(v, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+          frames.push({ base64, time: t });
+        }
+        cleanup();
+        resolve(frames);
+      };
+    });
+  }
+
+  async function processVideo(blob: Blob) {
+    if (!inspection || !current) return;
+    setVideoProcessing(true);
+    setVideoProgress({ current: 0, total: 0 });
+    const roomId = current.id;
+    const roomName = current.name;
+    // Upload the full recording in the background.
+    const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
+    void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
+
+    let frames: Array<{ base64: string; time: number }> = [];
+    try {
+      frames = await extractFrames(blob);
+    } catch {
+      toast.error("Could not extract frames from the recording");
+      setVideoProcessing(false);
+      return;
+    }
+    if (frames.length === 0) { setVideoProcessing(false); return; }
+    setVideoProgress({ current: 0, total: frames.length });
+
+    type AiItem = {
+      name: string; condition: Condition; description?: string;
+      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
+    };
+    const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
+    const merged = new Map<string, {
+      name: string; condition: Condition; confidence: number;
+      descriptions: Set<string>; maintenance_required: boolean;
+      maintenance_notes: Set<string>; bestFrameIdx: number; bestFrameConf: number;
+    }>();
+
+    for (let i = 0; i < frames.length; i++) {
+      setVideoProgress({ current: i + 1, total: frames.length });
+      try {
+        const call = supabase.functions.invoke("analyze-photo", {
+          body: { image_base64: frames[i].base64, mime_type: "image/jpeg", room_type: roomName },
+        });
+        const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
+        const { data, error } = (await Promise.race([call, timeout])) as any;
+        if (error) continue;
+        const aiItems: AiItem[] = Array.isArray(data?.items) ? data.items : [];
+        for (const ai of aiItems) {
+          if (!ai?.name) continue;
+          const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
+          const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
+          const key = ai.name.toLowerCase().trim();
+          const prev = merged.get(key);
+          if (!prev) {
+            merged.set(key, {
+              name: ai.name,
+              condition: cond,
+              confidence: conf,
+              descriptions: ai.description ? new Set([ai.description.trim()]) : new Set(),
+              maintenance_required: !!ai.maintenance_required,
+              maintenance_notes: ai.maintenance_notes ? new Set([ai.maintenance_notes.trim()]) : new Set(),
+              bestFrameIdx: i,
+              bestFrameConf: conf,
+            });
+          } else {
+            if (rank[cond] > rank[prev.condition]) prev.condition = cond;
+            if (conf > prev.confidence) prev.confidence = conf;
+            if (ai.description) prev.descriptions.add(ai.description.trim());
+            if (ai.maintenance_required) prev.maintenance_required = true;
+            if (ai.maintenance_notes) prev.maintenance_notes.add(ai.maintenance_notes.trim());
+            if (conf > prev.bestFrameConf) { prev.bestFrameConf = conf; prev.bestFrameIdx = i; }
+          }
+        }
+      } catch {
+        // continue on error
+      }
+    }
+
+    // Upload best frames per item (deduped by frame index) and record photo rows.
+    const frameIdxToPath = new Map<number, string>();
+    for (const m of merged.values()) {
+      if (frameIdxToPath.has(m.bestFrameIdx)) continue;
+      const bin = Uint8Array.from(atob(frames[m.bestFrameIdx].base64), (c) => c.charCodeAt(0));
+      const path = `${inspection.user_id}/${id}/${roomId}/frame-${crypto.randomUUID()}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos").upload(path, bin, { contentType: "image/jpeg" });
+      if (upErr) continue;
+      frameIdxToPath.set(m.bestFrameIdx, path);
+      await supabase.from("inspection_photos").insert({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        photo_url: path,
+      });
+    }
+
+    // Merge into inspection_items (matching by name, video source).
+    const existing = (items ?? []).filter((i) => i.room_id === roomId);
+    const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+    const toInsert: any[] = [];
+    const nowSort = existing.length * 10;
+    let insIdx = 0;
+    for (const m of merged.values()) {
+      const key = m.name.toLowerCase();
+      const existingItem = byName.get(key);
+      const description = Array.from(m.descriptions).filter(Boolean).join(" ") || null;
+      const notes = Array.from(m.maintenance_notes).filter(Boolean).join(" ") || null;
+      if (existingItem) {
+        const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
+        const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
+        await supabase.from("inspection_items").update({
+          sources,
+          condition: nextCond,
+          description: existingItem.description ? existingItem.description : description,
+          confidence: m.confidence || existingItem.confidence,
+        }).eq("id", existingItem.id);
+        continue;
+      }
+      toInsert.push({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        item_name: m.name,
+        condition: m.condition,
+        description,
+        maintenance_required: m.maintenance_required,
+        maintenance_notes: notes,
+        sources: ["video"],
+        confidence: m.confidence,
+        sort_order: nowSort + insIdx * 10,
+      });
+      insIdx++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("inspection_items").insert(toInsert);
+      if (error) toast.error(error.message);
+    }
+    qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    setVideoProcessing(false);
+    if (merged.size > 0) toast.success(`Detected ${merged.size} ${merged.size === 1 ? "item" : "items"} from walkthrough`);
+  }
+
   const countsByCondition = useMemo(() => {
     const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
     for (const it of roomItems) c[it.condition]++;
