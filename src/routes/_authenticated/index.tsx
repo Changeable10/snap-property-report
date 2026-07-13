@@ -494,6 +494,7 @@ function Index() {
       </main>
 
       <BottomNav />
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );
 }
