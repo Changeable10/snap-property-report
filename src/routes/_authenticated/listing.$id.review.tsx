@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { exportListingPackage } from "@/lib/listing-export";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -574,6 +575,47 @@ function ListingReview() {
   }
 
   const featuredPhotos = useMemo(() => (photos ?? []).filter((p) => p.featured), [photos]);
+
+  const roomNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rooms ?? []) m.set(r.id, r.name);
+    return m;
+  }, [rooms]);
+
+  const [exporting, setExporting] = useState(false);
+  const canExport = hasGenerated && !!title && !!description;
+
+  async function handleExport() {
+    if (!listing || !property) return;
+    if (!canExport) {
+      toast.error("Generate a listing description first");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportListingPackage({
+        listing: {
+          title,
+          description,
+          features,
+          price_line: priceLine,
+          listing_type: listing.listing_type,
+          target_portal: listing.target_portal,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          asking_price: listing.asking_price,
+        },
+        property,
+        photos: (photos ?? []) as any,
+        roomNameById,
+      });
+      toast.success("Listing package downloaded");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (!listing || !property) {
     return (
