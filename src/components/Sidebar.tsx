@@ -19,7 +19,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: typeof HomeIcon;
-  exact?: boolean;
+  match?: string; // pathname used to compute active state (defaults to `to`)
   badge?: number;
 }
 
@@ -87,17 +87,17 @@ export function Sidebar({ user }: SidebarProps) {
   const initials = initialsFrom(user?.email, displayName);
 
   const today: NavItem[] = [
-    { to: "/", label: "Today", icon: LayoutDashboard, exact: true },
+    { to: "/", label: "Today", icon: LayoutDashboard, match: "/" },
   ];
   const properties: NavItem[] = [
-    { to: "/", label: "All properties", icon: HomeIcon, exact: true, badge: counts.properties },
-    { to: "/inspections", label: "Inspections", icon: ClipboardList, badge: counts.inspections },
-    { to: "/inspections", label: "Compliance", icon: ShieldCheck },
-    { to: "/inspections", label: "Listings", icon: Tag },
+    { to: "/", label: "All properties", icon: HomeIcon, match: "/properties", badge: counts.properties },
+    { to: "/inspections", label: "Inspections", icon: ClipboardList, match: "/inspections", badge: counts.inspections },
+    { to: "/inspections", label: "Compliance", icon: ShieldCheck, match: "/compliance" },
+    { to: "/inspections", label: "Listings", icon: Tag, match: "/listings" },
   ];
   const records: NavItem[] = [
-    { to: "/", label: "Maintenance", icon: Wrench, badge: counts.maintenance },
-    { to: "/inspections", label: "Reports", icon: FileText },
+    { to: "/", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
+    { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
 
   return (
@@ -172,9 +172,8 @@ function NavSection({
       ) : null}
       <ul className="flex flex-col gap-0.5">
         {items.map((item, i) => {
-          const active = item.exact
-            ? currentPath === item.to
-            : currentPath.startsWith(item.to) && item.to !== "/";
+          const match = item.match ?? item.to;
+          const active = match === "/" ? currentPath === "/" : currentPath === match;
           const Icon = item.icon;
           return (
             <li key={`${item.label}-${i}`}>
