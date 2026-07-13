@@ -20,7 +20,6 @@ import {
   upsertTeamBranding,
   uploadTeamLogo,
   brandingLogoObjectUrl,
-  type TeamBranding,
 } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/team")({
