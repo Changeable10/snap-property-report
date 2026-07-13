@@ -350,25 +350,36 @@ function PropertyDetail() {
         {/* Contacts */}
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Property contacts</h2>
             <button
               type="button"
-              onClick={() => setShowContactForm((v) => !v)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+              onClick={() => setContactsOpen((v) => !v)}
+              className="inline-flex items-center gap-2 text-lg font-semibold text-foreground"
             >
-              <Plus className="size-4" />
-              {showContactForm ? "Close" : "Add contact"}
+              <ChevronDown className={`size-4 transition-transform ${contactsOpen ? "" : "-rotate-90"}`} />
+              Contacts
+              <span className="text-xs font-normal text-muted-foreground">({contacts?.length ?? 0})</span>
             </button>
+            {contactsOpen ? (
+              <button
+                type="button"
+                onClick={() => setShowContactForm((v) => !v)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+              >
+                <Plus className="size-4" />
+                {showContactForm ? "Close" : "Add contact"}
+              </button>
+            ) : null}
           </div>
 
-          {showContactForm ? (
+          {contactsOpen && showContactForm ? (
             <ContactForm
               onSubmit={(payload) => addContact.mutate(payload)}
               submitting={addContact.isPending}
             />
           ) : null}
 
-          {!contacts || contacts.length === 0 ? (
+          {contactsOpen ? (
+            !contacts || contacts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No contacts yet.
             </div>
@@ -409,7 +420,8 @@ function PropertyDetail() {
                 </div>
               ))}
             </div>
-          )}
+            )
+          ) : null}
         </section>
 
         <section className="mt-10">
