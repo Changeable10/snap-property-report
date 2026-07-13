@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Plus,
   Bed,
@@ -14,6 +15,7 @@ import {
 import { BottomNav } from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
+import { Onboarding, ONBOARDED_KEY } from "@/components/Onboarding";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: Index,
@@ -105,6 +107,8 @@ function daysBetween(a: Date, b: Date) {
 
 function Index() {
   const { user } = Route.useRouteContext();
+  const queryClient = useQueryClient();
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const displayName =
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.name ??
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.full_name ??
@@ -121,6 +125,25 @@ function Index() {
       return (data ?? []) as PropertyRow[];
     },
   });
+
+  const hasOnboardedFlag =
+    typeof window !== "undefined" && localStorage.getItem(ONBOARDED_KEY) === "true";
+  if (
+    properties !== undefined &&
+    properties.length === 0 &&
+    !hasOnboardedFlag &&
+    !onboardingDismissed
+  ) {
+    return (
+      <Onboarding
+        user={user}
+        onFinish={() => {
+          setOnboardingDismissed(true);
+          queryClient.invalidateQueries({ queryKey: ["properties"] });
+        }}
+      />
+    );
+  }
 
   const { data: inspections } = useQuery({
     queryKey: ["all-inspections"],
