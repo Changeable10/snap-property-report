@@ -146,7 +146,7 @@ function ListingReview() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason")
+        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason,enhanced_url")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
