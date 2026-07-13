@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comparison_results: {
         Row: {
           change_type: Database["public"]["Enums"]["comparison_change_type"]
@@ -423,6 +438,7 @@ export type Database = {
           source: Database["public"]["Enums"]["listing_photo_source"]
           staged_url: string | null
           staging_style: string | null
+          team_id: string | null
           user_id: string
         }
         Insert: {
@@ -439,6 +455,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["listing_photo_source"]
           staged_url?: string | null
           staging_style?: string | null
+          team_id?: string | null
           user_id: string
         }
         Update: {
@@ -455,6 +472,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["listing_photo_source"]
           staged_url?: string | null
           staging_style?: string | null
+          team_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -472,6 +490,13 @@ export type Database = {
             referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "listing_photos_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
         ]
       }
       listing_rooms: {
@@ -481,6 +506,7 @@ export type Database = {
           listing_id: string
           notes: string | null
           room_id: string
+          team_id: string | null
           transcript: string | null
           updated_at: string
           user_id: string
@@ -491,6 +517,7 @@ export type Database = {
           listing_id: string
           notes?: string | null
           room_id: string
+          team_id?: string | null
           transcript?: string | null
           updated_at?: string
           user_id: string
@@ -501,6 +528,7 @@ export type Database = {
           listing_id?: string
           notes?: string | null
           room_id?: string
+          team_id?: string | null
           transcript?: string | null
           updated_at?: string
           user_id?: string
@@ -518,6 +546,13 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_rooms_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
