@@ -563,6 +563,18 @@ function ListingCapture() {
             <div className="grid grid-cols-3 gap-2">
               {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
             </div>
+            {checking ? (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Checking shot quality…
+              </div>
+            ) : null}
+            {shotCheck && !checking ? (
+              <ShotCheckCard
+                check={shotCheck}
+                onKeep={() => setShotCheck(null)}
+                onRetake={retakeCurrent}
+              />
+            ) : null}
           </section>
         ) : null}
 
