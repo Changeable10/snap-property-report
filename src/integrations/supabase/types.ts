@@ -401,6 +401,8 @@ export type Database = {
           quality_score: number | null
           room_id: string | null
           source: Database["public"]["Enums"]["listing_photo_source"]
+          staged_url: string | null
+          staging_style: string | null
           user_id: string
         }
         Insert: {
@@ -415,6 +417,8 @@ export type Database = {
           quality_score?: number | null
           room_id?: string | null
           source?: Database["public"]["Enums"]["listing_photo_source"]
+          staged_url?: string | null
+          staging_style?: string | null
           user_id: string
         }
         Update: {
@@ -429,6 +433,8 @@ export type Database = {
           quality_score?: number | null
           room_id?: string | null
           source?: Database["public"]["Enums"]["listing_photo_source"]
+          staged_url?: string | null
+          staging_style?: string | null
           user_id?: string
         }
         Relationships: [
@@ -684,6 +690,38 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staging_usage: {
+        Row: {
+          created_at: string
+          id: string
+          listing_photo_id: string
+          style: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          listing_photo_id: string
+          style?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          listing_photo_id?: string
+          style?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staging_usage_listing_photo_id_fkey"
+            columns: ["listing_photo_id"]
+            isOneToOne: false
+            referencedRelation: "listing_photos"
             referencedColumns: ["id"]
           },
         ]
