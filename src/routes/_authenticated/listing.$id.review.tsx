@@ -831,7 +831,186 @@ function ListingReview() {
             ) : null}
           </section>
         ) : null}
+
+        {/* Virtual staging */}
+        {hasScores && featuredPhotos.length > 0 ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Virtual staging</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  AI-furnish featured rooms in the style of your choice.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => requestStage("bulk")}
+                disabled={bulkStaging || featuredPhotos.length === 0}
+                className="flex min-h-10 items-center gap-1.5 rounded-lg border border-teal px-3 text-xs font-semibold text-teal disabled:opacity-60"
+              >
+                {bulkStaging ? <Loader2 className="size-4 animate-spin" /> : <Sofa className="size-4" />}
+                Stage all featured
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {stagingLimit === Infinity
+                ? "Unlimited staging on your plan."
+                : `${stagingRemaining} staged image${stagingRemaining === 1 ? "" : "s"} remaining this month.`}
+            </p>
+            {bulkStaging ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Staging photo {Math.min(bulkStageProgress.done + 1, bulkStageProgress.total)} of {bulkStageProgress.total}…
+              </p>
+            ) : null}
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {featuredPhotos.map((p) => (
+                <StagedCard
+                  key={p.id}
+                  photo={p}
+                  staging={stagingId === p.id}
+                  onStage={() => requestStage(p)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
+
+      {styleModalFor ? (
+        <StyleModal
+          onClose={() => setStyleModalFor(null)}
+          onChoose={handleStyleChosen}
+          bulk={styleModalFor === "bulk"}
+          bulkCount={featuredPhotos.length}
+        />
+      ) : null}
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+    </div>
+  );
+}
+
+function StyleModal({
+  onClose,
+  onChoose,
+  bulk,
+  bulkCount,
+}: {
+  onClose: () => void;
+  onChoose: (styleKey: string) => void;
+  bulk: boolean;
+  bulkCount: number;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="relative w-full max-w-md rounded-t-3xl bg-background p-6 shadow-xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
+        >
+          <X className="size-5" />
+        </button>
+        <h3 className="pr-10 text-lg font-semibold text-foreground">Choose a style</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {bulk
+            ? `Staging ${bulkCount} featured photo${bulkCount === 1 ? "" : "s"} in this style.`
+            : "Applied to this photo."}
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {STAGING_STYLES.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => onChoose(s.key)}
+              className="flex min-h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-teal hover:bg-teal-light"
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StagedCard({
+  photo,
+  staging,
+  onStage,
+}: {
+  photo: PhotoRow;
+  staging: boolean;
+  onStage: () => void;
+}) {
+  const [origUrl, setOrigUrl] = useState<string | undefined>();
+  const [stagedUrl, setStagedUrl] = useState<string | undefined>();
+  const [showStaged, setShowStaged] = useState(true);
+  useEffect(() => {
+    let cancel = false;
+    supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
+      if (!cancel) setOrigUrl(data?.signedUrl);
+    });
+    return () => { cancel = true; };
+  }, [photo.photo_url]);
+  useEffect(() => {
+    let cancel = false;
+    if (photo.staged_url) {
+      supabase.storage.from("inspection-photos").createSignedUrl(photo.staged_url, 3600).then(({ data }) => {
+        if (!cancel) setStagedUrl(data?.signedUrl);
+      });
+    } else {
+      setStagedUrl(undefined);
+    }
+    return () => { cancel = true; };
+  }, [photo.staged_url]);
+  const hasStaged = !!photo.staged_url;
+  const displaySrc = hasStaged && showStaged ? stagedUrl : origUrl;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-background">
+      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        {displaySrc ? <img src={displaySrc} alt="" className="size-full object-cover" /> : null}
+        {staging ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-white">
+            <Loader2 className="size-5 animate-spin" />
+            <p className="mt-1 text-[11px] font-medium">Staging in progress…</p>
+          </div>
+        ) : null}
+        {hasStaged && !staging ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            {showStaged ? `Staged · ${photo.staging_style ?? ""}` : "Original"}
+          </span>
+        ) : null}
+      </div>
+      <div className="space-y-1.5 p-2">
+        {hasStaged ? (
+          <button
+            type="button"
+            onClick={() => setShowStaged((v) => !v)}
+            className="flex w-full items-center justify-center rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-foreground"
+          >
+            {showStaged ? "Show original" : "Show staged"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onStage}
+          disabled={staging}
+          className="flex min-h-8 w-full items-center justify-center gap-1 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:opacity-60"
+        >
+          {staging ? <Loader2 className="size-3 animate-spin" /> : <Sofa className="size-3" />}
+          {hasStaged ? "Try another style" : "Stage this room"}
+        </button>
+      </div>
     </div>
   );
 }
