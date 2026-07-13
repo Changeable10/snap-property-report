@@ -1,8 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Download } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
+import { usePlan } from "@/lib/use-plan";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import {
+  buildInspectionCsv,
+  downloadCsv,
+  todayStamp,
+  type InspectionExportRow,
+  type InspectionItemAgg,
+} from "@/lib/csv-export";
 
 export const Route = createFileRoute("/_authenticated/inspections")({
   head: () => ({ meta: [{ title: "Inspections — Snapsure" }] }),
@@ -49,6 +60,9 @@ function targetFor(status: Status) {
 }
 
 function InspectionsPage() {
+  const { user } = Route.useRouteContext();
+  const { data: plan } = usePlan(user.id);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const { data: inspections, isLoading } = useQuery({
     queryKey: ["all-inspections"],
     queryFn: async () => {
@@ -63,11 +77,54 @@ function InspectionsPage() {
     },
   });
 
+  async function handleExport() {
+    if (!plan || plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    const { data: ins, error: e1 } = await supabase
+      .from("inspections")
+      .select(
+        "id,inspection_type,inspection_date,status,inspector_name,tenant_names,property:properties(address,suburb,city)",
+      )
+      .order("inspection_date", { ascending: false });
+    if (e1) {
+      toast.error("Failed to load inspections");
+      return;
+    }
+    const rows = (ins ?? []) as unknown as InspectionExportRow[];
+    if (rows.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const ids = rows.map((r) => r.id);
+    const { data: items, error: e2 } = await supabase
+      .from("inspection_items")
+      .select("inspection_id,condition,maintenance_required")
+      .in("inspection_id", ids);
+    if (e2) {
+      toast.error("Failed to load items");
+      return;
+    }
+    const csv = buildInspectionCsv(rows, (items ?? []) as InspectionItemAgg[]);
+    downloadCsv(`snapsure-inspections-export-${todayStamp()}.csv`, csv);
+    toast.success("Inspections CSV downloaded");
+  }
+
   return (
     <PageShell
       title="Inspections"
       subtitle="All entry, routine and exit inspections."
     >
+      <div className="mb-4 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={handleExport}
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-accent"
+        >
+          <Download className="size-4" /> Export
+        </button>
+      </div>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : !inspections || inspections.length === 0 ? (
@@ -120,6 +177,7 @@ function InspectionsPage() {
           })}
         </ul>
       )}
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </PageShell>
   );
 }
