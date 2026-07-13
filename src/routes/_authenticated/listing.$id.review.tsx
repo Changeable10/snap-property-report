@@ -926,6 +926,51 @@ function ListingReview() {
             </div>
           </section>
         ) : null}
+
+        {/* Export listing package */}
+        {canExport ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold">Export listing</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Download a ready-to-paste text file, featured photos (enhanced and staged where available), and a printable one-page PDF summary. Works with Trade Me Property, realestate.co.nz, PropertyMe, Palace, Rex, and more.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => copyText(title, "Title")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy title
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText(description, "Description")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy description
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText(features, "Features")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy features
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-60"
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Package className="size-4" />}
+              Export listing package
+            </button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
+            </p>
+          </section>
+        ) : null}
       </main>
 
       {styleModalFor ? (
