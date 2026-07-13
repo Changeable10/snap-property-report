@@ -798,20 +798,70 @@ function CapturePage() {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={recording ? stopRecording : startRecording}
-          disabled={!current}
-          className={`mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl px-5 text-base font-semibold shadow-sm transition-colors disabled:opacity-60 ${
-            recording
-              ? "bg-red-600 text-white hover:bg-red-700"
-              : "bg-teal text-teal-foreground hover:bg-teal-dark"
-          }`}
-        >
-          {recording ? <><Square className="size-5 fill-white" /> Stop recording</> : <><Mic className="size-5" /> Describe this room</>}
-        </button>
+        {speechSupported && (
+          <button
+            type="button"
+            onClick={recording ? stopRecording : startRecording}
+            disabled={!current}
+            className={`mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl px-5 text-base font-semibold shadow-sm transition-colors disabled:opacity-60 ${
+              recording
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-teal text-teal-foreground hover:bg-teal-dark"
+            }`}
+          >
+            {recording ? <><Square className="size-5 fill-white" /> Stop recording</> : <><Mic className="size-5" /> Describe this room</>}
+          </button>
+        )}
 
         {recording && <Waveform />}
+
+        {transcript && (
+          <blockquote className="mt-4 rounded-r-lg border-l-4 border-teal bg-teal/5 px-4 py-3 text-sm italic text-foreground">
+            "{transcript}"
+          </blockquote>
+        )}
+
+        {(!speechSupported || !recording) && (
+          <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+            {!speechSupported && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Speech recognition isn't supported on this device. Type your observations below and we'll parse them the same way.
+              </p>
+            )}
+            {speechSupported && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Or type notes for this room (parsed the same as voice).
+              </p>
+            )}
+            <textarea
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              placeholder="e.g. Walls look good. Cracked window. Carpet has a small stain."
+              rows={3}
+              className="min-h-20 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              disabled={!manualText.trim() || savingNotes || !current}
+              onClick={async () => {
+                const text = manualText.trim();
+                if (!text) return;
+                setSavingNotes(true);
+                setTranscript(text);
+                try {
+                  await saveTranscript(text);
+                  setManualText("");
+                } finally {
+                  setSavingNotes(false);
+                }
+              }}
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+            >
+              {savingNotes ? <Loader2 className="size-4 animate-spin" /> : null}
+              Parse notes
+            </button>
+          </div>
+        )}
 
         {analyzing && (
           <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
@@ -822,12 +872,6 @@ function CapturePage() {
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <AlertTriangle className="size-4" /> Photo analysis unavailable — continue with voice or manual entry.
           </div>
-        )}
-
-        {transcript && (
-          <blockquote className="mt-4 rounded-r-lg border-l-4 border-teal bg-teal/5 px-4 py-3 text-sm italic text-foreground">
-            "{transcript}"
-          </blockquote>
         )}
 
         <section className="mt-8">
