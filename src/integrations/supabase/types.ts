@@ -100,6 +100,7 @@ export type Database = {
           moisture_data: Json
           overall_status: string
           property_id: string
+          smoke_alarms_data: Json
           updated_at: string
           user_id: string
           ventilation_data: Json
@@ -114,6 +115,7 @@ export type Database = {
           moisture_data?: Json
           overall_status?: string
           property_id: string
+          smoke_alarms_data?: Json
           updated_at?: string
           user_id: string
           ventilation_data?: Json
@@ -128,6 +130,7 @@ export type Database = {
           moisture_data?: Json
           overall_status?: string
           property_id?: string
+          smoke_alarms_data?: Json
           updated_at?: string
           user_id?: string
           ventilation_data?: Json

@@ -12,6 +12,7 @@ import {
   Wind,
   Droplets,
   DoorClosed,
+  BellRing,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/inspection/$id/healthy-hom
   component: HealthyHomesPage,
 });
 
-type StepKey = "heating" | "insulation" | "ventilation" | "moisture" | "draught";
+type StepKey = "heating" | "insulation" | "ventilation" | "moisture" | "draught" | "smoke";
 
 const STEPS: { key: StepKey; label: string; short: string; Icon: typeof Flame }[] = [
   { key: "heating", label: "Heating", short: "Heat", Icon: Flame },
@@ -31,6 +32,7 @@ const STEPS: { key: StepKey; label: string; short: string; Icon: typeof Flame }[
   { key: "ventilation", label: "Ventilation", short: "Vent", Icon: Wind },
   { key: "moisture", label: "Moisture & Drainage", short: "Moist", Icon: Droplets },
   { key: "draught", label: "Draught Stopping", short: "Draught", Icon: DoorClosed },
+  { key: "smoke", label: "Smoke Alarms", short: "Smoke", Icon: BellRing },
 ];
 
 type HeaterType =
@@ -106,6 +108,16 @@ interface DraughtData {
   photo_fireplace_path?: string | null;
   notes?: string;
 }
+type SmokeAlarmType = "photoelectric" | "ionisation" | "combined" | "unknown" | "";
+interface SmokeAlarmsData {
+  present?: YesNo;
+  count?: number | "";
+  near_bedrooms?: YesNo;
+  tested?: YesNo;
+  alarm_type?: SmokeAlarmType;
+  photo_path?: string | null;
+  notes?: string;
+}
 
 type Status = "green" | "amber" | "red" | "unknown";
 
@@ -165,6 +177,14 @@ function evalDraught(d: DraughtData): Status {
   return "green";
 }
 
+function evalSmoke(d: SmokeAlarmsData): Status {
+  if (!d.present) return "unknown";
+  if (d.present === "no") return "red";
+  if (d.near_bedrooms === "no" || d.tested === "no") return "amber";
+  if (!d.near_bedrooms || !d.tested) return "unknown";
+  return "green";
+}
+
 function overallFrom(statuses: Status[]): "compliant" | "action_required" | "non_compliant" {
   if (statuses.some((s) => s === "red")) return "non_compliant";
   if (statuses.some((s) => s === "amber" || s === "unknown")) return "action_required";
@@ -218,6 +238,7 @@ function HealthyHomesPage() {
   const [ventilation, setVentilation] = useState<VentilationData>({ rooms: {} });
   const [moisture, setMoisture] = useState<MoistureData>({});
   const [draught, setDraught] = useState<DraughtData>({});
+  const [smoke, setSmoke] = useState<SmokeAlarmsData>({});
   const [showSummary, setShowSummary] = useState(false);
   const [saving, setSaving] = useState(false);
   const hydrated = useRef(false);
@@ -230,6 +251,9 @@ function HealthyHomesPage() {
     if (existing.ventilation_data) setVentilation(existing.ventilation_data as VentilationData);
     if (existing.moisture_data) setMoisture(existing.moisture_data as MoistureData);
     if (existing.draught_data) setDraught(existing.draught_data as DraughtData);
+    if ((existing as { smoke_alarms_data?: unknown }).smoke_alarms_data) {
+      setSmoke((existing as { smoke_alarms_data: SmokeAlarmsData }).smoke_alarms_data);
+    }
   }, [existing]);
 
   const statuses = useMemo<Status[]>(
@@ -239,8 +263,9 @@ function HealthyHomesPage() {
       evalVentilation(ventilation),
       evalMoisture(moisture),
       evalDraught(draught),
+      evalSmoke(smoke),
     ],
-    [heating, insulation, ventilation, moisture, draught],
+    [heating, insulation, ventilation, moisture, draught, smoke],
   );
 
   async function persist(patch: Partial<{
@@ -249,6 +274,7 @@ function HealthyHomesPage() {
     ventilation_data: VentilationData;
     moisture_data: MoistureData;
     draught_data: DraughtData;
+    smoke_alarms_data: SmokeAlarmsData;
     overall_status: string;
   }>) {
     if (!inspection) return;
@@ -261,6 +287,7 @@ function HealthyHomesPage() {
       ventilation_data: (patch.ventilation_data ?? ventilation) as unknown as Json,
       moisture_data: (patch.moisture_data ?? moisture) as unknown as Json,
       draught_data: (patch.draught_data ?? draught) as unknown as Json,
+      smoke_alarms_data: (patch.smoke_alarms_data ?? smoke) as unknown as Json,
       overall_status: patch.overall_status ?? "in_progress",
     };
     const { error } = await supabase
@@ -318,7 +345,7 @@ function HealthyHomesPage() {
           </Link>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Healthy Homes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Five-standard compliance assessment
+            Six-standard compliance assessment
           </p>
         </div>
       </header>
@@ -358,8 +385,10 @@ function HealthyHomesPage() {
           />
         ) : current.key === "moisture" ? (
           <MoistureStep data={moisture} setData={setMoisture} uploadPhoto={uploadPhoto} />
-        ) : (
+        ) : current.key === "draught" ? (
           <DraughtStep data={draught} setData={setDraught} uploadPhoto={uploadPhoto} />
+        ) : (
+          <SmokeAlarmsStep data={smoke} setData={setSmoke} uploadPhoto={uploadPhoto} />
         )}
       </main>
 
@@ -1065,6 +1094,110 @@ function DraughtStep({
         onUpload={async (f) => {
           const p = await uploadPhoto(f, "draught-fireplace");
           if (p) setData({ ...data, photo_fireplace_path: p });
+        }}
+      />
+
+      <Notes value={data.notes} onChange={(v) => setData({ ...data, notes: v })} />
+    </div>
+  );
+}
+
+function SmokeAlarmsStep({
+  data,
+  setData,
+  uploadPhoto,
+}: {
+  data: SmokeAlarmsData;
+  setData: (d: SmokeAlarmsData) => void;
+  uploadPhoto: (f: File, slot: string) => Promise<string | null>;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <h2 className="text-lg font-semibold text-foreground">Smoke Alarms</h2>
+
+      <Field label="Are there working smoke alarms installed?">
+        <Segmented<YesNo>
+          value={data.present}
+          onChange={(v) => setData({ ...data, present: v })}
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+        />
+      </Field>
+
+      {data.present === "no" ? (
+        <Alert tone="red">
+          Working smoke alarms are required in all rental properties. The landlord must ensure
+          they are installed and working at the start of every tenancy.
+        </Alert>
+      ) : null}
+
+      {data.present === "yes" ? (
+        <>
+          <Field label="How many smoke alarms?">
+            <NumInput
+              value={data.count}
+              onChange={(n) => setData({ ...data, count: n })}
+              step="1"
+            />
+          </Field>
+
+          <Field label="Are smoke alarms installed near each bedroom / sleeping area?">
+            <Segmented<YesNo>
+              value={data.near_bedrooms}
+              onChange={(v) => setData({ ...data, near_bedrooms: v })}
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </Field>
+          {data.near_bedrooms === "no" ? (
+            <Alert tone="amber">
+              Smoke alarms should be installed within 3m of each bedroom door (or in every bedroom
+              where occupants smoke).
+            </Alert>
+          ) : null}
+
+          <Field label="Have the smoke alarms been tested?">
+            <Segmented<YesNo>
+              value={data.tested}
+              onChange={(v) => setData({ ...data, tested: v })}
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </Field>
+          {data.tested === "no" ? (
+            <Alert tone="amber">Smoke alarms should be tested at the start of each tenancy.</Alert>
+          ) : null}
+
+          <Field label="Type of smoke alarms">
+            <select
+              value={data.alarm_type ?? ""}
+              onChange={(e) =>
+                setData({ ...data, alarm_type: e.target.value as SmokeAlarmType })
+              }
+              className="min-h-11 rounded-xl border border-input bg-card px-3 text-base"
+            >
+              <option value="">Select…</option>
+              <option value="photoelectric">Photoelectric (recommended)</option>
+              <option value="ionisation">Ionisation</option>
+              <option value="combined">Combined photoelectric/ionisation</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </Field>
+        </>
+      ) : null}
+
+      <PhotoButton
+        label="Take a photo of a smoke alarm"
+        path={data.photo_path}
+        onUpload={async (f) => {
+          const p = await uploadPhoto(f, "smoke-alarm");
+          if (p) setData({ ...data, photo_path: p });
         }}
       />
 
