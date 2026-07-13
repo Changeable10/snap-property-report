@@ -66,7 +66,7 @@ function Stepper({
   );
 }
 
-export function Onboarding({ user }: { user: User }) {
+export function Onboarding({ user, onFinish }: { user: User; onFinish: () => void }) {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [propertyId, setPropertyId] = useState<string | null>(null);
@@ -304,7 +304,7 @@ export function Onboarding({ user }: { user: User }) {
         </button>
         <button
           type="button"
-          onClick={() => navigate({ to: "/", reloadDocument: true })}
+          onClick={onFinish}
           className="flex min-h-12 w-full items-center justify-center rounded-xl border border-input bg-card px-5 text-sm font-semibold text-foreground"
         >
           Go to dashboard
