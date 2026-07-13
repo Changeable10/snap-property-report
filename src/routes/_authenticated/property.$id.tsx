@@ -480,7 +480,18 @@ function PropertyDetail() {
         </section>
 
         <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Inspections</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Inspections</h2>
+            {inspections && inspections.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleExportInspections}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-accent"
+              >
+                <Download className="size-3.5" /> Export
+              </button>
+            ) : null}
+          </div>
           {!inspections || inspections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No inspections yet.
