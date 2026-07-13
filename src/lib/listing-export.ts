@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ExportListing {
+  id?: string;
   title: string | null;
   description: string | null;
   features: string | null;
@@ -22,6 +23,11 @@ export interface ExportProperty {
   property_type: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
+}
+
+export interface ExportAgent {
+  name: string | null;
+  email: string | null;
 }
 
 export interface ExportPhoto {
@@ -178,9 +184,10 @@ export async function exportListingPackage(opts: {
   property: ExportProperty;
   photos: ExportPhoto[];
   roomNameById: Map<string, string>;
+  agent?: ExportAgent;
   filenameBase?: string;
 }): Promise<void> {
-  const { listing, property, photos, roomNameById } = opts;
+  const { listing, property, photos, roomNameById, agent } = opts;
   const base = opts.filenameBase
     || slugify([property.address, property.suburb].filter(Boolean).join("-") || "listing");
 
@@ -198,6 +205,7 @@ export async function exportListingPackage(opts: {
   });
 
   let heroBlob: Blob | null = null;
+  const xmlImgFilenames: string[] = [];
   for (let i = 0; i < featured.length; i++) {
     const p = featured[i];
     const index = String(i + 1).padStart(2, "0");
@@ -207,7 +215,9 @@ export async function exportListingPackage(opts: {
     const primaryPath = p.enhanced_url || p.photo_url;
     const primary = await signedBlob(primaryPath);
     if (primary) {
-      zip.file(`photos/${index}-${tag}.${primary.ext}`, primary.blob);
+      const filename = `${index}-${tag}.${primary.ext}`;
+      zip.file(`photos/${filename}`, primary.blob);
+      xmlImgFilenames.push(filename);
       if (p.is_hero && !heroBlob) heroBlob = primary.blob;
     }
 
@@ -230,7 +240,10 @@ export async function exportListingPackage(opts: {
   const pdf = await buildSummaryPdf(listing, property, heroBlob);
   zip.file("listing-summary.pdf", pdf);
 
-  // 4. produce and download
+  // 4. REAXML feed
+  zip.file("listing.xml", buildReaxml(listing, property, agent, xmlImgFilenames));
+
+  // 5. produce and download
   const zipBlob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(zipBlob);
   const a = document.createElement("a");
@@ -240,4 +253,84 @@ export async function exportListingPackage(opts: {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function xmlEscape(s: string | number | null | undefined): string {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function reaxmlRootFor(listingType: string): "residential" | "rental" | "holiday" {
+  const t = (listingType || "").toLowerCase();
+  if (t === "for_rent" || t === "rental" || t === "for rent") return "rental";
+  if (t === "holiday" || t === "holiday_rental" || t === "short_stay") return "holiday";
+  return "residential";
+}
+
+function categoryFor(propertyType: string | null): string {
+  const t = (propertyType || "").toLowerCase();
+  if (t === "apartment") return "Apartment";
+  if (t === "townhouse") return "Townhouse";
+  if (t === "unit") return "Unit";
+  return "House";
+}
+
+function splitStreet(address: string | null): { number: string; street: string } {
+  const a = (address || "").trim();
+  if (!a) return { number: "", street: "" };
+  const m = a.match(/^(\d+\S*)\s+(.*)$/);
+  if (m) return { number: m[1], street: m[2] };
+  return { number: "", street: a };
+}
+
+function buildReaxml(
+  l: ExportListing,
+  p: ExportProperty,
+  agent: ExportAgent | undefined,
+  imgFilenames: string[],
+): string {
+  const root = reaxmlRootFor(l.listing_type);
+  const { number, street } = splitStreet(p.address);
+  const price = (l.asking_price || "").trim();
+  const imgs = imgFilenames
+    .map((f, i) => `      <img id="${i + 1}" url="${xmlEscape(f)}"/>`)
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<propertyList>
+  <${root}>
+    <agentID>snapsure</agentID>
+    <uniqueID>${xmlEscape(l.id || "")}</uniqueID>
+    <status>current</status>
+    <headline>${xmlEscape(l.title || "")}</headline>
+    <description>${xmlEscape(l.description || "")}</description>
+    <address>
+      <streetNumber>${xmlEscape(number)}</streetNumber>
+      <street>${xmlEscape(street)}</street>
+      <suburb>${xmlEscape(p.suburb || "")}</suburb>
+      <state>${xmlEscape(p.city || "")}</state>
+      <postcode>${xmlEscape(p.postcode || "")}</postcode>
+      <country>NZ</country>
+    </address>
+    <category name="${xmlEscape(categoryFor(p.property_type))}"/>
+    <features>
+      <bedrooms>${xmlEscape(l.bedrooms ?? p.bedrooms ?? "")}</bedrooms>
+      <bathrooms>${xmlEscape(l.bathrooms ?? p.bathrooms ?? "")}</bathrooms>
+    </features>
+    <price display="yes">${xmlEscape(price)}</price>
+    <listingAgent>
+      <name>${xmlEscape(agent?.name || "")}</name>
+      <email>${xmlEscape(agent?.email || "")}</email>
+    </listingAgent>
+    <objects>
+${imgs}
+    </objects>
+  </${root}>
+</propertyList>
+`;
 }
