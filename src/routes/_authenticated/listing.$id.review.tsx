@@ -732,14 +732,28 @@ function ListingReview() {
 
 function ScoredCard({
   photo,
+  recs,
+  analyzing,
+  applying,
+  onEnhance,
+  onApply,
+  onReset,
   onToggleFeatured,
   onSetHero,
 }: {
   photo: PhotoRow;
+  recs?: EnhanceRecs;
+  analyzing: boolean;
+  applying: boolean;
+  onEnhance: () => void;
+  onApply: () => void;
+  onReset: () => void;
   onToggleFeatured: (next: boolean) => void;
   onSetHero: () => void;
 }) {
   const [url, setUrl] = useState<string | undefined>();
+  const [enhancedUrl, setEnhancedUrl] = useState<string | undefined>();
+  const [showEnhanced, setShowEnhanced] = useState(false);
   useEffect(() => {
     let cancel = false;
     supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
@@ -747,8 +761,30 @@ function ScoredCard({
     });
     return () => { cancel = true; };
   }, [photo.photo_url]);
+
+  useEffect(() => {
+    let cancel = false;
+    if (photo.enhanced_url) {
+      supabase.storage.from("inspection-photos").createSignedUrl(photo.enhanced_url, 3600).then(({ data }) => {
+        if (!cancel) setEnhancedUrl(data?.signedUrl);
+      });
+    } else {
+      setEnhancedUrl(undefined);
+    }
+    return () => { cancel = true; };
+  }, [photo.enhanced_url]);
+
+  // Auto-show enhanced preview once recs arrive
+  useEffect(() => {
+    if (recs) setShowEnhanced(true);
+  }, [recs]);
+
   const score = photo.quality_score;
   const featured = !!photo.featured;
+  const hasApplied = !!photo.enhanced_url;
+  const filterStyle = recs && showEnhanced ? { filter: toFilterString(recs) } : undefined;
+  const displaySrc = hasApplied && !recs ? enhancedUrl ?? url : url;
+
   return (
     <div className={`overflow-hidden rounded-lg border ${featured ? "border-teal ring-2 ring-teal" : "border-border"} bg-background`}>
       <button
@@ -757,7 +793,14 @@ function ScoredCard({
         className="relative block aspect-square w-full overflow-hidden bg-muted"
         aria-label="Set as hero image"
       >
-        {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+        {displaySrc ? (
+          <img
+            src={displaySrc}
+            alt=""
+            className="size-full object-cover transition-[filter] duration-200"
+            style={filterStyle}
+          />
+        ) : null}
         {photo.is_hero ? (
           <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
             <Star className="size-3 fill-current" /> Hero
@@ -766,6 +809,19 @@ function ScoredCard({
         {score !== null && score !== undefined ? (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
             {Number(score).toFixed(1)}/10
+          </span>
+        ) : null}
+        {recs && showEnhanced ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            Enhanced
+          </span>
+        ) : recs && !showEnhanced ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+            Original
+          </span>
+        ) : hasApplied ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            Applied
           </span>
         ) : null}
       </button>
@@ -779,6 +835,53 @@ function ScoredCard({
           />
           <span className="line-clamp-3 text-muted-foreground">{photo.quality_reason || "—"}</span>
         </label>
+
+        {!recs ? (
+          <button
+            type="button"
+            onClick={onEnhance}
+            disabled={analyzing}
+            className="mt-2 flex min-h-8 w-full items-center justify-center gap-1 rounded-md border border-border px-2 text-[11px] font-semibold text-teal disabled:opacity-60"
+          >
+            {analyzing ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
+            {hasApplied ? "Re-enhance" : "Enhance"}
+          </button>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {recs.suggestion ? (
+              <p className="text-[10px] leading-tight text-muted-foreground">{recs.suggestion}</p>
+            ) : null}
+            <div className="flex items-center justify-between gap-1">
+              <button
+                type="button"
+                onClick={() => setShowEnhanced((v) => !v)}
+                className="flex-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold text-foreground"
+              >
+                {showEnhanced ? "Show original" : "Show enhanced"}
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onApply}
+                disabled={applying}
+                className="flex flex-1 items-center justify-center gap-1 rounded-md bg-teal px-1.5 py-1 text-[10px] font-semibold text-teal-foreground disabled:opacity-60"
+              >
+                {applying ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                Apply
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                disabled={applying}
+                className="flex items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold text-muted-foreground disabled:opacity-60"
+                aria-label="Reset to original"
+              >
+                <RotateCcw className="size-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
