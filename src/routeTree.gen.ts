@@ -21,6 +21,7 @@ import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './ro
 import { Route as AuthenticatedInspectionIdSignRouteImport } from './routes/_authenticated/inspection.$id.sign'
 import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_authenticated/inspection.$id.review'
 import { Route as AuthenticatedInspectionIdReportRouteImport } from './routes/_authenticated/inspection.$id.report'
+import { Route as AuthenticatedInspectionIdHealthyHomesRouteImport } from './routes/_authenticated/inspection.$id.healthy-homes'
 import { Route as AuthenticatedInspectionIdCompareRouteImport } from './routes/_authenticated/inspection.$id.compare'
 import { Route as AuthenticatedInspectionIdCaptureRouteImport } from './routes/_authenticated/inspection.$id.capture'
 
@@ -90,6 +91,12 @@ const AuthenticatedInspectionIdReportRoute =
     path: '/inspection/$id/report',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedInspectionIdHealthyHomesRoute =
+  AuthenticatedInspectionIdHealthyHomesRouteImport.update({
+    id: '/inspection/$id/healthy-homes',
+    path: '/inspection/$id/healthy-homes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedInspectionIdCompareRoute =
   AuthenticatedInspectionIdCompareRouteImport.update({
     id: '/inspection/$id/compare',
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
+  '/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
+  '/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
   '/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -144,6 +153,7 @@ export interface FileRoutesById {
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
   '/_authenticated/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/_authenticated/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
+  '/_authenticated/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
   '/_authenticated/inspection/$id/report': typeof AuthenticatedInspectionIdReportRoute
   '/_authenticated/inspection/$id/review': typeof AuthenticatedInspectionIdReviewRoute
   '/_authenticated/inspection/$id/sign': typeof AuthenticatedInspectionIdSignRoute
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/property/new'
     | '/inspection/$id/capture'
     | '/inspection/$id/compare'
+    | '/inspection/$id/healthy-homes'
     | '/inspection/$id/report'
     | '/inspection/$id/review'
     | '/inspection/$id/sign'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/property/new'
     | '/inspection/$id/capture'
     | '/inspection/$id/compare'
+    | '/inspection/$id/healthy-homes'
     | '/inspection/$id/report'
     | '/inspection/$id/review'
     | '/inspection/$id/sign'
@@ -192,6 +204,7 @@ export interface FileRouteTypes {
     | '/_authenticated/property/new'
     | '/_authenticated/inspection/$id/capture'
     | '/_authenticated/inspection/$id/compare'
+    | '/_authenticated/inspection/$id/healthy-homes'
     | '/_authenticated/inspection/$id/report'
     | '/_authenticated/inspection/$id/review'
     | '/_authenticated/inspection/$id/sign'
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/inspection/$id/healthy-homes': {
+      id: '/_authenticated/inspection/$id/healthy-homes'
+      path: '/inspection/$id/healthy-homes'
+      fullPath: '/inspection/$id/healthy-homes'
+      preLoaderRoute: typeof AuthenticatedInspectionIdHealthyHomesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/inspection/$id/compare': {
       id: '/_authenticated/inspection/$id/compare'
       path: '/inspection/$id/compare'
@@ -316,6 +336,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPropertyNewRoute: typeof AuthenticatedPropertyNewRoute
   AuthenticatedInspectionIdCaptureRoute: typeof AuthenticatedInspectionIdCaptureRoute
   AuthenticatedInspectionIdCompareRoute: typeof AuthenticatedInspectionIdCompareRoute
+  AuthenticatedInspectionIdHealthyHomesRoute: typeof AuthenticatedInspectionIdHealthyHomesRoute
   AuthenticatedInspectionIdReportRoute: typeof AuthenticatedInspectionIdReportRoute
   AuthenticatedInspectionIdReviewRoute: typeof AuthenticatedInspectionIdReviewRoute
   AuthenticatedInspectionIdSignRoute: typeof AuthenticatedInspectionIdSignRoute
@@ -330,6 +351,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPropertyNewRoute: AuthenticatedPropertyNewRoute,
   AuthenticatedInspectionIdCaptureRoute: AuthenticatedInspectionIdCaptureRoute,
   AuthenticatedInspectionIdCompareRoute: AuthenticatedInspectionIdCompareRoute,
+  AuthenticatedInspectionIdHealthyHomesRoute:
+    AuthenticatedInspectionIdHealthyHomesRoute,
   AuthenticatedInspectionIdReportRoute: AuthenticatedInspectionIdReportRoute,
   AuthenticatedInspectionIdReviewRoute: AuthenticatedInspectionIdReviewRoute,
   AuthenticatedInspectionIdSignRoute: AuthenticatedInspectionIdSignRoute,

@@ -255,11 +255,11 @@ function HealthyHomesPage() {
       inspection_id: id,
       property_id: inspection.property_id,
       user_id: user.id,
-      heating_data: patch.heating_data ?? heating,
-      insulation_data: patch.insulation_data ?? insulation,
-      ventilation_data: patch.ventilation_data ?? ventilation,
-      moisture_data: patch.moisture_data ?? moisture,
-      draught_data: patch.draught_data ?? draught,
+      heating_data: (patch.heating_data ?? heating) as unknown as Record<string, unknown>,
+      insulation_data: (patch.insulation_data ?? insulation) as unknown as Record<string, unknown>,
+      ventilation_data: (patch.ventilation_data ?? ventilation) as unknown as Record<string, unknown>,
+      moisture_data: (patch.moisture_data ?? moisture) as unknown as Record<string, unknown>,
+      draught_data: (patch.draught_data ?? draught) as unknown as Record<string, unknown>,
       overall_status: patch.overall_status ?? "in_progress",
     };
     const { error } = await supabase
