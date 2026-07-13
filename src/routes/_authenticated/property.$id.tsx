@@ -193,6 +193,41 @@ function PropertyDetail() {
   const [editingProperty, setEditingProperty] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(true);
   const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
+  const { data: plan } = usePlan(user.id);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  function handleExportInspections() {
+    if (!plan || plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    if (!property || !inspections || inspections.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const propRef = {
+      address: property.address,
+      suburb: property.suburb ?? null,
+      city: property.city ?? null,
+    };
+    const rows: InspectionExportRow[] = inspections.map((ins) => ({
+      id: ins.id,
+      inspection_type: ins.inspection_type,
+      inspection_date: ins.inspection_date,
+      status: ins.status,
+      inspector_name: null,
+      tenant_names: null,
+      property: propRef,
+    }));
+    const aggItems: InspectionItemAgg[] = (items ?? []).map((i) => ({
+      inspection_id: i.inspection_id,
+      condition: i.condition,
+      maintenance_required: i.maintenance_required,
+    }));
+    const csv = buildInspectionCsv(rows, aggItems);
+    downloadCsv(`snapsure-inspections-export-${todayStamp()}.csv`, csv);
+    toast.success("Inspections CSV downloaded");
+  }
 
   const addRoom = useMutation({
     mutationFn: async (name: string) => {
