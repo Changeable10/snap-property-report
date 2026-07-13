@@ -26,8 +26,33 @@ const PRICE_TO_PLAN: Record<string, Plan> = {
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
-export function usePlan(userId: string | undefined) {
+export const ADMIN_TEST_PLAN_KEY = "snapsure-admin-test-plan";
+
+function readAdminTestPlan(): Plan | null {
+  if (typeof window === "undefined") return null;
+  const v = window.localStorage.getItem(ADMIN_TEST_PLAN_KEY);
+  if (v === "free" || v === "professional" || v === "portfolio" || v === "agency") return v;
+  return null;
+}
+
+export function useIsAdmin(userId: string | undefined) {
   return useQuery({
+    queryKey: ["is-admin", userId],
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<boolean> => {
+      const { data } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", userId!)
+        .maybeSingle();
+      return !!data;
+    },
+  });
+}
+
+export function usePlan(userId: string | undefined) {
+  const query = useQuery({
     queryKey: ["subscription", userId],
     enabled: !!userId,
     queryFn: async (): Promise<Plan> => {
@@ -48,6 +73,12 @@ export function usePlan(userId: string | undefined) {
       return PRICE_TO_PLAN[data.price_id] ?? "free";
     },
   });
+  const { data: isAdmin } = useIsAdmin(userId);
+  const override = isAdmin ? readAdminTestPlan() : null;
+  if (override) {
+    return { ...query, data: override } as typeof query;
+  }
+  return query;
 }
 
 export function usePropertyCount(userId: string | undefined) {
