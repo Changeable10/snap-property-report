@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   ArrowLeft, Bed, Bath, Home as HomeIcon, Building2, Plus, Pencil, Trash2,
-  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play,
+  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown, Wrench,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
@@ -181,6 +181,8 @@ function PropertyDetail() {
   const [newRoom, setNewRoom] = useState("");
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(true);
+  const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
 
   const addRoom = useMutation({
     mutationFn: async (name: string) => {
@@ -279,6 +281,11 @@ function PropertyDetail() {
       const db = inspectionById.get(b.inspection_id)?.inspection_date ?? "";
       return db.localeCompare(da);
     });
+  const filteredMaintenance = maintenanceRows.filter((it) =>
+    maintFilter === "all" ? true : maintFilter === "resolved" ? it.maintenance_resolved : !it.maintenance_resolved,
+  );
+  const openCount = maintenanceRows.filter((i) => !i.maintenance_resolved).length;
+  const resolvedCount = maintenanceRows.length - openCount;
 
   return (
     <div className="min-h-screen bg-background pb-24">
