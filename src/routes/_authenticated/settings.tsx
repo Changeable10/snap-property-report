@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan, PLAN_LABEL } from "@/lib/use-plan";
+import { Link } from "@tanstack/react-router";
+import { Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Snapsure" }] }),
@@ -47,6 +49,23 @@ function SettingsPage() {
           </a>
         ) : null}
       </div>
+      {current === "agency" ? (
+        <Link
+          to="/team"
+          className="mb-4 flex items-center justify-between rounded-xl border border-input bg-card px-4 py-3 transition-colors hover:bg-accent"
+        >
+          <div className="flex items-center gap-3">
+            <div className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+              <Users className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Team</p>
+              <p className="text-xs text-muted-foreground">Invite and manage members</p>
+            </div>
+          </div>
+          <span className="text-xs font-medium text-primary">Open →</span>
+        </Link>
+      ) : null}
       <button
         type="button"
         onClick={signOut}
