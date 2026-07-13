@@ -97,7 +97,7 @@ export function Sidebar({ user }: SidebarProps) {
     { to: "/inspections", label: "Listings", icon: Tag, match: "/listings" },
   ];
   const records: NavItem[] = [
-    { to: "/", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
+    { to: "/maintenance", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
     { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
   const agencyItems: NavItem[] =
