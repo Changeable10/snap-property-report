@@ -1,18 +1,32 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan, PLAN_LABEL } from "@/lib/use-plan";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Snapsure" }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    upgraded: search.upgraded === "true" || search.upgraded === true ? true : undefined,
+  }),
   component: SettingsPage,
 });
 
 function SettingsPage() {
   const { user } = Route.useRouteContext();
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const queryClient = useQueryClient();
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
+  useEffect(() => {
+    if (!search.upgraded) return;
+    toast.success(`You're now on the ${PLAN_LABEL[current]} plan`);
+    queryClient.invalidateQueries({ queryKey: ["subscription", user.id] });
+    navigate({ to: "/settings", replace: true });
+  }, [search.upgraded, current, navigate, queryClient, user.id]);
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
