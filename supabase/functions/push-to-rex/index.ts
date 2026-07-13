@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { requireUser } from "../_shared/auth.ts";
+import { requirePlan } from "../_shared/plan.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -37,6 +38,9 @@ Deno.serve(async (req) => {
   const auth = await requireUser(req, corsHeaders);
   if (auth instanceof Response) return auth;
   const userId = auth.userId;
+  // Agency-only integration.
+  const gate = await requirePlan(userId, ["agency"], corsHeaders);
+  if (gate) return gate;
 
   try {
     const payload = await req.json().catch(() => ({}));
@@ -60,6 +64,24 @@ Deno.serve(async (req) => {
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!service) return json(500, { error: "Server not configured" });
     const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+
+    // SSRF protection: only fetch photos from our own Supabase storage host over https.
+    let allowedHost: string;
+    try {
+      allowedHost = new URL(url).host;
+    } catch {
+      return json(500, { error: "Server not configured" });
+    }
+    const isAllowedPhotoUrl = (u: unknown): u is string => {
+      if (typeof u !== "string") return false;
+      let parsed: URL;
+      try { parsed = new URL(u); } catch { return false; }
+      if (parsed.protocol !== "https:") return false;
+      if (parsed.host !== allowedHost) return false;
+      // Restrict to the storage API path.
+      if (!parsed.pathname.startsWith("/storage/v1/")) return false;
+      return true;
+    };
 
     // Resolve user's team.
     const { data: member } = await admin
@@ -125,9 +147,10 @@ Deno.serve(async (req) => {
     // 3. Upload photos (best-effort).
     let uploaded = 0;
     if (Array.isArray(photo_urls)) {
-      for (const url of photo_urls) {
+      for (const photoUrl of photo_urls) {
+        if (!isAllowedPhotoUrl(photoUrl)) continue;
         try {
-          const imgResp = await fetch(url);
+          const imgResp = await fetch(photoUrl, { redirect: "error" });
           if (!imgResp.ok) continue;
           const buf = new Uint8Array(await imgResp.arrayBuffer());
           let bin = "";
