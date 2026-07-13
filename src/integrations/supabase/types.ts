@@ -815,6 +815,53 @@ export type Database = {
         }
         Relationships: []
       }
+      team_branding: {
+        Row: {
+          address: string | null
+          brand_colour: string
+          company_name: string
+          created_at: string
+          email: string | null
+          id: string
+          logo_url: string | null
+          phone: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          brand_colour?: string
+          company_name: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          brand_colour?: string
+          company_name?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_branding_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string
