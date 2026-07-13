@@ -8,6 +8,7 @@ import {
   Wrench,
   FileText,
   Settings as SettingsIcon,
+  Users,
 } from "lucide-react";
 import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
@@ -99,6 +100,10 @@ export function Sidebar({ user }: SidebarProps) {
     { to: "/", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
     { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
+  const agencyItems: NavItem[] =
+    plan === "agency"
+      ? [{ to: "/team", label: "Team", icon: Users, match: "/team" }]
+      : [];
 
   return (
     <aside
@@ -122,6 +127,9 @@ export function Sidebar({ user }: SidebarProps) {
         <NavSection items={today} currentPath={currentPath} />
         <NavSection label="Properties" items={properties} currentPath={currentPath} />
         <NavSection label="Records" items={records} currentPath={currentPath} />
+        {agencyItems.length > 0 ? (
+          <NavSection label="Agency" items={agencyItems} currentPath={currentPath} />
+        ) : null}
       </nav>
 
       <div className="border-t border-white/[0.06] p-3">

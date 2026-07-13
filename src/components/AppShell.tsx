@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
+import { useServerFn } from "@tanstack/react-start";
+import { claimTeamInvites } from "@/lib/team.functions";
 
 interface AppShellProps {
   user: User | null;
@@ -14,6 +16,16 @@ interface AppShellProps {
 
 export function AppShell({ user, children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const claim = useServerFn(claimTeamInvites);
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = `snapsure-invite-claimed-${user.id}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    claim().catch(() => {
+      /* silent — best-effort */
+    });
+  }, [user?.id, claim]);
   return (
     <div className="min-h-screen bg-background">
       <Sidebar user={user as never} />
