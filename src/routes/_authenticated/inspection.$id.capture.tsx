@@ -817,7 +817,13 @@ function CapturePage() {
         {videoRecording && (
           <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
             <div className="relative">
-              <video ref={videoPreviewRef} muted playsInline className="w-full aspect-video bg-black object-cover" />
+              <video
+                ref={videoPreviewRef}
+                autoPlay
+                muted
+                playsInline
+                className="block w-full aspect-video bg-black object-cover"
+              />
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
                 REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
@@ -830,6 +836,87 @@ function CapturePage() {
             >
               <Square className="size-4 fill-white" /> Stop recording
             </button>
+          </div>
+        )}
+
+        {extractingFrames && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+            <Loader2 className="size-4 animate-spin" /> Extracting frames…
+          </div>
+        )}
+
+        {!videoProcessing && extractedFrames.length > 0 && (
+          <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                Review frames ({selectedFrameIdx.size} of {extractedFrames.length} selected)
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedFrameIdx.size === extractedFrames.length) setSelectedFrameIdx(new Set());
+                  else setSelectedFrameIdx(new Set(extractedFrames.map((_, i) => i)));
+                }}
+                className="text-xs font-semibold text-teal"
+              >
+                {selectedFrameIdx.size === extractedFrames.length ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Uncheck blurry or duplicate frames before analysis.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {extractedFrames.map((f, i) => {
+                const isSelected = selectedFrameIdx.has(i);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFrameIdx((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i); else next.add(i);
+                        return next;
+                      });
+                    }}
+                    className={`relative aspect-square overflow-hidden rounded-lg border-2 bg-muted ${isSelected ? "border-teal" : "border-border opacity-60"}`}
+                  >
+                    <img
+                      src={`data:image/jpeg;base64,${f.base64}`}
+                      alt={`Frame at ${Math.round(f.time)}s`}
+                      className="h-full w-full object-cover"
+                    />
+                    <span className={`absolute right-1 top-1 grid size-5 place-items-center rounded-full text-white shadow ring-2 ring-white ${isSelected ? "bg-teal" : "bg-black/40"}`}>
+                      {isSelected ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
+                    <span className="absolute left-1 bottom-1 rounded bg-black/60 px-1 py-0.5 text-[10px] font-medium text-white">
+                      {Math.round(f.time)}s
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedFrames([]);
+                  setSelectedFrameIdx(new Set());
+                  setPendingVideoBlob(null);
+                }}
+                className="flex-1 min-h-11 rounded-xl border border-border px-4 text-sm font-semibold text-muted-foreground"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={analyzeSelectedFrames}
+                disabled={selectedFrameIdx.size === 0}
+                className="flex-[2] min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-50"
+              >
+                Analyse {selectedFrameIdx.size} selected {selectedFrameIdx.size === 1 ? "frame" : "frames"}
+              </button>
+            </div>
           </div>
         )}
 
