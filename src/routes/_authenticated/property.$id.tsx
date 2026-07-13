@@ -324,14 +324,24 @@ function PropertyDetail() {
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditingProperty((v) => !v)}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
-              >
-                <Pencil className="size-3.5" />
-                {editingProperty ? "Cancel" : "Edit property"}
-              </button>
+              <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => setEditingProperty((v) => !v)}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
+                >
+                  <Pencil className="size-3.5" />
+                  {editingProperty ? "Cancel" : "Edit property"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/inspection/setup/$propertyId", params: { propertyId: id } })}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  <ClipboardList className="size-3.5" />
+                  New inspection
+                </button>
+              </div>
             </div>
           ) : (
             <h1 className="text-xl font-bold tracking-tight text-foreground">Property</h1>
@@ -684,15 +694,6 @@ function PropertyDetail() {
         </section>
       </main>
 
-      {/* Floating action button */}
-      <button
-        type="button"
-        onClick={() => navigate({ to: "/inspection/setup/$propertyId", params: { propertyId: id } })}
-        className="fixed bottom-24 right-5 z-40 inline-flex min-h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-teal-foreground shadow-lg transition-colors hover:bg-teal-dark"
-      >
-        <ClipboardList className="size-5" />
-        New inspection
-      </button>
     </div>
   );
 }
