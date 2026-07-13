@@ -190,7 +190,7 @@ export const claimTeamInvites = createServerFn({ method: "POST" })
         status: "active",
         joined_at: new Date().toISOString(),
       })
-      .ilike("invited_email", email)
+      .eq("invited_email", email)
       .eq("status", "invited")
       .select("id");
     if (error) throw error;
