@@ -593,8 +593,16 @@ function ListingReview() {
     }
     setExporting(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      const u = userData?.user;
+      const meta = (u?.user_metadata ?? {}) as Record<string, any>;
+      const agentName =
+        meta.full_name || meta.name ||
+        [meta.first_name, meta.last_name].filter(Boolean).join(" ") ||
+        (u?.email ? u.email.split("@")[0] : "");
       await exportListingPackage({
         listing: {
+          id: listing.id,
           title,
           description,
           features,
@@ -608,6 +616,7 @@ function ListingReview() {
         property,
         photos: (photos ?? []) as any,
         roomNameById,
+        agent: { name: agentName || null, email: u?.email ?? null },
       });
       toast.success("Listing package downloaded");
     } catch (e: any) {
