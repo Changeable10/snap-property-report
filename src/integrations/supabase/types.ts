@@ -483,10 +483,13 @@ export type Database = {
       }
       listings: {
         Row: {
+          ai_generated_at: string | null
           asking_price: string | null
           bathrooms: number | null
           bedrooms: number | null
           created_at: string
+          description: string | null
+          features: string | null
           id: string
           key_features: string | null
           listing_type: Database["public"]["Enums"]["listing_type"]
@@ -498,10 +501,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_generated_at?: string | null
           asking_price?: string | null
           bathrooms?: number | null
           bedrooms?: number | null
           created_at?: string
+          description?: string | null
+          features?: string | null
           id?: string
           key_features?: string | null
           listing_type: Database["public"]["Enums"]["listing_type"]
@@ -513,10 +519,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_generated_at?: string | null
           asking_price?: string | null
           bathrooms?: number | null
           bedrooms?: number | null
           created_at?: string
+          description?: string | null
+          features?: string | null
           id?: string
           key_features?: string | null
           listing_type?: Database["public"]["Enums"]["listing_type"]
