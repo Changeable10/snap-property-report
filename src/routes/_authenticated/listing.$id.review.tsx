@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -62,6 +63,7 @@ interface PhotoRow {
   is_hero?: boolean;
   quality_score?: number | null;
   quality_reason?: string | null;
+  enhanced_url?: string | null;
 }
 
 function SignedImg({ path }: { path: string }) {
@@ -144,7 +146,7 @@ function ListingReview() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason")
+        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason,enhanced_url")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -165,6 +167,11 @@ function ListingReview() {
   const [scoring, setScoring] = useState(false);
   const [scoreProgress, setScoreProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [downloadingAll, setDownloadingAll] = useState(false);
+
+  // Bulk enhancement state
+  const [bulkEnhancing, setBulkEnhancing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [bulkTarget, setBulkTarget] = useState<string | null>(null); // photo id to trigger enhance-and-preview flow
 
   useEffect(() => {
     if (!listing) return;
@@ -352,6 +359,102 @@ function ListingReview() {
       toast.error(e?.message ?? "Download failed");
     } finally {
       setDownloadingAll(false);
+    }
+  }
+
+  // -------- Photo enhancement --------
+  const [recsById, setRecsById] = useState<Record<string, EnhanceRecs>>({});
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  async function analyzePhoto(p: PhotoRow): Promise<EnhanceRecs | null> {
+    setAnalyzingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      const url = signed?.signedUrl;
+      if (!url) throw new Error("Signed URL failed");
+      const { data, error } = await supabase.functions.invoke("enhance-listing-photo", {
+        body: { image_url: url },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const recs = data as EnhanceRecs;
+      setRecsById((prev) => ({ ...prev, [p.id]: recs }));
+      return recs;
+    } catch (e: any) {
+      toast.error(e?.message ?? "Enhancement analysis failed");
+      return null;
+    } finally {
+      setAnalyzingId(null);
+    }
+  }
+
+  async function applyEnhancement(p: PhotoRow) {
+    const recs = recsById[p.id];
+    if (!recs) return;
+    setApplyingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      if (!signed?.signedUrl) throw new Error("Signed URL failed");
+      const blob = await renderEnhancedBlob(signed.signedUrl, recs);
+      const rawName = p.photo_url.split("/").pop() ?? `${p.id}.jpg`;
+      const baseName = rawName.replace(/\.[^.]+$/, "");
+      const enhancedPath = `listing-${id}/enhanced-${baseName}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(enhancedPath, blob, { contentType: "image/jpeg", upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("listing_photos")
+        .update({ enhanced_url: enhancedPath })
+        .eq("id", p.id);
+      if (dbErr) throw dbErr;
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success("Enhanced version saved");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Apply failed");
+    } finally {
+      setApplyingId(null);
+    }
+  }
+
+  async function resetEnhancement(p: PhotoRow) {
+    setRecsById((prev) => {
+      const next = { ...prev };
+      delete next[p.id];
+      return next;
+    });
+    if (p.enhanced_url) {
+      try {
+        await supabase.storage.from("inspection-photos").remove([p.enhanced_url]);
+      } catch { /* ignore */ }
+      await supabase.from("listing_photos").update({ enhanced_url: null }).eq("id", p.id);
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+    }
+    toast.success("Reset to original");
+  }
+
+  async function bulkEnhanceFeatured() {
+    if (!photos) return;
+    const featured = photos.filter((p) => p.featured);
+    if (featured.length === 0) {
+      toast.error("No featured photos to enhance");
+      return;
+    }
+    setBulkEnhancing(true);
+    setBulkProgress({ done: 0, total: featured.length });
+    try {
+      for (let i = 0; i < featured.length; i++) {
+        setBulkProgress({ done: i, total: featured.length });
+        await analyzePhoto(featured[i]);
+      }
+      setBulkProgress({ done: featured.length, total: featured.length });
+      toast.success(`Analysed ${featured.length} photo${featured.length === 1 ? "" : "s"}. Review before/after and Apply.`);
+    } finally {
+      setBulkEnhancing(false);
     }
   }
 
@@ -569,11 +672,36 @@ function ListingReview() {
 
             {hasScores && !scoring ? (
               <>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {featuredCount} featured
+                  </p>
+                  <button
+                    type="button"
+                    onClick={bulkEnhanceFeatured}
+                    disabled={bulkEnhancing || featuredCount === 0}
+                    className="flex min-h-10 items-center gap-1.5 rounded-lg border border-teal px-3 text-xs font-semibold text-teal disabled:opacity-60"
+                  >
+                    {bulkEnhancing ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+                    Enhance all featured
+                  </button>
+                </div>
+                {bulkEnhancing ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Enhancing photo {Math.min(bulkProgress.done + 1, bulkProgress.total)} of {bulkProgress.total}…
+                  </p>
+                ) : null}
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {scoredPhotos.map((p) => (
                     <ScoredCard
                       key={p.id}
                       photo={p}
+                      recs={recsById[p.id]}
+                      analyzing={analyzingId === p.id}
+                      applying={applyingId === p.id}
+                      onEnhance={() => analyzePhoto(p)}
+                      onApply={() => applyEnhancement(p)}
+                      onReset={() => resetEnhancement(p)}
                       onToggleFeatured={(next) => toggleFeatured(p.id, next)}
                       onSetHero={() => setHero(p.id)}
                     />
@@ -604,14 +732,28 @@ function ListingReview() {
 
 function ScoredCard({
   photo,
+  recs,
+  analyzing,
+  applying,
+  onEnhance,
+  onApply,
+  onReset,
   onToggleFeatured,
   onSetHero,
 }: {
   photo: PhotoRow;
+  recs?: EnhanceRecs;
+  analyzing: boolean;
+  applying: boolean;
+  onEnhance: () => void;
+  onApply: () => void;
+  onReset: () => void;
   onToggleFeatured: (next: boolean) => void;
   onSetHero: () => void;
 }) {
   const [url, setUrl] = useState<string | undefined>();
+  const [enhancedUrl, setEnhancedUrl] = useState<string | undefined>();
+  const [showEnhanced, setShowEnhanced] = useState(false);
   useEffect(() => {
     let cancel = false;
     supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
@@ -619,8 +761,30 @@ function ScoredCard({
     });
     return () => { cancel = true; };
   }, [photo.photo_url]);
+
+  useEffect(() => {
+    let cancel = false;
+    if (photo.enhanced_url) {
+      supabase.storage.from("inspection-photos").createSignedUrl(photo.enhanced_url, 3600).then(({ data }) => {
+        if (!cancel) setEnhancedUrl(data?.signedUrl);
+      });
+    } else {
+      setEnhancedUrl(undefined);
+    }
+    return () => { cancel = true; };
+  }, [photo.enhanced_url]);
+
+  // Auto-show enhanced preview once recs arrive
+  useEffect(() => {
+    if (recs) setShowEnhanced(true);
+  }, [recs]);
+
   const score = photo.quality_score;
   const featured = !!photo.featured;
+  const hasApplied = !!photo.enhanced_url;
+  const filterStyle = recs && showEnhanced ? { filter: toFilterString(recs) } : undefined;
+  const displaySrc = hasApplied && !recs ? enhancedUrl ?? url : url;
+
   return (
     <div className={`overflow-hidden rounded-lg border ${featured ? "border-teal ring-2 ring-teal" : "border-border"} bg-background`}>
       <button
@@ -629,7 +793,14 @@ function ScoredCard({
         className="relative block aspect-square w-full overflow-hidden bg-muted"
         aria-label="Set as hero image"
       >
-        {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+        {displaySrc ? (
+          <img
+            src={displaySrc}
+            alt=""
+            className="size-full object-cover transition-[filter] duration-200"
+            style={filterStyle}
+          />
+        ) : null}
         {photo.is_hero ? (
           <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
             <Star className="size-3 fill-current" /> Hero
@@ -638,6 +809,19 @@ function ScoredCard({
         {score !== null && score !== undefined ? (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
             {Number(score).toFixed(1)}/10
+          </span>
+        ) : null}
+        {recs && showEnhanced ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            Enhanced
+          </span>
+        ) : recs && !showEnhanced ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+            Original
+          </span>
+        ) : hasApplied ? (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            Applied
           </span>
         ) : null}
       </button>
@@ -651,6 +835,53 @@ function ScoredCard({
           />
           <span className="line-clamp-3 text-muted-foreground">{photo.quality_reason || "—"}</span>
         </label>
+
+        {!recs ? (
+          <button
+            type="button"
+            onClick={onEnhance}
+            disabled={analyzing}
+            className="mt-2 flex min-h-8 w-full items-center justify-center gap-1 rounded-md border border-border px-2 text-[11px] font-semibold text-teal disabled:opacity-60"
+          >
+            {analyzing ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
+            {hasApplied ? "Re-enhance" : "Enhance"}
+          </button>
+        ) : (
+          <div className="mt-2 space-y-1.5">
+            {recs.suggestion ? (
+              <p className="text-[10px] leading-tight text-muted-foreground">{recs.suggestion}</p>
+            ) : null}
+            <div className="flex items-center justify-between gap-1">
+              <button
+                type="button"
+                onClick={() => setShowEnhanced((v) => !v)}
+                className="flex-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold text-foreground"
+              >
+                {showEnhanced ? "Show original" : "Show enhanced"}
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onApply}
+                disabled={applying}
+                className="flex flex-1 items-center justify-center gap-1 rounded-md bg-teal px-1.5 py-1 text-[10px] font-semibold text-teal-foreground disabled:opacity-60"
+              >
+                {applying ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                Apply
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                disabled={applying}
+                className="flex items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold text-muted-foreground disabled:opacity-60"
+                aria-label="Reset to original"
+              >
+                <RotateCcw className="size-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

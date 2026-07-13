@@ -1,0 +1,1 @@
+ALTER TABLE public.listing_photos ADD COLUMN IF NOT EXISTS enhanced_url text;
