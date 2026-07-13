@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, LogIn, RefreshCw, LogOut } from "lucide-react";
+import { ArrowLeft, LogIn, RefreshCw, LogOut, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/inspection/setup/$propertyId")({
@@ -9,12 +9,13 @@ export const Route = createFileRoute("/_authenticated/inspection/setup/$property
   component: InspectionSetup,
 });
 
-type InspectionType = "entry" | "routine" | "exit";
+type InspectionType = "entry" | "routine" | "exit" | "healthy_homes";
 
 const TYPES: { value: InspectionType; label: string; description: string; Icon: typeof LogIn }[] = [
   { value: "entry", label: "Entry inspection", description: "First inspection when tenant moves in", Icon: LogIn },
   { value: "routine", label: "Routine inspection", description: "Periodic check during tenancy", Icon: RefreshCw },
   { value: "exit", label: "Exit inspection", description: "Final inspection when tenant moves out", Icon: LogOut },
+  { value: "healthy_homes", label: "Healthy Homes", description: "NZ Healthy Homes Standards compliance check", Icon: HeartPulse },
 ];
 
 function today() {
@@ -67,7 +68,11 @@ function InspectionSetup() {
       setSubmitting(false);
       return;
     }
-    navigate({ to: "/inspection/$id/capture", params: { id: data.id } });
+    if (type === "healthy_homes") {
+      navigate({ to: "/inspection/$id/healthy-homes", params: { id: data.id } });
+    } else {
+      navigate({ to: "/inspection/$id/capture", params: { id: data.id } });
+    }
   }
 
   return (
