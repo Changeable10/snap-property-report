@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getPaddleEnvironment } from "@/lib/paddle";
 
@@ -27,12 +28,34 @@ const PRICE_TO_PLAN: Record<string, Plan> = {
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 export const ADMIN_TEST_PLAN_KEY = "snapsure-admin-test-plan";
+export const ADMIN_TEST_PLAN_EVENT = "snapsure-admin-test-plan-change";
 
 function readAdminTestPlan(): Plan | null {
   if (typeof window === "undefined") return null;
   const v = window.localStorage.getItem(ADMIN_TEST_PLAN_KEY);
   if (v === "free" || v === "professional" || v === "portfolio" || v === "agency") return v;
   return null;
+}
+
+export function setAdminTestPlan(plan: Plan | null) {
+  if (typeof window === "undefined") return;
+  if (plan) window.localStorage.setItem(ADMIN_TEST_PLAN_KEY, plan);
+  else window.localStorage.removeItem(ADMIN_TEST_PLAN_KEY);
+  window.dispatchEvent(new Event(ADMIN_TEST_PLAN_EVENT));
+}
+
+export function useAdminTestPlan(): Plan | null {
+  const [value, setValue] = useState<Plan | null>(() => readAdminTestPlan());
+  useEffect(() => {
+    const sync = () => setValue(readAdminTestPlan());
+    window.addEventListener(ADMIN_TEST_PLAN_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(ADMIN_TEST_PLAN_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  return value;
 }
 
 export function useIsAdmin(userId: string | undefined) {
@@ -74,7 +97,8 @@ export function usePlan(userId: string | undefined) {
     },
   });
   const { data: isAdmin } = useIsAdmin(userId);
-  const override = isAdmin ? readAdminTestPlan() : null;
+  const testPlan = useAdminTestPlan();
+  const override = isAdmin ? testPlan : null;
   if (override) {
     return { ...query, data: override } as typeof query;
   }
