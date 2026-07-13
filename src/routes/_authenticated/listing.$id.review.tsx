@@ -168,6 +168,11 @@ function ListingReview() {
   const [scoreProgress, setScoreProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [downloadingAll, setDownloadingAll] = useState(false);
 
+  // Bulk enhancement state
+  const [bulkEnhancing, setBulkEnhancing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [bulkTarget, setBulkTarget] = useState<string | null>(null); // photo id to trigger enhance-and-preview flow
+
   useEffect(() => {
     if (!listing) return;
     setTitle(listing.title ?? "");
