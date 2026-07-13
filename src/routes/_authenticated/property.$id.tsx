@@ -750,6 +750,7 @@ function PropertyDetail() {
         </section>
       </main>
 
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }
