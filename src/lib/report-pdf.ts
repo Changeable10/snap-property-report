@@ -68,7 +68,12 @@ export function slugify(s: string) {
 }
 
 export function reportFilename(property: PdfProperty, inspection: PdfInspection) {
-  return `${slugify(property.address)}-${inspection.inspection_type}-${inspection.inspection_date}.pdf`;
+  const addr = (property.address || "property")
+    .trim()
+    .replace(/[^a-zA-Z0-9\s]/g, "")
+    .replace(/\s+/g, "_");
+  const type = capitalise(inspection.inspection_type);
+  return `Snapsure_${addr}_${type}_${inspection.inspection_date}.pdf`;
 }
 
 async function fetchPhotoDataUrl(path: string) {
