@@ -7,6 +7,16 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
+import { toast } from "sonner";
+import { usePlan } from "@/lib/use-plan";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import {
+  buildInspectionCsv,
+  downloadCsv,
+  todayStamp,
+  type InspectionExportRow,
+  type InspectionItemAgg,
+} from "@/lib/csv-export";
 
 export const Route = createFileRoute("/_authenticated/property/$id")({
   head: () => ({ meta: [{ title: "Property — Snapsure" }] }),
@@ -183,6 +193,41 @@ function PropertyDetail() {
   const [editingProperty, setEditingProperty] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(true);
   const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
+  const { data: plan } = usePlan(user.id);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  function handleExportInspections() {
+    if (!plan || plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    if (!property || !inspections || inspections.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const propRef = {
+      address: property.address,
+      suburb: property.suburb ?? null,
+      city: property.city ?? null,
+    };
+    const rows: InspectionExportRow[] = inspections.map((ins) => ({
+      id: ins.id,
+      inspection_type: ins.inspection_type,
+      inspection_date: ins.inspection_date,
+      status: ins.status,
+      inspector_name: null,
+      tenant_names: null,
+      property: propRef,
+    }));
+    const aggItems: InspectionItemAgg[] = (items ?? []).map((i) => ({
+      inspection_id: i.inspection_id,
+      condition: i.condition,
+      maintenance_required: i.maintenance_required,
+    }));
+    const csv = buildInspectionCsv(rows, aggItems);
+    downloadCsv(`snapsure-inspections-export-${todayStamp()}.csv`, csv);
+    toast.success("Inspections CSV downloaded");
+  }
 
   const addRoom = useMutation({
     mutationFn: async (name: string) => {
@@ -435,7 +480,18 @@ function PropertyDetail() {
         </section>
 
         <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Inspections</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Inspections</h2>
+            {inspections && inspections.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleExportInspections}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-accent"
+              >
+                <Download className="size-3.5" /> Export
+              </button>
+            ) : null}
+          </div>
           {!inspections || inspections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No inspections yet.
@@ -694,6 +750,7 @@ function PropertyDetail() {
         </section>
       </main>
 
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }
