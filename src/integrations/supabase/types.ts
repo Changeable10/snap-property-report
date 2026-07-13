@@ -391,6 +391,7 @@ export type Database = {
       listing_photos: {
         Row: {
           captured_at: string
+          enhanced_url: string | null
           featured: boolean
           id: string
           is_hero: boolean
@@ -404,6 +405,7 @@ export type Database = {
         }
         Insert: {
           captured_at?: string
+          enhanced_url?: string | null
           featured?: boolean
           id?: string
           is_hero?: boolean
@@ -417,6 +419,7 @@ export type Database = {
         }
         Update: {
           captured_at?: string
+          enhanced_url?: string | null
           featured?: boolean
           id?: string
           is_hero?: boolean
