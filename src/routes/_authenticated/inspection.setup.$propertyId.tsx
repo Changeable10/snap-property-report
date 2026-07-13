@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, LogIn, RefreshCw, LogOut, HeartPulse, ClipboardList, Megaphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan } from "@/lib/use-plan";
@@ -71,12 +71,11 @@ function InspectionSetup() {
   const [baths, setBaths] = useState<number | "">("");
 
   // Pre-fill beds/baths from property once loaded
-  if (property && beds === "" && typeof property.bedrooms === "number") {
-    setBeds(property.bedrooms);
-  }
-  if (property && baths === "" && typeof property.bathrooms === "number") {
-    setBaths(property.bathrooms);
-  }
+  useEffect(() => {
+    if (!property) return;
+    setBeds((v) => (v === "" && typeof property.bedrooms === "number" ? property.bedrooms : v));
+    setBaths((v) => (v === "" && typeof property.bathrooms === "number" ? property.bathrooms : v));
+  }, [property]);
 
   async function start() {
     setSubmitting(true);
