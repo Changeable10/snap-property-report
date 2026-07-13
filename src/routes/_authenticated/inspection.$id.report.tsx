@@ -10,6 +10,7 @@ import {
   type PdfItem, type PdfPhoto, type PdfSignature,
 } from "@/lib/report-pdf";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { loadPdfBranding } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/report")({
   head: () => ({ meta: [{ title: "Report — Snapsure" }] }),
@@ -103,8 +104,9 @@ function ReportPage() {
     (async () => {
       setGenerating(true);
       setFilename(reportFilename(property, inspection));
+      const branding = await loadPdfBranding();
       const blob = await generateReportPdf({
-        inspection, property, rooms, items, photos, signatures,
+        inspection, property, rooms, items, photos, signatures, branding,
       });
       createdUrl = URL.createObjectURL(blob);
       if (!cancelled) {
