@@ -9,7 +9,7 @@ import {
   FileText,
   Settings as SettingsIcon,
 } from "lucide-react";
-import logoUrl from "@/assets/snapsure-logo.png";
+import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LABEL, usePlan } from "@/lib/use-plan";

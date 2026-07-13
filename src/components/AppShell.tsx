@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import logoUrl from "@/assets/snapsure-logo.png";
+import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 
