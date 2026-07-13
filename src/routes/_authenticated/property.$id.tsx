@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   ArrowLeft, Bed, Bath, Home as HomeIcon, Building2, Plus, Pencil, Trash2,
-  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown, Wrench,
+  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
