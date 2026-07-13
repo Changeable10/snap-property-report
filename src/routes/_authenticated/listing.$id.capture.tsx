@@ -433,11 +433,42 @@ function ListingCapture() {
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div className="h-full bg-teal transition-all" style={{ width: `${((index + 1) / total) * 100}%` }} />
           </div>
-          <p className="mt-2 text-xs uppercase tracking-wide text-teal">Listing mode</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wide text-teal">Listing mode</p>
+            <button
+              type="button"
+              onClick={toggleTips}
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+              aria-pressed={tipsEnabled}
+            >
+              <Lightbulb className={`size-3.5 ${tipsEnabled ? "text-teal" : ""}`} />
+              Shot tips: {tipsEnabled ? "On" : "Off"}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-md space-y-6 px-5 py-6">
+        {showTipCard ? (
+          <div className="flex items-start gap-2 rounded-xl border border-teal/40 bg-teal-light/60 p-3">
+            <Lightbulb className="mt-0.5 size-4 shrink-0 text-teal" />
+            <p className="flex-1 text-xs text-foreground">
+              <span className="font-semibold">Tip: </span>{tipForRoom(current?.name)}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (!current) return;
+                setDismissedTipRooms((s) => new Set(s).add(current.id));
+              }}
+              aria-label="Dismiss tip"
+              className="rounded-full p-1 text-muted-foreground hover:bg-teal/10"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        ) : null}
+
         {/* Capture buttons */}
         <section className="flex flex-col gap-2">
           <button
