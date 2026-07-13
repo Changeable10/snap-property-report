@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
-import { usePlan, PLAN_LABEL } from "@/lib/use-plan";
+import { usePlan, PLAN_LABEL, useIsAdmin, useAdminTestPlan, setAdminTestPlan, type Plan } from "@/lib/use-plan";
 import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 
@@ -23,6 +23,8 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
+  const { data: isAdmin } = useIsAdmin(user.id);
+  const testPlan = useAdminTestPlan();
   useEffect(() => {
     if (!search.upgraded) return;
     toast.success(`You're now on the ${PLAN_LABEL[current]} plan`);
@@ -65,6 +67,28 @@ function SettingsPage() {
           </div>
           <span className="text-xs font-medium text-primary">Open →</span>
         </Link>
+      ) : null}
+      {isAdmin ? (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Admin: Test as plan</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Override the plan used for gating checks. Stored locally on this device.
+          </p>
+          <select
+            value={testPlan ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              setAdminTestPlan(v ? (v as Plan) : null);
+            }}
+            className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">Use actual plan ({PLAN_LABEL[current]})</option>
+            <option value="free">Free</option>
+            <option value="professional">Professional</option>
+            <option value="portfolio">Portfolio</option>
+            <option value="agency">Agency</option>
+          </select>
+        </div>
       ) : null}
       <button
         type="button"
