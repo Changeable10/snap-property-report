@@ -7,10 +7,7 @@ import {
   Bath,
   Home as HomeIcon,
   Building2,
-  ClipboardList,
   AlertTriangle,
-  Wrench,
-  CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
@@ -244,26 +241,18 @@ function Index() {
         {/* Stat cards */}
         <section aria-label="Overview" className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
-            variant="teal"
-            icon={<HomeIcon className="size-4" />}
             label="Properties"
             value={properties?.length ?? 0}
           />
           <StatCard
-            variant="teal"
-            icon={<ClipboardList className="size-4" />}
             label="Due this month"
             value={inspectionsDueThisMonth}
           />
           <StatCard
-            variant="warn"
-            icon={<Wrench className="size-4" />}
             label="Open maintenance"
             value={openMaintenance.length}
           />
           <StatCard
-            variant="muted"
-            icon={<CheckCircle2 className="size-4" />}
             label="Completed this year"
             value={completedThisYear}
           />
@@ -498,27 +487,17 @@ function Index() {
 }
 
 function StatCard({
-  icon, label, value, variant,
+  label, value,
 }: {
-  icon: React.ReactNode;
   label: string;
   value: number;
-  variant: "teal" | "warn" | "muted";
 }) {
-  const styles = {
-    teal: "bg-teal text-teal-foreground",
-    warn: "bg-condition-poor/10 text-foreground ring-1 ring-inset ring-condition-poor/30",
-    muted: "bg-card text-foreground ring-1 ring-inset ring-border",
-  }[variant];
-  const iconColor = variant === "teal" ? "text-teal-foreground/80" : "text-muted-foreground";
-  const labelColor = variant === "teal" ? "text-teal-foreground/80" : "text-muted-foreground";
   return (
-    <div className={`flex flex-col gap-1 rounded-2xl p-4 shadow-sm ${styles}`}>
-      <div className={`flex items-center gap-1.5 text-xs font-medium ${labelColor}`}>
-        <span className={iconColor}>{icon}</span>
-        {label}
-      </div>
-      <p className="text-2xl font-bold tracking-tight">{value}</p>
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
+      <p className="text-xs font-medium text-secondary-foreground">{label}</p>
+      <p className="text-[28px] font-extrabold leading-none tracking-tight text-foreground">
+        {value}
+      </p>
     </div>
   );
 }
