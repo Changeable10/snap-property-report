@@ -109,7 +109,7 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="flex h-16 items-center px-5">
         <Link to="/" className="flex items-center">
           <img
-            src={logoUrl}
+            src={logoUrl.url}
             alt="Snapsure"
             width={640}
             height={213}

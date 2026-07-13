@@ -24,7 +24,7 @@ export function AppShell({ user, children }: AppShellProps) {
         style={{ background: "var(--color-sidebar-bg)" }}
       >
         <Link to="/" className="flex items-center">
-          <img src={logoUrl} alt="Snapsure" className="h-6 w-auto" />
+          <img src={logoUrl.url} alt="Snapsure" className="h-6 w-auto" />
         </Link>
         <button
           type="button"
