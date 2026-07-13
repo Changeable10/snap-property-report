@@ -10,6 +10,7 @@ import {
   evalHeating, evalInsulation, evalVentilation, evalMoisture, evalDraught, evalSmoke, evalOverall,
   type HhAssessment, type HhPdfInspection, type HhPdfProperty, type HhPdfSignature, type HhStatus,
 } from "@/lib/hh-report-pdf";
+import { loadPdfBranding } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/hh-report")({
   head: () => ({ meta: [{ title: "Healthy Homes report — Snapsure" }] }),
@@ -84,8 +85,9 @@ function HhReportPage() {
         moisture_data: null, draught_data: null, smoke_alarms_data: null,
         overall_status: null,
       };
+      const branding = await loadPdfBranding();
       const blob = await generateHhReportPdf({
-        property, inspection, assessment: a, signatures,
+        property, inspection, assessment: a, signatures, branding,
       });
       url = URL.createObjectURL(blob);
       if (!cancelled) {

@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, UserPlus, X, Check, Pencil } from "lucide-react";
+import { Copy, UserPlus, X, Check, Pencil, Upload } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { usePlan } from "@/lib/use-plan";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -15,6 +15,12 @@ import {
   removeMember,
   updateTeamName,
 } from "@/lib/team.functions";
+import {
+  fetchTeamBranding,
+  upsertTeamBranding,
+  uploadTeamLogo,
+  brandingLogoObjectUrl,
+} from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/team")({
   head: () => ({ meta: [{ title: "Team — Snapsure" }] }),
@@ -306,6 +312,253 @@ function TeamPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Report branding */}
+      <BrandingSection teamId={team.id} canManage={canManage} />
     </PageShell>
+  );
+}
+
+function BrandingSection({ teamId, canManage }: { teamId: string; canManage: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [brandColour, setBrandColour] = useState("#0055E0");
+  const [logoPath, setLogoPath] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const b = await fetchTeamBranding(teamId);
+        if (cancelled) return;
+        if (b) {
+          setCompanyName(b.company_name ?? "");
+          setPhone(b.phone ?? "");
+          setEmail(b.email ?? "");
+          setAddress(b.address ?? "");
+          setBrandColour(b.brand_colour || "#0055E0");
+          setLogoPath(b.logo_url ?? null);
+          if (b.logo_url) {
+            const url = await brandingLogoObjectUrl(b.logo_url);
+            if (!cancelled) setLogoPreview(url);
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [teamId]);
+
+  async function handleLogoPick(file: File) {
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Logo must be under 2MB");
+      return;
+    }
+    if (!/png|jpe?g/i.test(file.type)) {
+      toast.error("PNG or JPG only");
+      return;
+    }
+    setUploading(true);
+    try {
+      const path = await uploadTeamLogo(teamId, file);
+      setLogoPath(path);
+      const url = await brandingLogoObjectUrl(path);
+      setLogoPreview(url);
+      toast.success("Logo uploaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!companyName.trim()) {
+      toast.error("Company name is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await upsertTeamBranding({
+        teamId,
+        company_name: companyName.trim(),
+        logo_url: logoPath,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+        address: address.trim() || null,
+        brand_colour: brandColour,
+      });
+      toast.success("Branding saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save branding");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-2xl border border-border bg-card">
+      <div className="border-b border-border p-4">
+        <h2 className="text-sm font-semibold text-foreground">Report branding</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Customise the header and footer of your inspection, Healthy Homes, and listing PDFs.
+        </p>
+      </div>
+      {loading ? (
+        <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+      ) : (
+        <div className="grid gap-4 p-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-muted-foreground">Company name</label>
+            <input
+              type="text"
+              disabled={!canManage}
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="e.g. Acme Property Management"
+              className="mt-1 block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Company phone</label>
+            <input
+              type="text"
+              disabled={!canManage}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Optional"
+              className="mt-1 block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Company email</label>
+            <input
+              type="email"
+              disabled={!canManage}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Optional"
+              className="mt-1 block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-muted-foreground">Company address</label>
+            <input
+              type="text"
+              disabled={!canManage}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Optional"
+              className="mt-1 block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Primary brand colour</label>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="color"
+                disabled={!canManage}
+                value={brandColour}
+                onChange={(e) => setBrandColour(e.target.value)}
+                className="h-10 w-14 cursor-pointer rounded-lg border border-input bg-background"
+              />
+              <input
+                type="text"
+                disabled={!canManage}
+                value={brandColour}
+                onChange={(e) => setBrandColour(e.target.value)}
+                className="block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Company logo</label>
+            <div className="mt-1 flex items-center gap-3">
+              <div
+                className="flex h-14 w-24 items-center justify-center overflow-hidden rounded-lg border border-input bg-background"
+                style={{ backgroundColor: "#fff" }}
+              >
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleLogoPick(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+              <button
+                type="button"
+                disabled={!canManage || uploading}
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-input px-3 text-xs font-medium disabled:opacity-60"
+              >
+                <Upload className="size-3.5" />
+                {uploading ? "Uploading…" : logoPath ? "Replace" : "Upload"}
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">PNG or JPG, max 2MB</p>
+          </div>
+
+          {/* Preview */}
+          <div className="md:col-span-2">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Report header preview</p>
+            <div className="flex items-center justify-between rounded-xl border border-input bg-white p-4">
+              <div>
+                <p className="text-lg font-bold" style={{ color: brandColour }}>
+                  {companyName || "Your company"}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Property Inspection Report
+                </p>
+              </div>
+              {logoPreview ? (
+                <img src={logoPreview} alt="" className="max-h-10" />
+              ) : null}
+            </div>
+          </div>
+
+          {canManage ? (
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex min-h-10 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save branding"}
+              </button>
+            </div>
+          ) : (
+            <p className="md:col-span-2 text-xs text-muted-foreground">
+              Only team owners and admins can update branding.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

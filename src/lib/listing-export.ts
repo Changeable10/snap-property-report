@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
+import type { PdfBranding } from "@/lib/branding";
 
 export interface ExportListing {
   id?: string;
@@ -104,11 +105,26 @@ async function buildSummaryPdf(
   l: ExportListing,
   p: ExportProperty,
   heroBlob: Blob | null,
+  branding: PdfBranding | null = null,
 ): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 15;
   let y = margin;
+  const accent: [number, number, number] = branding?.accent ?? [15, 110, 86];
+  const brandName = branding?.company_name ?? "Snapsure";
+
+  // Optional logo top-right above hero
+  if (branding?.logo) {
+    try {
+      const maxW = 40, maxH = 16;
+      const ratio = branding.logo.w / branding.logo.h;
+      let w = maxW, h = w / ratio;
+      if (h > maxH) { h = maxH; w = h * ratio; }
+      doc.addImage(branding.logo.dataUrl, "PNG", pageW - margin - w, y, w, h);
+      y += h + 4;
+    } catch { /* skip */ }
+  }
 
   // Hero image
   if (heroBlob) {
@@ -141,7 +157,7 @@ async function buildSummaryPdf(
   }
 
   // Key details line
-  doc.setTextColor(15, 110, 86); // teal
+  doc.setTextColor(...accent);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   const details: string[] = [];
@@ -166,9 +182,25 @@ async function buildSummaryPdf(
   doc.text(descLines.slice(0, maxLines), margin, y + 2);
 
   // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(120);
-  doc.text("Generated with Snapsure", margin, pageH - 8);
+  if (branding) {
+    const contactBits = [branding.phone, branding.email, branding.address].filter(Boolean).join(" · ");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(brandName, margin, pageH - 12);
+    if (contactBits) {
+      doc.setFontSize(7);
+      doc.setTextColor(140);
+      const lines = doc.splitTextToSize(contactBits, pageW - margin * 2);
+      doc.text(Array.isArray(lines) ? lines[0] : lines, margin, pageH - 8);
+    }
+    doc.setFontSize(6.5);
+    doc.setTextColor(180);
+    doc.text("Powered by Snapsure", pageW / 2, pageH - 4, { align: "center" });
+  } else {
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text("Generated with Snapsure", margin, pageH - 8);
+  }
 
   return doc.output("blob");
 }
@@ -186,8 +218,9 @@ export async function exportListingPackage(opts: {
   roomNameById: Map<string, string>;
   agent?: ExportAgent;
   filenameBase?: string;
+  branding?: PdfBranding | null;
 }): Promise<void> {
-  const { listing, property, photos, roomNameById, agent } = opts;
+  const { listing, property, photos, roomNameById, agent, branding = null } = opts;
   const base = opts.filenameBase
     || slugify([property.address, property.suburb].filter(Boolean).join("-") || "listing");
 
@@ -237,7 +270,7 @@ export async function exportListingPackage(opts: {
   }
 
   // 3. one-page PDF summary
-  const pdf = await buildSummaryPdf(listing, property, heroBlob);
+  const pdf = await buildSummaryPdf(listing, property, heroBlob, branding);
   zip.file("listing-summary.pdf", pdf);
 
   // 4. REAXML feed
