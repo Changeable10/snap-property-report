@@ -66,6 +66,16 @@ function NewProperty() {
   const { user } = Route.useRouteContext();
   const { data: plan, isLoading: planLoading } = usePlan(user.id);
   const { data: propertyCount, isLoading: countLoading } = usePropertyCount(user.id);
+  const [address, setAddress] = useState("");
+  const [suburb, setSuburb] = useState("");
+  const [city, setCity] = useState("New Plymouth");
+  const [postcode, setPostcode] = useState("");
+  const [propertyType, setPropertyType] = useState<PropertyType>("house");
+  const [bedrooms, setBedrooms] = useState(3);
+  const [bathrooms, setBathrooms] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const limit = PLAN_LIMITS[plan ?? "free"];
   const blocked = !planLoading && !countLoading && (propertyCount ?? 0) >= limit;
 
@@ -76,16 +86,6 @@ function NewProperty() {
       </div>
     );
   }
-
-  const [address, setAddress] = useState("");
-  const [suburb, setSuburb] = useState("");
-  const [city, setCity] = useState("New Plymouth");
-  const [postcode, setPostcode] = useState("");
-  const [propertyType, setPropertyType] = useState<PropertyType>("house");
-  const [bedrooms, setBedrooms] = useState(3);
-  const [bathrooms, setBathrooms] = useState(1);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
