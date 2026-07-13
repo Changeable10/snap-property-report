@@ -593,8 +593,16 @@ function ListingReview() {
     }
     setExporting(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      const u = userData?.user;
+      const meta = (u?.user_metadata ?? {}) as Record<string, any>;
+      const agentName =
+        meta.full_name || meta.name ||
+        [meta.first_name, meta.last_name].filter(Boolean).join(" ") ||
+        (u?.email ? u.email.split("@")[0] : "");
       await exportListingPackage({
         listing: {
+          id: listing.id,
           title,
           description,
           features,
@@ -608,6 +616,7 @@ function ListingReview() {
         property,
         photos: (photos ?? []) as any,
         roomNameById,
+        agent: { name: agentName || null, email: u?.email ?? null },
       });
       toast.success("Listing package downloaded");
     } catch (e: any) {
@@ -968,6 +977,9 @@ function ListingReview() {
             </button>
             <p className="mt-2 text-[11px] text-muted-foreground">
               Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              The listing.xml file is in REAXML format, accepted by Rex, Trade Me Property, and realestate.co.nz.
             </p>
           </section>
         ) : null}
