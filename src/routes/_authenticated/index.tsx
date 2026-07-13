@@ -161,6 +161,26 @@ function Index() {
   });
 
   const now = new Date();
+
+  const hasOnboardedFlag =
+    typeof window !== "undefined" && localStorage.getItem(ONBOARDED_KEY) === "true";
+  if (
+    properties !== undefined &&
+    properties.length === 0 &&
+    !hasOnboardedFlag &&
+    !onboardingDismissed
+  ) {
+    return (
+      <Onboarding
+        user={user}
+        onFinish={() => {
+          setOnboardingDismissed(true);
+          queryClient.invalidateQueries({ queryKey: ["properties"] });
+        }}
+      />
+    );
+  }
+
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   const yearStart = new Date(now.getFullYear(), 0, 1);
