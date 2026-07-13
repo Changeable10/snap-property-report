@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   ArrowLeft, Bed, Bath, Home as HomeIcon, Building2, Plus, Pencil, Trash2,
-  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play,
+  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
@@ -181,6 +181,8 @@ function PropertyDetail() {
   const [newRoom, setNewRoom] = useState("");
   const [showContactForm, setShowContactForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(true);
+  const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
 
   const addRoom = useMutation({
     mutationFn: async (name: string) => {
@@ -279,6 +281,11 @@ function PropertyDetail() {
       const db = inspectionById.get(b.inspection_id)?.inspection_date ?? "";
       return db.localeCompare(da);
     });
+  const filteredMaintenance = maintenanceRows.filter((it) =>
+    maintFilter === "all" ? true : maintFilter === "resolved" ? it.maintenance_resolved : !it.maintenance_resolved,
+  );
+  const openCount = maintenanceRows.filter((i) => !i.maintenance_resolved).length;
+  const resolvedCount = maintenanceRows.length - openCount;
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -343,25 +350,36 @@ function PropertyDetail() {
         {/* Contacts */}
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Property contacts</h2>
             <button
               type="button"
-              onClick={() => setShowContactForm((v) => !v)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+              onClick={() => setContactsOpen((v) => !v)}
+              className="inline-flex items-center gap-2 text-lg font-semibold text-foreground"
             >
-              <Plus className="size-4" />
-              {showContactForm ? "Close" : "Add contact"}
+              <ChevronDown className={`size-4 transition-transform ${contactsOpen ? "" : "-rotate-90"}`} />
+              Contacts
+              <span className="text-xs font-normal text-muted-foreground">({contacts?.length ?? 0})</span>
             </button>
+            {contactsOpen ? (
+              <button
+                type="button"
+                onClick={() => setShowContactForm((v) => !v)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+              >
+                <Plus className="size-4" />
+                {showContactForm ? "Close" : "Add contact"}
+              </button>
+            ) : null}
           </div>
 
-          {showContactForm ? (
+          {contactsOpen && showContactForm ? (
             <ContactForm
               onSubmit={(payload) => addContact.mutate(payload)}
               submitting={addContact.isPending}
             />
           ) : null}
 
-          {!contacts || contacts.length === 0 ? (
+          {contactsOpen ? (
+            !contacts || contacts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No contacts yet.
             </div>
@@ -401,6 +419,172 @@ function PropertyDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+            )
+          ) : null}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Inspections</h2>
+          {!inspections || inspections.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              No inspections yet.
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {inspections.map((ins) => {
+                const insItems = (items ?? []).filter((i) => i.inspection_id === ins.id);
+                const counts: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
+                insItems.forEach((i) => { if (counts[i.condition] !== undefined) counts[i.condition]++; });
+                const total = insItems.length;
+                const maintCount = insItems.filter((i) => i.maintenance_required).length;
+                return (
+                  <li key={ins.id} className="rounded-2xl border border-border bg-card p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold text-foreground">
+                          {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span>
+                        </p>
+                      </div>
+                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
+                        {STATUS_LABEL[ins.status]}
+                      </span>
+                    </div>
+                    {total > 0 ? (
+                      <>
+                        <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                          {(["good","fair","poor","damaged"] as Condition[]).map((c) =>
+                            counts[c] > 0 ? (
+                              <span key={c} className={`h-full ${COND_BG[c]}`} style={{ width: `${(counts[c] / total) * 100}%` }} />
+                            ) : null,
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          {counts.good} good · {counts.fair} fair · {counts.poor} poor · {counts.damaged} damaged
+                        </p>
+                      </>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ins.status === "in_progress" ? (
+                        <Link
+                          to="/inspection/$id/capture"
+                          params={{ id: ins.id }}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+                        >
+                          <Play className="size-3.5" />
+                          Continue
+                        </Link>
+                      ) : (
+                        <>
+                          <Link
+                            to="/inspection/$id/review"
+                            params={{ id: ins.id }}
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
+                          >
+                            <FileText className="size-3.5" />
+                            View review
+                          </Link>
+                          <Link
+                            to="/inspection/$id/report"
+                            params={{ id: ins.id }}
+                            className={
+                              ins.status === "signed"
+                                ? "inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
+                                : "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
+                            }
+                          >
+                            <Download className="size-3.5" />
+                            Download PDF
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-10">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Maintenance log</h2>
+            <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-xs">
+              {([
+                ["all", `All (${maintenanceRows.length})`],
+                ["open", `Open (${openCount})`],
+                ["resolved", `Resolved (${resolvedCount})`],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMaintFilter(key)}
+                  className={
+                    maintFilter === key
+                      ? "rounded-md bg-teal px-2.5 py-1 font-semibold text-teal-foreground"
+                      : "rounded-md px-2.5 py-1 font-medium text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {filteredMaintenance.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              {maintenanceRows.length === 0 ? "No maintenance items logged." : "Nothing matches this filter."}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Date</th>
+                    <th className="px-3 py-2 font-semibold">Room</th>
+                    <th className="px-3 py-2 font-semibold">Item</th>
+                    <th className="hidden px-3 py-2 font-semibold md:table-cell">Issue</th>
+                    <th className="px-3 py-2 font-semibold">Priority</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMaintenance.map((it) => {
+                    const ins = inspectionById.get(it.inspection_id);
+                    const room = roomById.get(it.room_id);
+                    return (
+                      <tr key={it.id} className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">{ins ? formatDMY(ins.inspection_date) : "—"}</td>
+                        <td className="px-3 py-2 text-foreground">{room?.name ?? "—"}</td>
+                        <td className="px-3 py-2 font-medium text-foreground">{it.item_name}</td>
+                        <td className="hidden max-w-xs px-3 py-2 text-muted-foreground md:table-cell">
+                          {it.maintenance_notes ?? it.description ?? "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${PRIORITY_STYLE[it.maintenance_priority]}`}>
+                            {it.maintenance_priority.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleMaintenance.mutate({ itemId: it.id, resolved: !it.maintenance_resolved })}
+                            className={
+                              it.maintenance_resolved
+                                ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-condition-good/15 px-2.5 py-1 text-[11px] font-semibold text-condition-good ring-1 ring-inset ring-condition-good/40"
+                                : "inline-flex min-h-8 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-inset ring-border"
+                            }
+                          >
+                            {it.maintenance_resolved ? "Resolved" : "Open"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
@@ -486,146 +670,6 @@ function PropertyDetail() {
               <Plus className="size-5" />
             </button>
           </div>
-        </section>
-
-        <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Reports</h2>
-          {!inspections || inspections.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              No inspections yet.
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {inspections.map((ins) => {
-                const insItems = (items ?? []).filter((i) => i.inspection_id === ins.id);
-                const counts: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
-                insItems.forEach((i) => { if (counts[i.condition] !== undefined) counts[i.condition]++; });
-                const total = insItems.length;
-                return (
-                  <li key={ins.id} className="rounded-2xl border border-border bg-card p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base font-semibold text-foreground">
-                          {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{total} items</p>
-                      </div>
-                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
-                        {STATUS_LABEL[ins.status]}
-                      </span>
-                    </div>
-                    {total > 0 ? (
-                      <>
-                        <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
-                          {(["good","fair","poor","damaged"] as Condition[]).map((c) =>
-                            counts[c] > 0 ? (
-                              <span key={c} className={`h-full ${COND_BG[c]}`} style={{ width: `${(counts[c] / total) * 100}%` }} />
-                            ) : null,
-                          )}
-                        </div>
-                        <p className="mt-1.5 text-[11px] text-muted-foreground">
-                          {counts.good} good · {counts.fair} fair · {counts.poor} poor · {counts.damaged} damaged
-                        </p>
-                      </>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {ins.status === "in_progress" ? (
-                        <Link
-                          to="/inspection/$id/capture"
-                          params={{ id: ins.id }}
-                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
-                        >
-                          <Play className="size-3.5" />
-                          Continue
-                        </Link>
-                      ) : (
-                        <>
-                          <Link
-                            to="/inspection/$id/review"
-                            params={{ id: ins.id }}
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
-                          >
-                            <FileText className="size-3.5" />
-                            View review
-                          </Link>
-                          <Link
-                            to="/inspection/$id/report"
-                            params={{ id: ins.id }}
-                            className={
-                              ins.status === "signed"
-                                ? "inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
-                                : "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
-                            }
-                          >
-                            <Download className="size-3.5" />
-                            Download PDF
-                          </Link>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Maintenance log</h2>
-          {maintenanceRows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              No maintenance items logged.
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-semibold">Date</th>
-                    <th className="px-3 py-2 font-semibold">Room</th>
-                    <th className="px-3 py-2 font-semibold">Item</th>
-                    <th className="hidden px-3 py-2 font-semibold md:table-cell">Issue</th>
-                    <th className="px-3 py-2 font-semibold">Priority</th>
-                    <th className="px-3 py-2 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maintenanceRows.map((it) => {
-                    const ins = inspectionById.get(it.inspection_id);
-                    const room = roomById.get(it.room_id);
-                    return (
-                      <tr key={it.id} className="border-t border-border">
-                        <td className="px-3 py-2 text-muted-foreground">{ins ? formatDMY(ins.inspection_date) : "—"}</td>
-                        <td className="px-3 py-2 text-foreground">{room?.name ?? "—"}</td>
-                        <td className="px-3 py-2 font-medium text-foreground">{it.item_name}</td>
-                        <td className="hidden max-w-xs px-3 py-2 text-muted-foreground md:table-cell">
-                          {it.maintenance_notes ?? it.description ?? "—"}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${PRIORITY_STYLE[it.maintenance_priority]}`}>
-                            {it.maintenance_priority.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleMaintenance.mutate({ itemId: it.id, resolved: !it.maintenance_resolved })}
-                            className={
-                              it.maintenance_resolved
-                                ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-condition-good/15 px-2.5 py-1 text-[11px] font-semibold text-condition-good ring-1 ring-inset ring-condition-good/40"
-                                : "inline-flex min-h-8 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-inset ring-border"
-                            }
-                          >
-                            {it.maintenance_resolved ? "Resolved" : "Open"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </section>
       </main>
 
