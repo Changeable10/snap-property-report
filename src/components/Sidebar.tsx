@@ -9,7 +9,7 @@ import {
   FileText,
   Settings as SettingsIcon,
 } from "lucide-react";
-import logoUrl from "@/assets/snapsure-logo.png";
+import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LABEL, usePlan } from "@/lib/use-plan";
@@ -109,7 +109,7 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="flex h-16 items-center px-5">
         <Link to="/" className="flex items-center">
           <img
-            src={logoUrl}
+            src={logoUrl.url}
             alt="Snapsure"
             width={640}
             height={213}
