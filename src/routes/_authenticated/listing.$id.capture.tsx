@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Video, Loader2,
+  Lightbulb, X, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +16,26 @@ export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
 interface Room { id: string; name: string; sort_order: number }
 interface ListingPhoto { id: string; room_id: string | null; photo_url: string; source: "photo" | "video_frame"; captured_at: string }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
+
+type ShotRating = "good" | "consider_retaking" | "retake_recommended";
+interface ShotCheck { photoId: string; rating: ShotRating; reason: string }
+
+const ROOM_TIPS: { keywords: string[]; tip: string }[] = [
+  { keywords: ["living", "lounge", "family"], tip: "Stand in the doorway and shoot towards the window. Natural light sells." },
+  { keywords: ["kitchen"], tip: "Capture the full bench and splashback. Include appliances. Clear the clutter." },
+  { keywords: ["bed"], tip: "Shoot from the corner to show the full room. Include the window for light." },
+  { keywords: ["bath", "toilet", "ensuite", "wc"], tip: "Shoot from the doorway. Include the vanity, shower, and toilet in one frame if possible." },
+  { keywords: ["outdoor", "garden", "yard", "deck", "patio", "section", "exterior"], tip: "Shoot in the afternoon for warm light. Include the full section if possible." },
+  { keywords: ["garage"], tip: "Open the door for light. Show the full depth." },
+];
+const DEFAULT_TIP = "Stand in the corner and shoot diagonally across the room for the widest view.";
+
+function tipForRoom(name: string | undefined): string {
+  if (!name) return DEFAULT_TIP;
+  const lower = name.toLowerCase();
+  for (const t of ROOM_TIPS) if (t.keywords.some((k) => lower.includes(k))) return t.tip;
+  return DEFAULT_TIP;
+}
 
 function useSignedUrl(path: string | undefined) {
   const [url, setUrl] = useState<string | undefined>();
@@ -87,10 +108,34 @@ function ListingCapture() {
   const current = rooms?.[index];
   const total = rooms?.length ?? 0;
 
+  // Shot guidance: on/off toggle (persisted) and per-room tip dismissal
+  const [tipsEnabled, setTipsEnabled] = useState<boolean>(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = window.localStorage.getItem("snapsure.shotTips");
+    if (v === "off") setTipsEnabled(false);
+  }, []);
+  function toggleTips() {
+    const next = !tipsEnabled;
+    setTipsEnabled(next);
+    try { window.localStorage.setItem("snapsure.shotTips", next ? "on" : "off"); } catch {}
+  }
+  const [dismissedTipRooms, setDismissedTipRooms] = useState<Set<string>>(new Set());
+  const tipVisible =
+    tipsEnabled &&
+    !!current &&
+    !dismissedTipRooms.has(current.id);
+
+  // Post-capture shot check
+  const [checking, setChecking] = useState(false);
+  const [shotCheck, setShotCheck] = useState<ShotCheck | null>(null);
+  useEffect(() => { setShotCheck(null); }, [current?.id]);
+
   const roomPhotos = useMemo(
     () => (photos ?? []).filter((p) => p.room_id === current?.id),
     [photos, current?.id],
   );
+  const showTipCard = tipVisible && roomPhotos.length === 0;
   const currentNotes = useMemo(
     () => (listingRooms ?? []).find((r) => r.room_id === current?.id),
     [listingRooms, current?.id],
@@ -111,15 +156,54 @@ function ListingCapture() {
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
     if (upErr) { toast.error(upErr.message); return; }
-    const { error: insErr } = await supabase.from("listing_photos").insert({
+    const { data: inserted, error: insErr } = await supabase.from("listing_photos").insert({
       user_id: listing.user_id,
       listing_id: id,
       room_id: current.id,
       photo_url: path,
       source: "photo",
-    });
+    }).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
     qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+    if (tipsEnabled && inserted?.id) {
+      void runShotCheck(inserted.id, path);
+    }
+  }
+
+  async function runShotCheck(photoId: string, storagePath: string) {
+    setChecking(true);
+    setShotCheck(null);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos").createSignedUrl(storagePath, 600);
+      if (!signed?.signedUrl) throw new Error("Signed URL failed");
+      const { data, error } = await supabase.functions.invoke("check-listing-photo", {
+        body: { image_url: signed.signedUrl },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const rating = (data as any).rating as ShotRating;
+      const reason = String((data as any).reason ?? "");
+      setShotCheck({ photoId, rating, reason });
+    } catch (e) {
+      console.warn("shot check failed", e);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function retakeCurrent() {
+    if (!shotCheck) return;
+    const photo = (photos ?? []).find((p) => p.id === shotCheck.photoId);
+    if (photo) {
+      try {
+        await supabase.storage.from("inspection-photos").remove([photo.photo_url]);
+      } catch { /* ignore */ }
+      await supabase.from("listing_photos").delete().eq("id", photo.id);
+      qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+    }
+    setShotCheck(null);
+    fileRef.current?.click();
   }
 
   // ---- Voice ----
@@ -349,11 +433,42 @@ function ListingCapture() {
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div className="h-full bg-teal transition-all" style={{ width: `${((index + 1) / total) * 100}%` }} />
           </div>
-          <p className="mt-2 text-xs uppercase tracking-wide text-teal">Listing mode</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wide text-teal">Listing mode</p>
+            <button
+              type="button"
+              onClick={toggleTips}
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+              aria-pressed={tipsEnabled}
+            >
+              <Lightbulb className={`size-3.5 ${tipsEnabled ? "text-teal" : ""}`} />
+              Shot tips: {tipsEnabled ? "On" : "Off"}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-md space-y-6 px-5 py-6">
+        {showTipCard ? (
+          <div className="flex items-start gap-2 rounded-xl border border-teal/40 bg-teal-light/60 p-3">
+            <Lightbulb className="mt-0.5 size-4 shrink-0 text-teal" />
+            <p className="flex-1 text-xs text-foreground">
+              <span className="font-semibold">Tip: </span>{tipForRoom(current?.name)}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (!current) return;
+                setDismissedTipRooms((s) => new Set(s).add(current.id));
+              }}
+              aria-label="Dismiss tip"
+              className="rounded-full p-1 text-muted-foreground hover:bg-teal/10"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        ) : null}
+
         {/* Capture buttons */}
         <section className="flex flex-col gap-2">
           <button
@@ -448,6 +563,18 @@ function ListingCapture() {
             <div className="grid grid-cols-3 gap-2">
               {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
             </div>
+            {checking ? (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Checking shot quality…
+              </div>
+            ) : null}
+            {shotCheck && !checking ? (
+              <ShotCheckCard
+                check={shotCheck}
+                onKeep={() => setShotCheck(null)}
+                onRetake={retakeCurrent}
+              />
+            ) : null}
           </section>
         ) : null}
 
@@ -537,6 +664,52 @@ function PhotoThumb({ path }: { path: string }) {
   return (
     <div className="aspect-square overflow-hidden rounded-lg bg-muted">
       {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+    </div>
+  );
+}
+
+function ShotCheckCard({
+  check,
+  onKeep,
+  onRetake,
+}: {
+  check: ShotCheck;
+  onKeep: () => void;
+  onRetake: () => void;
+}) {
+  const style =
+    check.rating === "good"
+      ? { border: "border-green-500/40", bg: "bg-green-50", text: "text-green-700", label: "Good shot", Icon: Check }
+      : check.rating === "consider_retaking"
+      ? { border: "border-amber-500/40", bg: "bg-amber-50", text: "text-amber-700", label: "Consider retaking", Icon: AlertTriangle }
+      : { border: "border-red-500/40", bg: "bg-red-50", text: "text-red-700", label: "Retake recommended", Icon: RefreshCw };
+  const Icon = style.Icon;
+  return (
+    <div className={`mt-3 rounded-xl border ${style.border} ${style.bg} p-3`}>
+      <div className={`flex items-center gap-2 text-sm font-semibold ${style.text}`}>
+        <Icon className="size-4" /> {style.label}
+      </div>
+      {check.reason ? (
+        <p className="mt-1 text-xs text-foreground">{check.reason}</p>
+      ) : null}
+      {check.rating !== "good" ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onKeep}
+            className="flex min-h-9 flex-1 items-center justify-center rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground"
+          >
+            Keep anyway
+          </button>
+          <button
+            type="button"
+            onClick={onRetake}
+            className="flex min-h-9 flex-1 items-center justify-center rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground"
+          >
+            Retake
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
