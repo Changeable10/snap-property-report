@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
+import { AdminTestBanner } from "./AdminTestBanner";
 import { useServerFn } from "@tanstack/react-start";
 import { claimTeamInvites } from "@/lib/team.functions";
 
@@ -64,6 +65,7 @@ export function AppShell({ user, children }: AppShellProps) {
       ) : null}
 
       <div className="md:pl-[250px]">
+        <AdminTestBanner userId={user?.id} />
         <main className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-7">
           {children}
         </main>
