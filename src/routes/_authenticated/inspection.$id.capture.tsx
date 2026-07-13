@@ -130,6 +130,10 @@ function CapturePage() {
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [videoProgress, setVideoProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number }>>([]);
+  const [selectedFrameIdx, setSelectedFrameIdx] = useState<Set<number>>(new Set());
+  const [pendingVideoBlob, setPendingVideoBlob] = useState<Blob | null>(null);
+  const [extractingFrames, setExtractingFrames] = useState(false);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
@@ -143,6 +147,20 @@ function CapturePage() {
       && typeof (window as any).MediaRecorder !== "undefined";
     setVideoSupported(ok);
   }, []);
+
+  // Attach the active MediaStream to the <video> element once it's actually
+  // mounted in the DOM (state update → re-render → ref populated).
+  useEffect(() => {
+    if (!videoRecording) return;
+    const el = videoPreviewRef.current;
+    const stream = videoStreamRef.current;
+    if (!el || !stream) return;
+    try { el.srcObject = stream; } catch {}
+    el.muted = true;
+    (el as any).playsInline = true;
+    el.autoplay = true;
+    el.play().catch(() => {});
+  }, [videoRecording]);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
@@ -453,16 +471,19 @@ function CapturePage() {
   async function startVideoWalkthrough() {
     if (!current) return;
     setVideoError(null);
+    setExtractedFrames([]);
+    setSelectedFrameIdx(new Set());
+    setPendingVideoBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
-        audio: true,
+        audio: false,
       });
-      videoStreamRef.current = stream;
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = stream;
-        videoPreviewRef.current.play().catch(() => {});
+      if (!stream.active) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error("Camera stream is not active");
       }
+      videoStreamRef.current = stream;
       const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
       const mime = mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
       const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -475,7 +496,9 @@ function CapturePage() {
       videoTimerRef.current = setInterval(() => setVideoElapsed((s) => s + 1), 1000);
     } catch (err: any) {
       setVideoSupported(false);
-      setVideoError("Video recording is not available on this device. Use Capture photo instead.");
+      setVideoError(err?.message === "Camera stream is not active"
+        ? "Camera did not start — try Capture photo instead."
+        : "Video recording is not available on this device. Use Capture photo instead.");
       toast.error("Camera permission denied or unavailable");
     }
   }
@@ -494,7 +517,17 @@ function CapturePage() {
     const blob = new Blob(videoChunksRef.current, { type: mr.mimeType || "video/webm" });
     videoChunksRef.current = [];
     if (blob.size === 0) return;
-    void processVideo(blob);
+    setPendingVideoBlob(blob);
+    setExtractingFrames(true);
+    try {
+      const frames = await extractFrames(blob);
+      setExtractedFrames(frames);
+      setSelectedFrameIdx(new Set(frames.map((_, i) => i)));
+    } catch {
+      toast.error("Could not extract frames from the recording");
+    } finally {
+      setExtractingFrames(false);
+    }
   }
 
   async function extractFrames(blob: Blob): Promise<Array<{ base64: string; time: number }>> {
@@ -544,36 +577,38 @@ function CapturePage() {
     });
   }
 
-  async function processVideo(blob: Blob) {
+  async function analyzeSelectedFrames() {
     if (!inspection || !current) return;
+    const blob = pendingVideoBlob;
+    const selectedIndices = Array.from(selectedFrameIdx).sort((a, b) => a - b);
+    if (selectedIndices.length === 0) {
+      toast.message("Select at least one frame to analyse.");
+      return;
+    }
+    const frames = selectedIndices.map((i) => extractedFrames[i]).filter(Boolean);
+    if (frames.length === 0) return;
     setVideoProcessing(true);
-    setVideoProgress({ current: 0, total: 0 });
+    setVideoProgress({ current: 0, total: frames.length });
     const roomId = current.id;
     const roomName = current.name;
     // Upload the full recording in the background.
-    const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
-    void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
-
-    let frames: Array<{ base64: string; time: number }> = [];
-    try {
-      frames = await extractFrames(blob);
-    } catch {
-      toast.error("Could not extract frames from the recording");
-      setVideoProcessing(false);
-      return;
+    if (blob) {
+      const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
+      void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
     }
-    if (frames.length === 0) { setVideoProcessing(false); return; }
-    setVideoProgress({ current: 0, total: frames.length });
 
     type AiItem = {
       name: string; condition: Condition; description?: string;
       maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
     };
     const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
+    // Dedup by item name. For same name + same condition, keep only the
+    // first detected instance (highest-confidence frame). For same name +
+    // different condition, worst-condition wins.
     const merged = new Map<string, {
       name: string; condition: Condition; confidence: number;
-      descriptions: Set<string>; maintenance_required: boolean;
-      maintenance_notes: Set<string>; bestFrameIdx: number; bestFrameConf: number;
+      description: string | null; maintenance_required: boolean;
+      maintenance_notes: string | null; bestFrameIdx: number;
     }>();
 
     for (let i = 0; i < frames.length; i++) {
@@ -597,20 +632,24 @@ function CapturePage() {
               name: ai.name,
               condition: cond,
               confidence: conf,
-              descriptions: ai.description ? new Set([ai.description.trim()]) : new Set(),
+              description: ai.description?.trim() || null,
               maintenance_required: !!ai.maintenance_required,
-              maintenance_notes: ai.maintenance_notes ? new Set([ai.maintenance_notes.trim()]) : new Set(),
+              maintenance_notes: ai.maintenance_notes?.trim() || null,
               bestFrameIdx: i,
-              bestFrameConf: conf,
             });
-          } else {
-            if (rank[cond] > rank[prev.condition]) prev.condition = cond;
-            if (conf > prev.confidence) prev.confidence = conf;
-            if (ai.description) prev.descriptions.add(ai.description.trim());
-            if (ai.maintenance_required) prev.maintenance_required = true;
-            if (ai.maintenance_notes) prev.maintenance_notes.add(ai.maintenance_notes.trim());
-            if (conf > prev.bestFrameConf) { prev.bestFrameConf = conf; prev.bestFrameIdx = i; }
+          } else if (rank[cond] > rank[prev.condition]) {
+            // Worse condition — replace the record entirely.
+            merged.set(key, {
+              name: ai.name,
+              condition: cond,
+              confidence: conf,
+              description: ai.description?.trim() || null,
+              maintenance_required: !!ai.maintenance_required,
+              maintenance_notes: ai.maintenance_notes?.trim() || null,
+              bestFrameIdx: i,
+            });
           }
+          // else: same or better condition → keep the first (highest-confidence) instance.
         }
       } catch {
         // continue on error
@@ -644,8 +683,8 @@ function CapturePage() {
     for (const m of merged.values()) {
       const key = m.name.toLowerCase();
       const existingItem = byName.get(key);
-      const description = Array.from(m.descriptions).filter(Boolean).join(" ") || null;
-      const notes = Array.from(m.maintenance_notes).filter(Boolean).join(" ") || null;
+      const description = m.description;
+      const notes = m.maintenance_notes;
       if (existingItem) {
         const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
         const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
@@ -679,7 +718,15 @@ function CapturePage() {
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
     setVideoProcessing(false);
-    if (merged.size > 0) toast.success(`Detected ${merged.size} ${merged.size === 1 ? "item" : "items"} from walkthrough`);
+    const framesAnalyzed = frames.length;
+    setExtractedFrames([]);
+    setSelectedFrameIdx(new Set());
+    setPendingVideoBlob(null);
+    if (merged.size > 0) {
+      toast.success(`${merged.size} unique ${merged.size === 1 ? "item" : "items"} found from ${framesAnalyzed} ${framesAnalyzed === 1 ? "frame" : "frames"} analysed`);
+    } else {
+      toast.message(`No items detected across ${framesAnalyzed} ${framesAnalyzed === 1 ? "frame" : "frames"}.`);
+    }
   }
 
   const countsByCondition = useMemo(() => {
@@ -770,7 +817,13 @@ function CapturePage() {
         {videoRecording && (
           <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
             <div className="relative">
-              <video ref={videoPreviewRef} muted playsInline className="w-full aspect-video bg-black object-cover" />
+              <video
+                ref={videoPreviewRef}
+                autoPlay
+                muted
+                playsInline
+                className="block w-full aspect-video bg-black object-cover"
+              />
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
                 REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
@@ -783,6 +836,87 @@ function CapturePage() {
             >
               <Square className="size-4 fill-white" /> Stop recording
             </button>
+          </div>
+        )}
+
+        {extractingFrames && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+            <Loader2 className="size-4 animate-spin" /> Extracting frames…
+          </div>
+        )}
+
+        {!videoProcessing && extractedFrames.length > 0 && (
+          <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                Review frames ({selectedFrameIdx.size} of {extractedFrames.length} selected)
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedFrameIdx.size === extractedFrames.length) setSelectedFrameIdx(new Set());
+                  else setSelectedFrameIdx(new Set(extractedFrames.map((_, i) => i)));
+                }}
+                className="text-xs font-semibold text-teal"
+              >
+                {selectedFrameIdx.size === extractedFrames.length ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Uncheck blurry or duplicate frames before analysis.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {extractedFrames.map((f, i) => {
+                const isSelected = selectedFrameIdx.has(i);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFrameIdx((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i); else next.add(i);
+                        return next;
+                      });
+                    }}
+                    className={`relative aspect-square overflow-hidden rounded-lg border-2 bg-muted ${isSelected ? "border-teal" : "border-border opacity-60"}`}
+                  >
+                    <img
+                      src={`data:image/jpeg;base64,${f.base64}`}
+                      alt={`Frame at ${Math.round(f.time)}s`}
+                      className="h-full w-full object-cover"
+                    />
+                    <span className={`absolute right-1 top-1 grid size-5 place-items-center rounded-full text-white shadow ring-2 ring-white ${isSelected ? "bg-teal" : "bg-black/40"}`}>
+                      {isSelected ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
+                    <span className="absolute left-1 bottom-1 rounded bg-black/60 px-1 py-0.5 text-[10px] font-medium text-white">
+                      {Math.round(f.time)}s
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedFrames([]);
+                  setSelectedFrameIdx(new Set());
+                  setPendingVideoBlob(null);
+                }}
+                className="flex-1 min-h-11 rounded-xl border border-border px-4 text-sm font-semibold text-muted-foreground"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={analyzeSelectedFrames}
+                disabled={selectedFrameIdx.size === 0}
+                className="flex-[2] min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-50"
+              >
+                Analyse {selectedFrameIdx.size} selected {selectedFrameIdx.size === 1 ? "frame" : "frames"}
+              </button>
+            </div>
           </div>
         )}
 
