@@ -978,6 +978,9 @@ function ListingReview() {
             <p className="mt-2 text-[11px] text-muted-foreground">
               Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
             </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              The listing.xml file is in REAXML format, accepted by Rex, Trade Me Property, and realestate.co.nz.
+            </p>
           </section>
         ) : null}
       </main>
