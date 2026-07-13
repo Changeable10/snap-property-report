@@ -425,90 +425,7 @@ function PropertyDetail() {
         </section>
 
         <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Rooms</h2>
-          <ul className="flex flex-col gap-2">
-            {rooms?.map((room) => (
-              <li
-                key={room.id}
-                className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3"
-              >
-                {editingId === room.id ? (
-                  <>
-                    <input
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-input bg-background px-2 py-1 text-sm"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        editValue.trim() && renameRoom.mutate({ roomId: room.id, name: editValue.trim() })
-                      }
-                      className="flex size-9 items-center justify-center rounded-lg text-teal"
-                    >
-                      <Check className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex-1 truncate text-sm font-medium text-foreground">
-                      {room.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingId(room.id);
-                        setEditValue(room.name);
-                      }}
-                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
-                      aria-label="Rename room"
-                    >
-                      <Pencil className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteRoom.mutate(room.id)}
-                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
-                      aria-label="Delete room"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-3 flex items-center gap-2">
-            <input
-              type="text"
-              value={newRoom}
-              onChange={(e) => setNewRoom(e.target.value)}
-              placeholder="Add a custom room"
-              className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => newRoom.trim() && addRoom.mutate(newRoom.trim())}
-              disabled={!newRoom.trim() || addRoom.isPending}
-              className="flex size-11 items-center justify-center rounded-xl bg-teal text-teal-foreground disabled:opacity-40"
-              aria-label="Add room"
-            >
-              <Plus className="size-5" />
-            </button>
-          </div>
-        </section>
-
-        <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Reports</h2>
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Inspections</h2>
           {!inspections || inspections.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No inspections yet.
@@ -520,6 +437,7 @@ function PropertyDetail() {
                 const counts: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
                 insItems.forEach((i) => { if (counts[i.condition] !== undefined) counts[i.condition]++; });
                 const total = insItems.length;
+                const maintCount = insItems.filter((i) => i.maintenance_required).length;
                 return (
                   <li key={ins.id} className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -527,7 +445,9 @@ function PropertyDetail() {
                         <p className="text-base font-semibold text-foreground">
                           {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)}
                         </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{total} items</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span>
+                        </p>
                       </div>
                       <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
                         {STATUS_LABEL[ins.status]}
