@@ -126,25 +126,6 @@ function Index() {
     },
   });
 
-  const hasOnboardedFlag =
-    typeof window !== "undefined" && localStorage.getItem(ONBOARDED_KEY) === "true";
-  if (
-    properties !== undefined &&
-    properties.length === 0 &&
-    !hasOnboardedFlag &&
-    !onboardingDismissed
-  ) {
-    return (
-      <Onboarding
-        user={user}
-        onFinish={() => {
-          setOnboardingDismissed(true);
-          queryClient.invalidateQueries({ queryKey: ["properties"] });
-        }}
-      />
-    );
-  }
-
   const { data: inspections } = useQuery({
     queryKey: ["all-inspections"],
     queryFn: async () => {
