@@ -825,6 +825,9 @@ export type Database = {
           id: string
           logo_url: string | null
           phone: string | null
+          rex_account_email: string | null
+          rex_api_token: string | null
+          rex_connected: boolean
           team_id: string
           updated_at: string
         }
@@ -837,6 +840,9 @@ export type Database = {
           id?: string
           logo_url?: string | null
           phone?: string | null
+          rex_account_email?: string | null
+          rex_api_token?: string | null
+          rex_connected?: boolean
           team_id: string
           updated_at?: string
         }
@@ -849,6 +855,9 @@ export type Database = {
           id?: string
           logo_url?: string | null
           phone?: string | null
+          rex_account_email?: string | null
+          rex_api_token?: string | null
+          rex_connected?: boolean
           team_id?: string
           updated_at?: string
         }

@@ -9,7 +9,7 @@ import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { exportListingPackage } from "@/lib/listing-export";
-import { loadPdfBranding } from "@/lib/branding";
+import { loadPdfBranding, fetchMyBranding } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -586,6 +586,62 @@ function ListingReview() {
   const [exporting, setExporting] = useState(false);
   const canExport = hasGenerated && !!title && !!description;
 
+  // Rex CRM push (Agency only).
+  const isAgency = plan === "agency";
+  const [rexConnected, setRexConnected] = useState(false);
+  const [pushingRex, setPushingRex] = useState(false);
+  useEffect(() => {
+    if (!isAgency) { setRexConnected(false); return; }
+    let alive = true;
+    (async () => {
+      const b = await fetchMyBranding();
+      if (alive) setRexConnected(!!b?.rex_connected);
+    })();
+    return () => { alive = false; };
+  }, [isAgency]);
+
+  async function handlePushToRex() {
+    if (!listing || !property) return;
+    if (!canExport) { toast.error("Generate a listing description first"); return; }
+    setPushingRex(true);
+    try {
+      // Build signed photo URLs for featured photos.
+      const featured = (photos ?? []).filter((p) => p.featured);
+      const urls: string[] = [];
+      for (const p of featured) {
+        const path = p.enhanced_url || p.staged_url || p.photo_url;
+        const { data: signed } = await supabase.storage
+          .from("inspection-photos")
+          .createSignedUrl(path, 3600);
+        if (signed?.signedUrl) urls.push(signed.signedUrl);
+      }
+      const addressLine = [property.address, property.suburb, property.city].filter(Boolean).join(", ");
+      const { data, error } = await supabase.functions.invoke("push-to-rex", {
+        body: {
+          address: addressLine,
+          title,
+          description,
+          features,
+          listing_type: listing.listing_type,
+          bedrooms: listing.bedrooms ?? property.bedrooms,
+          bathrooms: listing.bathrooms ?? property.bathrooms,
+          asking_price: listing.asking_price,
+          photo_urls: urls,
+        },
+      });
+      if (error || (data as any)?.error) {
+        toast.error((data as any)?.error ?? error?.message ?? "Push to Rex failed");
+        return;
+      }
+      const uploaded = (data as any)?.photos_uploaded ?? 0;
+      toast.success(`Listing pushed to Rex${uploaded ? ` with ${uploaded} photo${uploaded === 1 ? "" : "s"}` : ""}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Push to Rex failed");
+    } finally {
+      setPushingRex(false);
+    }
+  }
+
   async function handleExport() {
     if (!listing || !property) return;
     if (!canExport) {
@@ -978,6 +1034,17 @@ function ListingReview() {
               {exporting ? <Loader2 className="size-4 animate-spin" /> : <Package className="size-4" />}
               Export listing package
             </button>
+            {isAgency && rexConnected ? (
+              <button
+                type="button"
+                onClick={handlePushToRex}
+                disabled={pushingRex}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-primary bg-white px-4 text-sm font-semibold text-primary disabled:opacity-60"
+              >
+                {pushingRex ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {pushingRex ? "Pushing to Rex…" : "Push to Rex"}
+              </button>
+            ) : null}
             <p className="mt-2 text-[11px] text-muted-foreground">
               Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
             </p>

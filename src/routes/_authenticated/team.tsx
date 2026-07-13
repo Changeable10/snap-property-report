@@ -21,6 +21,7 @@ import {
   uploadTeamLogo,
   brandingLogoObjectUrl,
 } from "@/lib/branding";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/team")({
   head: () => ({ meta: [{ title: "Team — Snapsure" }] }),
@@ -315,6 +316,9 @@ function TeamPage() {
 
       {/* Report branding */}
       <BrandingSection teamId={team.id} canManage={canManage} />
+
+      {/* Integrations */}
+      <IntegrationsSection teamId={team.id} canManage={canManage} />
     </PageShell>
   );
 }
@@ -559,6 +563,163 @@ function BrandingSection({ teamId, canManage }: { teamId: string; canManage: boo
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function IntegrationsSection({ teamId, canManage }: { teamId: string; canManage: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const b = await fetchTeamBranding(teamId);
+        if (!alive) return;
+        setConnected(!!b?.rex_connected);
+        setAccountEmail(b?.rex_account_email ?? null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [teamId]);
+
+  async function handleConnect() {
+    if (!email || !password) {
+      setError("Enter your Rex email and password.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("rex-connect", {
+        body: { email, password },
+      });
+      if (error || (data as any)?.error) {
+        setError((data as any)?.error ?? error?.message ?? "Could not connect to Rex. Check your email and password.");
+        return;
+      }
+      setConnected(true);
+      setAccountEmail(email);
+      setEmail("");
+      setPassword("");
+      toast.success("Rex connected");
+    } catch (e) {
+      setError((e as Error).message ?? "Could not connect to Rex.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from("team_branding")
+        .update({ rex_api_token: null, rex_connected: false, rex_account_email: null })
+        .eq("team_id", teamId);
+      if (error) throw error;
+      setConnected(false);
+      setAccountEmail(null);
+      toast.success("Rex disconnected");
+    } catch (e) {
+      toast.error((e as Error).message ?? "Failed to disconnect");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-2xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Integrations</h2>
+          <p className="text-xs text-muted-foreground">Connect external CRMs to push content from Snapsure.</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Rex CRM</p>
+            <p className="text-xs text-muted-foreground">
+              Push listing content directly into Rex from the listing review page.
+            </p>
+            {connected && accountEmail ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">Connected as {accountEmail}</p>
+            ) : null}
+          </div>
+          {loading ? null : connected ? (
+            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              Connected
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+              Not connected
+            </span>
+          )}
+        </div>
+
+        {loading ? null : !canManage ? (
+          <p className="mt-3 text-xs text-muted-foreground">Only owners and admins can manage integrations.</p>
+        ) : connected ? (
+          <button
+            type="button"
+            onClick={handleDisconnect}
+            disabled={busy}
+            className="mt-3 inline-flex h-9 items-center rounded-lg border border-border px-3 text-xs font-semibold text-foreground disabled:opacity-60"
+          >
+            Disconnect
+          </button>
+        ) : (
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <label className="text-xs font-medium text-foreground md:col-span-1">
+              Rex API email
+              <input
+                type="email"
+                autoComplete="off"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                placeholder="you@agency.co.nz"
+              />
+            </label>
+            <label className="text-xs font-medium text-foreground md:col-span-1">
+              Rex API password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+              />
+            </label>
+            {error ? (
+              <p className="md:col-span-2 text-xs text-red-600">{error}</p>
+            ) : null}
+            <div className="md:col-span-2">
+              <button
+                type="button"
+                onClick={handleConnect}
+                disabled={busy}
+                className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {busy ? "Connecting…" : "Connect"}
+              </button>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Your password is used once to fetch an API token from Rex. We only store the token.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
