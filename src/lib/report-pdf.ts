@@ -214,7 +214,8 @@ export async function generateReportPdf({
   // ---------- Room sections ----------
   // Max photo height 200 points = ~70.56 mm
   const MAX_PHOTO_MM = 200 * 0.352778;
-  for (const room of rooms) {
+  const roomsWithItems = rooms.filter((r) => (itemsByRoom.get(r.id)?.length ?? 0) > 0);
+  for (const room of roomsWithItems) {
     const rItems = itemsByRoom.get(room.id) ?? [];
     const rPhotos = photosByRoom.get(room.id) ?? [];
 
@@ -243,8 +244,7 @@ export async function generateReportPdf({
       }
     }
 
-    if (rItems.length > 0) {
-      autoTable(doc, {
+    autoTable(doc, {
         startY: y,
         head: [["Item", "Condition", "Description", "Maintenance Required"]],
         body: rItems.map((it) => [
@@ -276,16 +276,9 @@ export async function generateReportPdf({
             data.cell.styles.fontStyle = "bold";
           }
         },
-      });
-      // @ts-expect-error autoTable augments doc
-      y = doc.lastAutoTable.finalY + 6;
-    } else {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(10);
-      doc.setTextColor(140);
-      doc.text("No items inspected", margin, y + 4);
-      y += 10;
-    }
+    });
+    // @ts-expect-error autoTable augments doc
+    y = doc.lastAutoTable.finalY + 6;
   }
 
   // ---------- Maintenance summary page ----------
