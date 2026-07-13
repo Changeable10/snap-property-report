@@ -510,10 +510,32 @@ function PropertyDetail() {
         </section>
 
         <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-foreground">Maintenance log</h2>
-          {maintenanceRows.length === 0 ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Maintenance log</h2>
+            <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-xs">
+              {([
+                ["all", `All (${maintenanceRows.length})`],
+                ["open", `Open (${openCount})`],
+                ["resolved", `Resolved (${resolvedCount})`],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMaintFilter(key)}
+                  className={
+                    maintFilter === key
+                      ? "rounded-md bg-teal px-2.5 py-1 font-semibold text-teal-foreground"
+                      : "rounded-md px-2.5 py-1 font-medium text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {filteredMaintenance.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              No maintenance items logged.
+              {maintenanceRows.length === 0 ? "No maintenance items logged." : "Nothing matches this filter."}
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -529,7 +551,7 @@ function PropertyDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {maintenanceRows.map((it) => {
+                  {filteredMaintenance.map((it) => {
                     const ins = inspectionById.get(it.inspection_id);
                     const room = roomById.get(it.room_id);
                     return (
@@ -565,6 +587,89 @@ function PropertyDetail() {
               </table>
             </div>
           )}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Rooms</h2>
+          <ul className="flex flex-col gap-2">
+            {rooms?.map((room) => (
+              <li
+                key={room.id}
+                className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3"
+              >
+                {editingId === room.id ? (
+                  <>
+                    <input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-input bg-background px-2 py-1 text-sm"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        editValue.trim() && renameRoom.mutate({ roomId: room.id, name: editValue.trim() })
+                      }
+                      className="flex size-9 items-center justify-center rounded-lg text-teal"
+                    >
+                      <Check className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 truncate text-sm font-medium text-foreground">
+                      {room.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(room.id);
+                        setEditValue(room.name);
+                      }}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                      aria-label="Rename room"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteRoom.mutate(room.id)}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
+                      aria-label="Delete room"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              value={newRoom}
+              onChange={(e) => setNewRoom(e.target.value)}
+              placeholder="Add a custom room"
+              className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => newRoom.trim() && addRoom.mutate(newRoom.trim())}
+              disabled={!newRoom.trim() || addRoom.isPending}
+              className="flex size-11 items-center justify-center rounded-xl bg-teal text-teal-foreground disabled:opacity-40"
+              aria-label="Add room"
+            >
+              <Plus className="size-5" />
+            </button>
+          </div>
         </section>
       </main>
 
