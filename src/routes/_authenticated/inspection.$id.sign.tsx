@@ -12,6 +12,7 @@ import {
   type PdfSignature,
 } from "@/lib/report-pdf";
 import { toast } from "sonner";
+import { loadPdfBranding } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/sign")({
   head: () => ({ meta: [{ title: "Sign — Snapsure" }] }),
@@ -464,8 +465,9 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
     (async () => {
       setGenerating(true);
       try {
+        const branding = await loadPdfBranding();
         const blob = await generateReportPdf({
-          inspection, property, rooms, items, photos, signatures,
+          inspection, property, rooms, items, photos, signatures, branding,
         });
         created = URL.createObjectURL(blob);
         if (!cancelled) { setPdfUrl(created); setGenerating(false); }
