@@ -89,6 +89,66 @@ export type Database = {
           },
         ]
       }
+      healthy_homes_assessments: {
+        Row: {
+          created_at: string
+          draught_data: Json
+          heating_data: Json
+          id: string
+          inspection_id: string
+          insulation_data: Json
+          moisture_data: Json
+          overall_status: string
+          property_id: string
+          updated_at: string
+          user_id: string
+          ventilation_data: Json
+        }
+        Insert: {
+          created_at?: string
+          draught_data?: Json
+          heating_data?: Json
+          id?: string
+          inspection_id: string
+          insulation_data?: Json
+          moisture_data?: Json
+          overall_status?: string
+          property_id: string
+          updated_at?: string
+          user_id: string
+          ventilation_data?: Json
+        }
+        Update: {
+          created_at?: string
+          draught_data?: Json
+          heating_data?: Json
+          id?: string
+          inspection_id?: string
+          insulation_data?: Json
+          moisture_data?: Json
+          overall_status?: string
+          property_id?: string
+          updated_at?: string
+          user_id?: string
+          ventilation_data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "healthy_homes_assessments_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: true
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "healthy_homes_assessments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspection_items: {
         Row: {
           condition: Database["public"]["Enums"]["condition_type"]
@@ -522,7 +582,7 @@ export type Database = {
       comparison_status: "pending" | "confirmed" | "dismissed"
       condition_type: "good" | "fair" | "poor" | "damaged"
       inspection_status: "in_progress" | "completed" | "signed"
-      inspection_type: "entry" | "routine" | "exit"
+      inspection_type: "entry" | "routine" | "exit" | "healthy_homes"
       maintenance_priority: "low" | "medium" | "high"
     }
     CompositeTypes: {
@@ -663,7 +723,7 @@ export const Constants = {
       comparison_status: ["pending", "confirmed", "dismissed"],
       condition_type: ["good", "fair", "poor", "damaged"],
       inspection_status: ["in_progress", "completed", "signed"],
-      inspection_type: ["entry", "routine", "exit"],
+      inspection_type: ["entry", "routine", "exit", "healthy_homes"],
       maintenance_priority: ["low", "medium", "high"],
     },
   },
