@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan, PLAN_LABEL, useIsAdmin, useAdminTestPlan, setAdminTestPlan, type Plan } from "@/lib/use-plan";
 import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { getPropertiesDebug } from "@/lib/debug.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Snapsure" }] }),
@@ -25,6 +27,23 @@ function SettingsPage() {
   const current = plan ?? "free";
   const { data: isAdmin } = useIsAdmin(user.id);
   const testPlan = useAdminTestPlan();
+  const runDebug = useServerFn(getPropertiesDebug);
+  const { data: debug } = useQuery({
+    queryKey: ["debug-properties", user.id],
+    enabled: !!isAdmin,
+    queryFn: () => runDebug(),
+  });
+  const { data: myClientCount } = useQuery({
+    queryKey: ["debug-my-client-count", user.id],
+    enabled: !!isAdmin,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("properties")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      return count ?? 0;
+    },
+  });
   useEffect(() => {
     if (!search.upgraded) return;
     toast.success(`You're now on the ${PLAN_LABEL[current]} plan`);
@@ -41,6 +60,7 @@ function SettingsPage() {
         <div>
           <p className="text-xs font-medium text-muted-foreground">Current plan</p>
           <p className="text-sm font-semibold text-foreground">{PLAN_LABEL[current]}</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">User ID: {user.id}</p>
         </div>
         {current === "free" ? (
           <a
@@ -51,6 +71,29 @@ function SettingsPage() {
           </a>
         ) : null}
       </div>
+      {isAdmin ? (
+        <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-900">Debug: properties</p>
+          <div className="mt-2 space-y-1 font-mono text-[11px] text-slate-700">
+            <div>auth.uid(): {user.id}</div>
+            <div>properties where user_id = you (via RLS client): {myClientCount ?? "…"}</div>
+            <div>properties where user_id = you (admin bypass): {debug?.mine ?? "…"}</div>
+            <div>properties total (admin bypass): {debug?.total ?? "…"}</div>
+          </div>
+          {debug && debug.total !== (debug.mine ?? 0) ? (
+            <div className="mt-3">
+              <p className="text-[11px] font-semibold text-slate-900">user_id counts on properties:</p>
+              <pre className="mt-1 overflow-auto rounded bg-white p-2 font-mono text-[11px] text-slate-700">
+{JSON.stringify(debug.byUser, null, 2)}
+              </pre>
+              <p className="mt-2 text-[11px] font-semibold text-slate-900">team_id counts on properties:</p>
+              <pre className="mt-1 overflow-auto rounded bg-white p-2 font-mono text-[11px] text-slate-700">
+{JSON.stringify(debug.byTeam, null, 2)}
+              </pre>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {current === "agency" ? (
         <Link
           to="/team"
