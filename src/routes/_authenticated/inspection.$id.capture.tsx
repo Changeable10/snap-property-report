@@ -471,16 +471,19 @@ function CapturePage() {
   async function startVideoWalkthrough() {
     if (!current) return;
     setVideoError(null);
+    setExtractedFrames([]);
+    setSelectedFrameIdx(new Set());
+    setPendingVideoBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
-        audio: true,
+        audio: false,
       });
-      videoStreamRef.current = stream;
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = stream;
-        videoPreviewRef.current.play().catch(() => {});
+      if (!stream.active) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error("Camera stream is not active");
       }
+      videoStreamRef.current = stream;
       const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
       const mime = mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
       const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -493,7 +496,9 @@ function CapturePage() {
       videoTimerRef.current = setInterval(() => setVideoElapsed((s) => s + 1), 1000);
     } catch (err: any) {
       setVideoSupported(false);
-      setVideoError("Video recording is not available on this device. Use Capture photo instead.");
+      setVideoError(err?.message === "Camera stream is not active"
+        ? "Camera did not start — try Capture photo instead."
+        : "Video recording is not available on this device. Use Capture photo instead.");
       toast.error("Camera permission denied or unavailable");
     }
   }
@@ -512,7 +517,17 @@ function CapturePage() {
     const blob = new Blob(videoChunksRef.current, { type: mr.mimeType || "video/webm" });
     videoChunksRef.current = [];
     if (blob.size === 0) return;
-    void processVideo(blob);
+    setPendingVideoBlob(blob);
+    setExtractingFrames(true);
+    try {
+      const frames = await extractFrames(blob);
+      setExtractedFrames(frames);
+      setSelectedFrameIdx(new Set(frames.map((_, i) => i)));
+    } catch {
+      toast.error("Could not extract frames from the recording");
+    } finally {
+      setExtractingFrames(false);
+    }
   }
 
   async function extractFrames(blob: Blob): Promise<Array<{ base64: string; time: number }>> {
@@ -562,36 +577,38 @@ function CapturePage() {
     });
   }
 
-  async function processVideo(blob: Blob) {
+  async function analyzeSelectedFrames() {
     if (!inspection || !current) return;
+    const blob = pendingVideoBlob;
+    const selectedIndices = Array.from(selectedFrameIdx).sort((a, b) => a - b);
+    if (selectedIndices.length === 0) {
+      toast.message("Select at least one frame to analyse.");
+      return;
+    }
+    const frames = selectedIndices.map((i) => extractedFrames[i]).filter(Boolean);
+    if (frames.length === 0) return;
     setVideoProcessing(true);
-    setVideoProgress({ current: 0, total: 0 });
+    setVideoProgress({ current: 0, total: frames.length });
     const roomId = current.id;
     const roomName = current.name;
     // Upload the full recording in the background.
-    const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
-    void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
-
-    let frames: Array<{ base64: string; time: number }> = [];
-    try {
-      frames = await extractFrames(blob);
-    } catch {
-      toast.error("Could not extract frames from the recording");
-      setVideoProcessing(false);
-      return;
+    if (blob) {
+      const videoPath = `${inspection.user_id}/${id}/${roomId}/walkthrough-${crypto.randomUUID()}.webm`;
+      void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
     }
-    if (frames.length === 0) { setVideoProcessing(false); return; }
-    setVideoProgress({ current: 0, total: frames.length });
 
     type AiItem = {
       name: string; condition: Condition; description?: string;
       maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
     };
     const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
+    // Dedup by item name. For same name + same condition, keep only the
+    // first detected instance (highest-confidence frame). For same name +
+    // different condition, worst-condition wins.
     const merged = new Map<string, {
       name: string; condition: Condition; confidence: number;
-      descriptions: Set<string>; maintenance_required: boolean;
-      maintenance_notes: Set<string>; bestFrameIdx: number; bestFrameConf: number;
+      description: string | null; maintenance_required: boolean;
+      maintenance_notes: string | null; bestFrameIdx: number;
     }>();
 
     for (let i = 0; i < frames.length; i++) {
@@ -615,20 +632,24 @@ function CapturePage() {
               name: ai.name,
               condition: cond,
               confidence: conf,
-              descriptions: ai.description ? new Set([ai.description.trim()]) : new Set(),
+              description: ai.description?.trim() || null,
               maintenance_required: !!ai.maintenance_required,
-              maintenance_notes: ai.maintenance_notes ? new Set([ai.maintenance_notes.trim()]) : new Set(),
+              maintenance_notes: ai.maintenance_notes?.trim() || null,
               bestFrameIdx: i,
-              bestFrameConf: conf,
             });
-          } else {
-            if (rank[cond] > rank[prev.condition]) prev.condition = cond;
-            if (conf > prev.confidence) prev.confidence = conf;
-            if (ai.description) prev.descriptions.add(ai.description.trim());
-            if (ai.maintenance_required) prev.maintenance_required = true;
-            if (ai.maintenance_notes) prev.maintenance_notes.add(ai.maintenance_notes.trim());
-            if (conf > prev.bestFrameConf) { prev.bestFrameConf = conf; prev.bestFrameIdx = i; }
+          } else if (rank[cond] > rank[prev.condition]) {
+            // Worse condition — replace the record entirely.
+            merged.set(key, {
+              name: ai.name,
+              condition: cond,
+              confidence: conf,
+              description: ai.description?.trim() || null,
+              maintenance_required: !!ai.maintenance_required,
+              maintenance_notes: ai.maintenance_notes?.trim() || null,
+              bestFrameIdx: i,
+            });
           }
+          // else: same or better condition → keep the first (highest-confidence) instance.
         }
       } catch {
         // continue on error
@@ -662,8 +683,8 @@ function CapturePage() {
     for (const m of merged.values()) {
       const key = m.name.toLowerCase();
       const existingItem = byName.get(key);
-      const description = Array.from(m.descriptions).filter(Boolean).join(" ") || null;
-      const notes = Array.from(m.maintenance_notes).filter(Boolean).join(" ") || null;
+      const description = m.description;
+      const notes = m.maintenance_notes;
       if (existingItem) {
         const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
         const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
@@ -697,7 +718,15 @@ function CapturePage() {
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
     setVideoProcessing(false);
-    if (merged.size > 0) toast.success(`Detected ${merged.size} ${merged.size === 1 ? "item" : "items"} from walkthrough`);
+    const framesAnalyzed = frames.length;
+    setExtractedFrames([]);
+    setSelectedFrameIdx(new Set());
+    setPendingVideoBlob(null);
+    if (merged.size > 0) {
+      toast.success(`${merged.size} unique ${merged.size === 1 ? "item" : "items"} found from ${framesAnalyzed} ${framesAnalyzed === 1 ? "frame" : "frames"} analysed`);
+    } else {
+      toast.message(`No items detected across ${framesAnalyzed} ${framesAnalyzed === 1 ? "frame" : "frames"}.`);
+    }
   }
 
   const countsByCondition = useMemo(() => {
