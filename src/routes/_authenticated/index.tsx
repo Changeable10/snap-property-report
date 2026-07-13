@@ -490,9 +490,8 @@ function Index() {
             </ul>
           </section>
         ) : null}
-      </main>
+      </div>
 
-      <BottomNav />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );
