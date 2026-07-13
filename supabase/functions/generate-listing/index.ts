@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { requireUser } from "../_shared/auth.ts";
+import { requirePlan, requireMonthlyLimit } from "../_shared/plan.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -56,6 +57,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const auth = await requireUser(req, corsHeaders);
   if (auth instanceof Response) return auth;
+  const gate = await requirePlan(auth.userId, ["professional", "portfolio", "agency"], corsHeaders);
+  if (gate) return gate;
+  const limits: Record<string, number> = { professional: 5, portfolio: Infinity, agency: Infinity };
+  // Best-effort: use professional's tighter limit for professional plan.
+  const plan = await (await import("../_shared/plan.ts")).getUserPlan(auth.userId);
+  const overLimit = await requireMonthlyLimit(auth.userId, "listings", limits[plan] ?? Infinity, corsHeaders);
+  if (overLimit) return overLimit;
   try {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) {
