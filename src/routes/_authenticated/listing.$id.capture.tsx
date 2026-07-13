@@ -317,9 +317,7 @@ function ListingCapture() {
     if (current && (transcript || manualNotes)) {
       await saveNotes(transcript, manualNotes);
     }
-    await supabase.from("listings").update({ status: "draft" }).eq("id", id);
-    toast.success("Listing capture saved");
-    if (listing) navigate({ to: "/property/$id", params: { id: listing.property_id } });
+    navigate({ to: "/listing/$id/review", params: { id } });
   }
 
   if (!listing || !rooms || total === 0) {
