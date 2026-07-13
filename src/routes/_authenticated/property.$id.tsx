@@ -33,7 +33,7 @@ interface Room {
 type InspectionStatus = "in_progress" | "completed" | "signed";
 interface InspectionRow {
   id: string;
-  inspection_type: "entry" | "routine" | "exit";
+  inspection_type: "entry" | "routine" | "exit" | "healthy_homes";
   inspection_date: string;
   status: InspectionStatus;
 }
@@ -88,7 +88,7 @@ const STATUS_STYLE: Record<InspectionStatus, string> = {
   signed: "bg-condition-good/15 text-condition-good ring-condition-good/40",
 };
 const TYPE_LABEL: Record<InspectionRow["inspection_type"], string> = {
-  entry: "Entry", routine: "Routine", exit: "Exit",
+  entry: "Entry", routine: "Routine", exit: "Exit", healthy_homes: "Healthy Homes",
 };
 const PRIORITY_STYLE: Record<Priority, string> = {
   high: "bg-condition-damaged/15 text-condition-damaged ring-condition-damaged/40",
