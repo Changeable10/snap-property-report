@@ -1,0 +1,1 @@
+ALTER TABLE public.healthy_homes_assessments ADD COLUMN IF NOT EXISTS smoke_alarms_data jsonb NOT NULL DEFAULT '{}'::jsonb;
