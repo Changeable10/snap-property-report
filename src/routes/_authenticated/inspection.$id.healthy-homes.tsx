@@ -1102,6 +1102,110 @@ function DraughtStep({
   );
 }
 
+function SmokeAlarmsStep({
+  data,
+  setData,
+  uploadPhoto,
+}: {
+  data: SmokeAlarmsData;
+  setData: (d: SmokeAlarmsData) => void;
+  uploadPhoto: (f: File, slot: string) => Promise<string | null>;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <h2 className="text-lg font-semibold text-foreground">Smoke Alarms</h2>
+
+      <Field label="Are there working smoke alarms installed?">
+        <Segmented<YesNo>
+          value={data.present}
+          onChange={(v) => setData({ ...data, present: v })}
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+        />
+      </Field>
+
+      {data.present === "no" ? (
+        <Alert tone="red">
+          Working smoke alarms are required in all rental properties. The landlord must ensure
+          they are installed and working at the start of every tenancy.
+        </Alert>
+      ) : null}
+
+      {data.present === "yes" ? (
+        <>
+          <Field label="How many smoke alarms?">
+            <NumInput
+              value={data.count}
+              onChange={(n) => setData({ ...data, count: n })}
+              step="1"
+            />
+          </Field>
+
+          <Field label="Are smoke alarms installed near each bedroom / sleeping area?">
+            <Segmented<YesNo>
+              value={data.near_bedrooms}
+              onChange={(v) => setData({ ...data, near_bedrooms: v })}
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </Field>
+          {data.near_bedrooms === "no" ? (
+            <Alert tone="amber">
+              Smoke alarms should be installed within 3m of each bedroom door (or in every bedroom
+              where occupants smoke).
+            </Alert>
+          ) : null}
+
+          <Field label="Have the smoke alarms been tested?">
+            <Segmented<YesNo>
+              value={data.tested}
+              onChange={(v) => setData({ ...data, tested: v })}
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+            />
+          </Field>
+          {data.tested === "no" ? (
+            <Alert tone="amber">Smoke alarms should be tested at the start of each tenancy.</Alert>
+          ) : null}
+
+          <Field label="Type of smoke alarms">
+            <select
+              value={data.alarm_type ?? ""}
+              onChange={(e) =>
+                setData({ ...data, alarm_type: e.target.value as SmokeAlarmType })
+              }
+              className="min-h-11 rounded-xl border border-input bg-card px-3 text-base"
+            >
+              <option value="">Select…</option>
+              <option value="photoelectric">Photoelectric (recommended)</option>
+              <option value="ionisation">Ionisation</option>
+              <option value="combined">Combined photoelectric/ionisation</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </Field>
+        </>
+      ) : null}
+
+      <PhotoButton
+        label="Take a photo of a smoke alarm"
+        path={data.photo_path}
+        onUpload={async (f) => {
+          const p = await uploadPhoto(f, "smoke-alarm");
+          if (p) setData({ ...data, photo_path: p });
+        }}
+      />
+
+      <Notes value={data.notes} onChange={(v) => setData({ ...data, notes: v })} />
+    </div>
+  );
+}
+
 function Summary({
   statuses,
   onEdit,
