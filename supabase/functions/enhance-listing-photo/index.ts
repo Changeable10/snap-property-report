@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { requireUser } from "../_shared/auth.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -22,6 +23,8 @@ Be conservative — most photos need adjustments in the +/-10 to +/-40 range. On
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req, corsHeaders);
+  if (auth instanceof Response) return auth;
   try {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) {
