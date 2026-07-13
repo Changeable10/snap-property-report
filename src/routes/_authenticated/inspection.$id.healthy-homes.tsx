@@ -12,6 +12,7 @@ import {
   Wind,
   Droplets,
   DoorClosed,
+  BellRing,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/inspection/$id/healthy-hom
   component: HealthyHomesPage,
 });
 
-type StepKey = "heating" | "insulation" | "ventilation" | "moisture" | "draught";
+type StepKey = "heating" | "insulation" | "ventilation" | "moisture" | "draught" | "smoke";
 
 const STEPS: { key: StepKey; label: string; short: string; Icon: typeof Flame }[] = [
   { key: "heating", label: "Heating", short: "Heat", Icon: Flame },
@@ -31,6 +32,7 @@ const STEPS: { key: StepKey; label: string; short: string; Icon: typeof Flame }[
   { key: "ventilation", label: "Ventilation", short: "Vent", Icon: Wind },
   { key: "moisture", label: "Moisture & Drainage", short: "Moist", Icon: Droplets },
   { key: "draught", label: "Draught Stopping", short: "Draught", Icon: DoorClosed },
+  { key: "smoke", label: "Smoke Alarms", short: "Smoke", Icon: BellRing },
 ];
 
 type HeaterType =
@@ -106,6 +108,16 @@ interface DraughtData {
   photo_fireplace_path?: string | null;
   notes?: string;
 }
+type SmokeAlarmType = "photoelectric" | "ionisation" | "combined" | "unknown" | "";
+interface SmokeAlarmsData {
+  present?: YesNo;
+  count?: number | "";
+  near_bedrooms?: YesNo;
+  tested?: YesNo;
+  alarm_type?: SmokeAlarmType;
+  photo_path?: string | null;
+  notes?: string;
+}
 
 type Status = "green" | "amber" | "red" | "unknown";
 
@@ -165,6 +177,14 @@ function evalDraught(d: DraughtData): Status {
   return "green";
 }
 
+function evalSmoke(d: SmokeAlarmsData): Status {
+  if (!d.present) return "unknown";
+  if (d.present === "no") return "red";
+  if (d.near_bedrooms === "no" || d.tested === "no") return "amber";
+  if (!d.near_bedrooms || !d.tested) return "unknown";
+  return "green";
+}
+
 function overallFrom(statuses: Status[]): "compliant" | "action_required" | "non_compliant" {
   if (statuses.some((s) => s === "red")) return "non_compliant";
   if (statuses.some((s) => s === "amber" || s === "unknown")) return "action_required";
@@ -218,6 +238,7 @@ function HealthyHomesPage() {
   const [ventilation, setVentilation] = useState<VentilationData>({ rooms: {} });
   const [moisture, setMoisture] = useState<MoistureData>({});
   const [draught, setDraught] = useState<DraughtData>({});
+  const [smoke, setSmoke] = useState<SmokeAlarmsData>({});
   const [showSummary, setShowSummary] = useState(false);
   const [saving, setSaving] = useState(false);
   const hydrated = useRef(false);
@@ -230,6 +251,9 @@ function HealthyHomesPage() {
     if (existing.ventilation_data) setVentilation(existing.ventilation_data as VentilationData);
     if (existing.moisture_data) setMoisture(existing.moisture_data as MoistureData);
     if (existing.draught_data) setDraught(existing.draught_data as DraughtData);
+    if ((existing as { smoke_alarms_data?: unknown }).smoke_alarms_data) {
+      setSmoke((existing as { smoke_alarms_data: SmokeAlarmsData }).smoke_alarms_data);
+    }
   }, [existing]);
 
   const statuses = useMemo<Status[]>(
@@ -239,8 +263,9 @@ function HealthyHomesPage() {
       evalVentilation(ventilation),
       evalMoisture(moisture),
       evalDraught(draught),
+      evalSmoke(smoke),
     ],
-    [heating, insulation, ventilation, moisture, draught],
+    [heating, insulation, ventilation, moisture, draught, smoke],
   );
 
   async function persist(patch: Partial<{
@@ -249,6 +274,7 @@ function HealthyHomesPage() {
     ventilation_data: VentilationData;
     moisture_data: MoistureData;
     draught_data: DraughtData;
+    smoke_alarms_data: SmokeAlarmsData;
     overall_status: string;
   }>) {
     if (!inspection) return;
@@ -261,6 +287,7 @@ function HealthyHomesPage() {
       ventilation_data: (patch.ventilation_data ?? ventilation) as unknown as Json,
       moisture_data: (patch.moisture_data ?? moisture) as unknown as Json,
       draught_data: (patch.draught_data ?? draught) as unknown as Json,
+      smoke_alarms_data: (patch.smoke_alarms_data ?? smoke) as unknown as Json,
       overall_status: patch.overall_status ?? "in_progress",
     };
     const { error } = await supabase
@@ -358,8 +385,10 @@ function HealthyHomesPage() {
           />
         ) : current.key === "moisture" ? (
           <MoistureStep data={moisture} setData={setMoisture} uploadPhoto={uploadPhoto} />
-        ) : (
+        ) : current.key === "draught" ? (
           <DraughtStep data={draught} setData={setDraught} uploadPhoto={uploadPhoto} />
+        ) : (
+          <SmokeAlarmsStep data={smoke} setData={setSmoke} uploadPhoto={uploadPhoto} />
         )}
       </main>
 
