@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { requireUser } from "../_shared/auth.ts";
+import { requirePlan } from "../_shared/plan.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,6 +26,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const auth = await requireUser(req, corsHeaders);
   if (auth instanceof Response) return auth;
+  const gate = await requirePlan(auth.userId, ["professional", "portfolio", "agency"], corsHeaders);
+  if (gate) return gate;
   try {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) {

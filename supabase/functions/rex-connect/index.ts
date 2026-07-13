@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { requireUser } from "../_shared/auth.ts";
+import { requirePlan } from "../_shared/plan.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -22,6 +23,8 @@ Deno.serve(async (req) => {
   const auth = await requireUser(req, corsHeaders);
   if (auth instanceof Response) return auth;
   const userId = auth.userId;
+  const gate = await requirePlan(userId, ["agency"], corsHeaders);
+  if (gate) return gate;
 
   try {
     const { email, password } = await req.json().catch(() => ({}));
