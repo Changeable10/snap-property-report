@@ -326,7 +326,7 @@ function HealthyHomesPage() {
     qc.invalidateQueries({ queryKey: ["hh-assessment", id] });
     toast.success("Healthy Homes assessment saved");
     setSaving(false);
-    navigate({ to: "/property/$id", params: { id: inspection!.property_id } });
+    navigate({ to: "/inspection/$id/hh-report", params: { id } });
   }
 
   const current = STEPS[stepIdx];

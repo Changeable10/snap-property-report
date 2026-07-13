@@ -33,7 +33,7 @@ interface Room {
 type InspectionStatus = "in_progress" | "completed" | "signed";
 interface InspectionRow {
   id: string;
-  inspection_type: "entry" | "routine" | "exit";
+  inspection_type: "entry" | "routine" | "exit" | "healthy_homes";
   inspection_date: string;
   status: InspectionStatus;
 }
@@ -88,7 +88,7 @@ const STATUS_STYLE: Record<InspectionStatus, string> = {
   signed: "bg-condition-good/15 text-condition-good ring-condition-good/40",
 };
 const TYPE_LABEL: Record<InspectionRow["inspection_type"], string> = {
-  entry: "Entry", routine: "Routine", exit: "Exit",
+  entry: "Entry", routine: "Routine", exit: "Exit", healthy_homes: "Healthy Homes",
 };
 const PRIORITY_STYLE: Record<Priority, string> = {
   high: "bg-condition-damaged/15 text-condition-damaged ring-condition-damaged/40",
@@ -442,18 +442,27 @@ function PropertyDetail() {
                   <li key={ins.id} className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-semibold text-foreground">
-                          {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-base font-semibold text-foreground">
+                            {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)}
+                          </p>
+                          {ins.inspection_type === "healthy_homes" ? (
+                            <span className="inline-flex items-center rounded-full bg-teal-light px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-dark">
+                              Healthy Homes
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span>
+                          {ins.inspection_type === "healthy_homes"
+                            ? "Six-standard compliance assessment"
+                            : <>{total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span></>}
                         </p>
                       </div>
                       <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
                         {STATUS_LABEL[ins.status]}
                       </span>
                     </div>
-                    {total > 0 ? (
+                    {ins.inspection_type !== "healthy_homes" && total > 0 ? (
                       <>
                         <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
                           {(["good","fair","poor","damaged"] as Condition[]).map((c) =>
@@ -470,7 +479,7 @@ function PropertyDetail() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {ins.status === "in_progress" ? (
                         <Link
-                          to="/inspection/$id/capture"
+                          to={ins.inspection_type === "healthy_homes" ? "/inspection/$id/healthy-homes" : "/inspection/$id/capture"}
                           params={{ id: ins.id }}
                           className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
                         >
@@ -479,16 +488,18 @@ function PropertyDetail() {
                         </Link>
                       ) : (
                         <>
+                          {ins.inspection_type !== "healthy_homes" ? (
+                            <Link
+                              to="/inspection/$id/review"
+                              params={{ id: ins.id }}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
+                            >
+                              <FileText className="size-3.5" />
+                              View review
+                            </Link>
+                          ) : null}
                           <Link
-                            to="/inspection/$id/review"
-                            params={{ id: ins.id }}
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-accent"
-                          >
-                            <FileText className="size-3.5" />
-                            View review
-                          </Link>
-                          <Link
-                            to="/inspection/$id/report"
+                            to={ins.inspection_type === "healthy_homes" ? "/inspection/$id/hh-report" : "/inspection/$id/report"}
                             params={{ id: ins.id }}
                             className={
                               ins.status === "signed"
@@ -497,7 +508,7 @@ function PropertyDetail() {
                             }
                           >
                             <Download className="size-3.5" />
-                            Download PDF
+                            {ins.inspection_type === "healthy_homes" ? "View report" : "Download PDF"}
                           </Link>
                         </>
                       )}
