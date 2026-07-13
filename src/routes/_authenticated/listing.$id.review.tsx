@@ -362,6 +362,102 @@ function ListingReview() {
     }
   }
 
+  // -------- Photo enhancement --------
+  const [recsById, setRecsById] = useState<Record<string, EnhanceRecs>>({});
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  async function analyzePhoto(p: PhotoRow): Promise<EnhanceRecs | null> {
+    setAnalyzingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      const url = signed?.signedUrl;
+      if (!url) throw new Error("Signed URL failed");
+      const { data, error } = await supabase.functions.invoke("enhance-listing-photo", {
+        body: { image_url: url },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const recs = data as EnhanceRecs;
+      setRecsById((prev) => ({ ...prev, [p.id]: recs }));
+      return recs;
+    } catch (e: any) {
+      toast.error(e?.message ?? "Enhancement analysis failed");
+      return null;
+    } finally {
+      setAnalyzingId(null);
+    }
+  }
+
+  async function applyEnhancement(p: PhotoRow) {
+    const recs = recsById[p.id];
+    if (!recs) return;
+    setApplyingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      if (!signed?.signedUrl) throw new Error("Signed URL failed");
+      const blob = await renderEnhancedBlob(signed.signedUrl, recs);
+      const rawName = p.photo_url.split("/").pop() ?? `${p.id}.jpg`;
+      const baseName = rawName.replace(/\.[^.]+$/, "");
+      const enhancedPath = `listing-${id}/enhanced-${baseName}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(enhancedPath, blob, { contentType: "image/jpeg", upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("listing_photos")
+        .update({ enhanced_url: enhancedPath })
+        .eq("id", p.id);
+      if (dbErr) throw dbErr;
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success("Enhanced version saved");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Apply failed");
+    } finally {
+      setApplyingId(null);
+    }
+  }
+
+  async function resetEnhancement(p: PhotoRow) {
+    setRecsById((prev) => {
+      const next = { ...prev };
+      delete next[p.id];
+      return next;
+    });
+    if (p.enhanced_url) {
+      try {
+        await supabase.storage.from("inspection-photos").remove([p.enhanced_url]);
+      } catch { /* ignore */ }
+      await supabase.from("listing_photos").update({ enhanced_url: null }).eq("id", p.id);
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+    }
+    toast.success("Reset to original");
+  }
+
+  async function bulkEnhanceFeatured() {
+    if (!photos) return;
+    const featured = photos.filter((p) => p.featured);
+    if (featured.length === 0) {
+      toast.error("No featured photos to enhance");
+      return;
+    }
+    setBulkEnhancing(true);
+    setBulkProgress({ done: 0, total: featured.length });
+    try {
+      for (let i = 0; i < featured.length; i++) {
+        setBulkProgress({ done: i, total: featured.length });
+        await analyzePhoto(featured[i]);
+      }
+      setBulkProgress({ done: featured.length, total: featured.length });
+      toast.success(`Analysed ${featured.length} photo${featured.length === 1 ? "" : "s"}. Review before/after and Apply.`);
+    } finally {
+      setBulkEnhancing(false);
+    }
+  }
+
   const scoredPhotos = useMemo(() => {
     return [...(photos ?? [])].sort((a, b) => {
       const sa = a.quality_score ?? -1;
