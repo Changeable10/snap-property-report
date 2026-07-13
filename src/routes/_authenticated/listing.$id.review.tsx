@@ -1034,6 +1034,17 @@ function ListingReview() {
               {exporting ? <Loader2 className="size-4 animate-spin" /> : <Package className="size-4" />}
               Export listing package
             </button>
+            {isAgency && rexConnected ? (
+              <button
+                type="button"
+                onClick={handlePushToRex}
+                disabled={pushingRex}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-primary bg-white px-4 text-sm font-semibold text-primary disabled:opacity-60"
+              >
+                {pushingRex ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {pushingRex ? "Pushing to Rex…" : "Push to Rex"}
+              </button>
+            ) : null}
             <p className="mt-2 text-[11px] text-muted-foreground">
               Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
             </p>
