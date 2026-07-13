@@ -667,3 +667,49 @@ function PhotoThumb({ path }: { path: string }) {
     </div>
   );
 }
+
+function ShotCheckCard({
+  check,
+  onKeep,
+  onRetake,
+}: {
+  check: ShotCheck;
+  onKeep: () => void;
+  onRetake: () => void;
+}) {
+  const style =
+    check.rating === "good"
+      ? { border: "border-green-500/40", bg: "bg-green-50", text: "text-green-700", label: "Good shot", Icon: Check }
+      : check.rating === "consider_retaking"
+      ? { border: "border-amber-500/40", bg: "bg-amber-50", text: "text-amber-700", label: "Consider retaking", Icon: AlertTriangle }
+      : { border: "border-red-500/40", bg: "bg-red-50", text: "text-red-700", label: "Retake recommended", Icon: RefreshCw };
+  const Icon = style.Icon;
+  return (
+    <div className={`mt-3 rounded-xl border ${style.border} ${style.bg} p-3`}>
+      <div className={`flex items-center gap-2 text-sm font-semibold ${style.text}`}>
+        <Icon className="size-4" /> {style.label}
+      </div>
+      {check.reason ? (
+        <p className="mt-1 text-xs text-foreground">{check.reason}</p>
+      ) : null}
+      {check.rating !== "good" ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onKeep}
+            className="flex min-h-9 flex-1 items-center justify-center rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground"
+          >
+            Keep anyway
+          </button>
+          <button
+            type="button"
+            onClick={onRetake}
+            className="flex min-h-9 flex-1 items-center justify-center rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground"
+          >
+            Retake
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
