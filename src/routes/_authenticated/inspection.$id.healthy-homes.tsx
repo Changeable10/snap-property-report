@@ -345,7 +345,7 @@ function HealthyHomesPage() {
           </Link>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Healthy Homes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Five-standard compliance assessment
+            Six-standard compliance assessment
           </p>
         </div>
       </header>
