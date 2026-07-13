@@ -21,6 +21,7 @@ import {
   uploadTeamLogo,
   brandingLogoObjectUrl,
 } from "@/lib/branding";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/team")({
   head: () => ({ meta: [{ title: "Team — Snapsure" }] }),
@@ -315,6 +316,9 @@ function TeamPage() {
 
       {/* Report branding */}
       <BrandingSection teamId={team.id} canManage={canManage} />
+
+      {/* Integrations */}
+      <IntegrationsSection teamId={team.id} canManage={canManage} />
     </PageShell>
   );
 }
