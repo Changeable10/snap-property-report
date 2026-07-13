@@ -7,6 +7,16 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
+import { toast } from "sonner";
+import { usePlan } from "@/lib/use-plan";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import {
+  buildInspectionCsv,
+  downloadCsv,
+  todayStamp,
+  type InspectionExportRow,
+  type InspectionItemAgg,
+} from "@/lib/csv-export";
 
 export const Route = createFileRoute("/_authenticated/property/$id")({
   head: () => ({ meta: [{ title: "Property — Snapsure" }] }),
