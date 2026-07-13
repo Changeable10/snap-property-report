@@ -12,7 +12,6 @@ import {
   Wrench,
   CheckCircle2,
 } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
 import { Onboarding, ONBOARDED_KEY } from "@/components/Onboarding";
@@ -233,15 +232,15 @@ function Index() {
   const recentInspections = (inspections ?? []).slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <header className="px-5 pt-8 pb-4">
+    <div>
+      <header className="mb-6">
         <p className="text-sm text-muted-foreground">{formatLongDate(now)}</p>
-        <h1 className="mt-0.5 truncate text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="mt-0.5 truncate text-3xl font-extrabold tracking-tight text-foreground">
           {greetingFor(now)}, {displayName}
         </h1>
       </header>
 
-      <main className="mx-auto max-w-3xl px-5">
+      <div>
         {/* Stat cards */}
         <section aria-label="Overview" className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
