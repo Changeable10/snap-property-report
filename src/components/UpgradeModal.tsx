@@ -1,4 +1,7 @@
 import { X, Check } from "lucide-react";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -10,6 +13,7 @@ const PLANS = [
     id: "professional",
     name: "Professional",
     price: "NZ$29",
+    priceId: "professional_monthly",
     features: ["Up to 10 properties", "Unlimited inspections", "AI photo analysis"],
     cta: "Upgrade",
     highlight: true,
@@ -18,6 +22,7 @@ const PLANS = [
     id: "portfolio",
     name: "Portfolio",
     price: "NZ$99",
+    priceId: "portfolio_monthly",
     features: ["Unlimited properties", "Unlimited inspections", "Priority support"],
     cta: "Upgrade",
     highlight: false,
@@ -26,6 +31,7 @@ const PLANS = [
     id: "agency",
     name: "Agency",
     price: "NZ$199",
+    priceId: "agency_monthly",
     features: ["Unlimited properties", "Team access", "Dedicated success manager"],
     cta: "Contact us",
     highlight: false,
@@ -33,7 +39,28 @@ const PLANS = [
 ] as const;
 
 export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
+  const { openCheckout, loading } = usePaddleCheckout();
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setUser({ id: data.user.id, email: data.user.email ?? undefined });
+    });
+  }, []);
   if (!open) return null;
+
+  async function handleUpgrade(plan: (typeof PLANS)[number]) {
+    if (plan.id === "agency") {
+      window.location.href = "mailto:hello@snapsure.app?subject=Agency plan enquiry";
+      return;
+    }
+    if (!user) return;
+    await openCheckout({
+      priceId: plan.priceId,
+      customerEmail: user.email,
+      customData: { userId: user.id },
+      successUrl: `${window.location.origin}/settings?upgraded=true`,
+    });
+  }
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
@@ -83,16 +110,18 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
                   </li>
                 ))}
               </ul>
-              <a
-                href={`/upgrade?plan=${plan.id}`}
-                className={`mt-4 flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition-colors ${
+              <button
+                type="button"
+                onClick={() => handleUpgrade(plan)}
+                disabled={loading || (plan.id !== "agency" && !user)}
+                className={`mt-4 flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition-colors disabled:opacity-60 ${
                   plan.highlight
                     ? "bg-teal text-teal-foreground hover:bg-teal-dark"
                     : "border border-input bg-card text-foreground hover:bg-accent"
                 }`}
               >
-                {plan.cta}
-              </a>
+                {loading ? "Loading…" : plan.cta}
+              </button>
             </div>
           ))}
         </div>
