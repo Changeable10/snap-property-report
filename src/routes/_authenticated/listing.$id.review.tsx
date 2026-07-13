@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Sparkles, Check } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -53,7 +53,16 @@ interface PropertyRow {
 
 interface RoomRow { id: string; name: string; sort_order: number }
 interface ListingRoomRow { room_id: string; transcript: string | null; notes: string | null }
-interface PhotoRow { id: string; photo_url: string; room_id: string | null; source: string }
+interface PhotoRow {
+  id: string;
+  photo_url: string;
+  room_id: string | null;
+  source: string;
+  featured?: boolean;
+  is_hero?: boolean;
+  quality_score?: number | null;
+  quality_reason?: string | null;
+}
 
 function SignedImg({ path }: { path: string }) {
   const [url, setUrl] = useState<string | undefined>();
@@ -135,7 +144,8 @@ function ListingReview() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,photo_url,room_id,source").eq("listing_id", id)
+        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason")
+        .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as PhotoRow[];
@@ -150,6 +160,11 @@ function ListingReview() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Best-shot scoring state
+  const [scoring, setScoring] = useState(false);
+  const [scoreProgress, setScoreProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   useEffect(() => {
     if (!listing) return;
@@ -226,6 +241,130 @@ function ListingReview() {
       setSaving(false);
     }
   }
+
+  async function scorePhotos() {
+    if (!photos || photos.length === 0) {
+      toast.error("No photos to score");
+      return;
+    }
+    setScoring(true);
+    setScoreProgress({ done: 0, total: photos.length });
+    const results: { id: string; score: number; reason: string }[] = [];
+    try {
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
+        try {
+          const { data: signed } = await supabase.storage
+            .from("inspection-photos")
+            .createSignedUrl(p.photo_url, 3600);
+          const url = signed?.signedUrl;
+          if (!url) throw new Error("signed url failed");
+          const { data, error } = await supabase.functions.invoke("score-listing-photo", {
+            body: { image_url: url },
+          });
+          if (error) throw error;
+          if ((data as any)?.error) throw new Error((data as any).error);
+          const score = Number((data as any).overall ?? 0);
+          const reason = String((data as any).reason ?? "");
+          results.push({ id: p.id, score, reason });
+          await supabase.from("listing_photos")
+            .update({ quality_score: score, quality_reason: reason })
+            .eq("id", p.id);
+        } catch (e) {
+          console.warn("score failed for", p.id, e);
+        }
+        setScoreProgress({ done: i + 1, total: photos.length });
+      }
+
+      // Pre-select top N (top 5 or top 30%, whichever is fewer)
+      const ranked = [...results].sort((a, b) => b.score - a.score);
+      const pick = Math.max(1, Math.min(5, Math.floor(ranked.length * 0.3) || 1));
+      const featuredIds = new Set(ranked.slice(0, pick).map((r) => r.id));
+      const heroId = ranked[0]?.id;
+
+      // Reset featured/is_hero for the whole set, then set the picks
+      await supabase.from("listing_photos")
+        .update({ featured: false, is_hero: false })
+        .eq("listing_id", id);
+      if (featuredIds.size > 0) {
+        await supabase.from("listing_photos")
+          .update({ featured: true })
+          .in("id", Array.from(featuredIds));
+      }
+      if (heroId) {
+        await supabase.from("listing_photos")
+          .update({ is_hero: true })
+          .eq("id", heroId);
+      }
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success(`Scored ${results.length} photo${results.length === 1 ? "" : "s"}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Scoring failed");
+    } finally {
+      setScoring(false);
+    }
+  }
+
+  async function toggleFeatured(photoId: string, next: boolean) {
+    await supabase.from("listing_photos").update({ featured: next }).eq("id", photoId);
+    qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+  }
+
+  async function setHero(photoId: string) {
+    await supabase.from("listing_photos").update({ is_hero: false }).eq("listing_id", id);
+    await supabase.from("listing_photos").update({ is_hero: true, featured: true }).eq("id", photoId);
+    qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+    toast.success("Hero image set");
+  }
+
+  async function downloadSelected() {
+    if (!photos) return;
+    const featured = photos.filter((p) => p.featured);
+    if (featured.length === 0) {
+      toast.error("No photos selected");
+      return;
+    }
+    setDownloadingAll(true);
+    try {
+      for (let i = 0; i < featured.length; i++) {
+        const p = featured[i];
+        const { data: signed } = await supabase.storage
+          .from("inspection-photos")
+          .createSignedUrl(p.photo_url, 3600);
+        if (!signed?.signedUrl) continue;
+        const resp = await fetch(signed.signedUrl);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        const ext = p.photo_url.split(".").pop()?.split("?")[0] || "jpg";
+        const heroTag = p.is_hero ? "hero-" : "";
+        a.download = `listing-${heroTag}${String(i + 1).padStart(2, "0")}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+        // small delay so browser doesn't drop rapid downloads
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      toast.success(`Downloaded ${featured.length} photo${featured.length === 1 ? "" : "s"}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Download failed");
+    } finally {
+      setDownloadingAll(false);
+    }
+  }
+
+  const scoredPhotos = useMemo(() => {
+    return [...(photos ?? [])].sort((a, b) => {
+      const sa = a.quality_score ?? -1;
+      const sb = b.quality_score ?? -1;
+      if (sb !== sa) return sb - sa;
+      return 0;
+    });
+  }, [photos]);
+  const hasScores = (photos ?? []).some((p) => (p.quality_score ?? null) !== null);
+  const featuredCount = (photos ?? []).filter((p) => p.featured).length;
 
   if (!listing || !property) {
     return (
@@ -400,7 +539,119 @@ function ListingReview() {
             </p>
           )}
         </section>
+
+        {/* Best shots */}
+        {hasGenerated ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Best shots</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  AI rates each photo on composition, lighting, and listing appeal.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={scorePhotos}
+                disabled={scoring || !photos || photos.length === 0}
+                className="flex min-h-10 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground disabled:opacity-60"
+              >
+                {scoring ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                {hasScores ? "Re-score" : "Select best shots"}
+              </button>
+            </div>
+
+            {scoring ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Analysing photo {scoreProgress.done} of {scoreProgress.total}…
+              </p>
+            ) : null}
+
+            {hasScores && !scoring ? (
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {scoredPhotos.map((p) => (
+                    <ScoredCard
+                      key={p.id}
+                      photo={p}
+                      onToggleFeatured={(next) => toggleFeatured(p.id, next)}
+                      onSetHero={() => setHero(p.id)}
+                    />
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {featuredCount} selected for export
+                  </p>
+                  <button
+                    type="button"
+                    onClick={downloadSelected}
+                    disabled={downloadingAll || featuredCount === 0}
+                    className="flex min-h-10 items-center gap-1.5 rounded-lg border border-teal px-3 text-xs font-semibold text-teal disabled:opacity-60"
+                  >
+                    {downloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                    Download selected photos
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </section>
+        ) : null}
       </main>
+    </div>
+  );
+}
+
+function ScoredCard({
+  photo,
+  onToggleFeatured,
+  onSetHero,
+}: {
+  photo: PhotoRow;
+  onToggleFeatured: (next: boolean) => void;
+  onSetHero: () => void;
+}) {
+  const [url, setUrl] = useState<string | undefined>();
+  useEffect(() => {
+    let cancel = false;
+    supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
+      if (!cancel) setUrl(data?.signedUrl);
+    });
+    return () => { cancel = true; };
+  }, [photo.photo_url]);
+  const score = photo.quality_score;
+  const featured = !!photo.featured;
+  return (
+    <div className={`overflow-hidden rounded-lg border ${featured ? "border-teal ring-2 ring-teal" : "border-border"} bg-background`}>
+      <button
+        type="button"
+        onClick={onSetHero}
+        className="relative block aspect-square w-full overflow-hidden bg-muted"
+        aria-label="Set as hero image"
+      >
+        {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+        {photo.is_hero ? (
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+            <Star className="size-3 fill-current" /> Hero
+          </span>
+        ) : null}
+        {score !== null && score !== undefined ? (
+          <span className="absolute right-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+            {Number(score).toFixed(1)}/10
+          </span>
+        ) : null}
+      </button>
+      <div className="p-2">
+        <label className="flex items-start gap-1.5 text-[11px] text-foreground">
+          <input
+            type="checkbox"
+            checked={featured}
+            onChange={(e) => onToggleFeatured(e.target.checked)}
+            className="mt-0.5 size-3.5 accent-teal"
+          />
+          <span className="line-clamp-3 text-muted-foreground">{photo.quality_reason || "—"}</span>
+        </label>
+      </div>
     </div>
   );
 }

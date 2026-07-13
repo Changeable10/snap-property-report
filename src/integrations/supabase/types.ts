@@ -391,27 +391,39 @@ export type Database = {
       listing_photos: {
         Row: {
           captured_at: string
+          featured: boolean
           id: string
+          is_hero: boolean
           listing_id: string
           photo_url: string
+          quality_reason: string | null
+          quality_score: number | null
           room_id: string | null
           source: Database["public"]["Enums"]["listing_photo_source"]
           user_id: string
         }
         Insert: {
           captured_at?: string
+          featured?: boolean
           id?: string
+          is_hero?: boolean
           listing_id: string
           photo_url: string
+          quality_reason?: string | null
+          quality_score?: number | null
           room_id?: string | null
           source?: Database["public"]["Enums"]["listing_photo_source"]
           user_id: string
         }
         Update: {
           captured_at?: string
+          featured?: boolean
           id?: string
+          is_hero?: boolean
           listing_id?: string
           photo_url?: string
+          quality_reason?: string | null
+          quality_score?: number | null
           room_id?: string | null
           source?: Database["public"]["Enums"]["listing_photo_source"]
           user_id?: string
