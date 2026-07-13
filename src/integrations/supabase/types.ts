@@ -388,6 +388,155 @@ export type Database = {
           },
         ]
       }
+      listing_photos: {
+        Row: {
+          captured_at: string
+          id: string
+          listing_id: string
+          photo_url: string
+          room_id: string | null
+          source: Database["public"]["Enums"]["listing_photo_source"]
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          id?: string
+          listing_id: string
+          photo_url: string
+          room_id?: string | null
+          source?: Database["public"]["Enums"]["listing_photo_source"]
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          listing_id?: string
+          photo_url?: string
+          room_id?: string | null
+          source?: Database["public"]["Enums"]["listing_photo_source"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_photos_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_photos_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listing_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          listing_id: string
+          notes: string | null
+          room_id: string
+          transcript: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          listing_id: string
+          notes?: string | null
+          room_id: string
+          transcript?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          listing_id?: string
+          notes?: string | null
+          room_id?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_rooms_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_rooms_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listings: {
+        Row: {
+          asking_price: string | null
+          bathrooms: number | null
+          bedrooms: number | null
+          created_at: string
+          id: string
+          key_features: string | null
+          listing_type: Database["public"]["Enums"]["listing_type"]
+          property_id: string
+          status: Database["public"]["Enums"]["listing_status"]
+          target_portal: Database["public"]["Enums"]["listing_portal"]
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asking_price?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          created_at?: string
+          id?: string
+          key_features?: string | null
+          listing_type: Database["public"]["Enums"]["listing_type"]
+          property_id: string
+          status?: Database["public"]["Enums"]["listing_status"]
+          target_portal: Database["public"]["Enums"]["listing_portal"]
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asking_price?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          created_at?: string
+          id?: string
+          key_features?: string | null
+          listing_type?: Database["public"]["Enums"]["listing_type"]
+          property_id?: string
+          status?: Database["public"]["Enums"]["listing_status"]
+          target_portal?: Database["public"]["Enums"]["listing_portal"]
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       properties: {
         Row: {
           address: string
@@ -586,6 +735,10 @@ export type Database = {
       condition_type: "good" | "fair" | "poor" | "damaged"
       inspection_status: "in_progress" | "completed" | "signed"
       inspection_type: "entry" | "routine" | "exit" | "healthy_homes"
+      listing_photo_source: "photo" | "video_frame"
+      listing_portal: "trademe" | "realestate" | "general" | "airbnb"
+      listing_status: "draft" | "published"
+      listing_type: "for_sale" | "for_rent" | "holiday" | "development"
       maintenance_priority: "low" | "medium" | "high"
     }
     CompositeTypes: {
@@ -727,6 +880,10 @@ export const Constants = {
       condition_type: ["good", "fair", "poor", "damaged"],
       inspection_status: ["in_progress", "completed", "signed"],
       inspection_type: ["entry", "routine", "exit", "healthy_homes"],
+      listing_photo_source: ["photo", "video_frame"],
+      listing_portal: ["trademe", "realestate", "general", "airbnb"],
+      listing_status: ["draft", "published"],
+      listing_type: ["for_sale", "for_rent", "holiday", "development"],
       maintenance_priority: ["low", "medium", "high"],
     },
   },
