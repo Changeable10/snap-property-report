@@ -9,6 +9,8 @@ export interface TeamBranding {
   email: string | null;
   address: string | null;
   brand_colour: string;
+  rex_connected?: boolean;
+  rex_account_email?: string | null;
   updated_at?: string;
 }
 
