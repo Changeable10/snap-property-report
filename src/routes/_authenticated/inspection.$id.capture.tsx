@@ -277,60 +277,77 @@ function CapturePage() {
   // ---- Voice recording ----
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState<string>("");
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const [speechSupported, setSpeechSupported] = useState<boolean>(true);
+  const [manualText, setManualText] = useState<string>("");
+  const [savingNotes, setSavingNotes] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const finalTranscriptRef = useRef<string>("");
+
+  useEffect(() => {
+    const SR: any = typeof window !== "undefined"
+      ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+      : null;
+    setSpeechSupported(!!SR);
+  }, []);
 
   async function startRecording() {
     if (!current) return;
     setTranscript("");
+    finalTranscriptRef.current = "";
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setSpeechSupported(false);
+      toast.message("Voice transcription isn't supported here — use the text box below.");
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mr = new MediaRecorder(stream);
-      recorderRef.current = mr;
-      mr.start();
-
-      const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-NZ";
-        let finalText = "";
-        rec.onresult = (ev: any) => {
-          let interim = "";
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            const r = ev.results[i];
-            if (r.isFinal) finalText += r[0].transcript + " ";
-            else interim += r[0].transcript;
-          }
-          setTranscript((finalText + interim).trim());
-        };
-        rec.onerror = () => {};
-        recognitionRef.current = rec;
-        rec.start();
-      } else {
-        toast.message("Voice transcription isn't supported in this browser.");
-      }
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "en-NZ";
+      rec.onresult = (ev: any) => {
+        let interim = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          if (r.isFinal) finalTranscriptRef.current += r[0].transcript + " ";
+          else interim += r[0].transcript;
+        }
+        setTranscript((finalTranscriptRef.current + interim).trim());
+      };
+      rec.onerror = (ev: any) => {
+        if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
+          toast.error("Microphone permission denied");
+        } else if (ev?.error === "no-speech") {
+          // handled on stop
+        }
+      };
+      rec.onend = () => { setRecording(false); };
+      recognitionRef.current = rec;
+      rec.start();
       setRecording(true);
     } catch (err: any) {
-      toast.error(err?.message ?? "Microphone permission denied");
+      toast.error(err?.message ?? "Could not start voice recording");
+      setRecording(false);
     }
   }
 
   async function stopRecording() {
     setRecording(false);
     try { recognitionRef.current?.stop(); } catch {}
-    try { recorderRef.current?.stop(); } catch {}
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    // Allow final results
-    setTimeout(() => { void saveTranscript(); }, 400);
+    // Allow final results to flush from SpeechRecognition before parsing.
+    setTimeout(() => {
+      const text = (finalTranscriptRef.current || transcript).trim();
+      if (!text) {
+        toast.message("No speech detected — try again or type your notes below.");
+        return;
+      }
+      void saveTranscript(text);
+    }, 500);
   }
 
-  async function saveTranscript() {
+  async function saveTranscript(rawText?: string) {
     if (!current || !inspection) return;
-    const text = transcript.trim();
+    const text = (rawText ?? transcript).trim();
     if (!text) return;
     // Attach transcript to most recent photo (if any)
     const latestPhoto = [...roomPhotos].pop();
