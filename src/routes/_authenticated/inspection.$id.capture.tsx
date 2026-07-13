@@ -130,6 +130,10 @@ function CapturePage() {
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [videoProgress, setVideoProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number }>>([]);
+  const [selectedFrameIdx, setSelectedFrameIdx] = useState<Set<number>>(new Set());
+  const [pendingVideoBlob, setPendingVideoBlob] = useState<Blob | null>(null);
+  const [extractingFrames, setExtractingFrames] = useState(false);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
@@ -143,6 +147,20 @@ function CapturePage() {
       && typeof (window as any).MediaRecorder !== "undefined";
     setVideoSupported(ok);
   }, []);
+
+  // Attach the active MediaStream to the <video> element once it's actually
+  // mounted in the DOM (state update → re-render → ref populated).
+  useEffect(() => {
+    if (!videoRecording) return;
+    const el = videoPreviewRef.current;
+    const stream = videoStreamRef.current;
+    if (!el || !stream) return;
+    try { el.srcObject = stream; } catch {}
+    el.muted = true;
+    (el as any).playsInline = true;
+    el.autoplay = true;
+    el.play().catch(() => {});
+  }, [videoRecording]);
 
   const total = rooms?.length ?? 0;
   const current = rooms?.[index];
