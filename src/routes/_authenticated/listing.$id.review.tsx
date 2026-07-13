@@ -474,6 +474,107 @@ function ListingReview() {
   const hasScores = (photos ?? []).some((p) => (p.quality_score ?? null) !== null);
   const featuredCount = (photos ?? []).filter((p) => p.featured).length;
 
+  // -------- Virtual staging --------
+  const { data: plan = "free" } = usePlan(listing?.user_id);
+  const { data: stagingUsed = 0, refetch: refetchStagingUsage } = useStagingThisMonth(listing?.user_id);
+  const stagingLimit = STAGING_MONTHLY_LIMIT[plan];
+  const stagingRemaining = stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
+  const [stagingId, setStagingId] = useState<string | null>(null);
+  const [styleModalFor, setStyleModalFor] = useState<PhotoRow | "bulk" | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [bulkStaging, setBulkStaging] = useState(false);
+  const [bulkStageProgress, setBulkStageProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
+  async function stagePhoto(p: PhotoRow, styleKey: string): Promise<boolean> {
+    setStagingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      const url = signed?.signedUrl;
+      if (!url) throw new Error("Signed URL failed");
+      const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
+        body: { image_url: url, style: styleKey },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const stagedUrl = (data as any).staged_url as string;
+      const resp = await fetch(stagedUrl);
+      if (!resp.ok) throw new Error("Failed to fetch staged image");
+      const blob = await resp.blob();
+      const rawName = p.photo_url.split("/").pop() ?? `${p.id}.jpg`;
+      const baseName = rawName.replace(/\.[^.]+$/, "");
+      const stagedPath = `listing-${id}/staged-${baseName}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("listing_photos")
+        .update({ staged_url: stagedPath, staging_style: styleKey })
+        .eq("id", p.id);
+      if (dbErr) throw dbErr;
+      await supabase.from("staging_usage").insert({
+        user_id: listing!.user_id,
+        listing_photo_id: p.id,
+        style: styleKey,
+      });
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      await refetchStagingUsage();
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message ?? "Staging failed");
+      return false;
+    } finally {
+      setStagingId(null);
+    }
+  }
+
+  async function handleStyleChosen(styleKey: string) {
+    const target = styleModalFor;
+    setStyleModalFor(null);
+    if (!target) return;
+    if (target === "bulk") {
+      const featured = (photos ?? []).filter((p) => p.featured);
+      if (featured.length === 0) return;
+      if (stagingRemaining < featured.length) {
+        toast.error(`Only ${stagingRemaining} staging credits remaining this month`);
+        setShowUpgrade(true);
+        return;
+      }
+      setBulkStaging(true);
+      setBulkStageProgress({ done: 0, total: featured.length });
+      for (let i = 0; i < featured.length; i++) {
+        setBulkStageProgress({ done: i, total: featured.length });
+        const ok = await stagePhoto(featured[i], styleKey);
+        if (!ok) break;
+      }
+      setBulkStageProgress({ done: featured.length, total: featured.length });
+      setBulkStaging(false);
+      toast.success("Bulk staging complete");
+    } else {
+      if (stagingRemaining < 1) {
+        setShowUpgrade(true);
+        return;
+      }
+      const ok = await stagePhoto(target, styleKey);
+      if (ok) toast.success("Staged version ready");
+    }
+  }
+
+  function requestStage(target: PhotoRow | "bulk") {
+    if (plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    if (stagingRemaining < 1) {
+      setShowUpgrade(true);
+      return;
+    }
+    setStyleModalFor(target);
+  }
+
+  const featuredPhotos = useMemo(() => (photos ?? []).filter((p) => p.featured), [photos]);
+
   if (!listing || !property) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
