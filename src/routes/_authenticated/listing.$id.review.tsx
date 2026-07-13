@@ -9,6 +9,7 @@ import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { exportListingPackage } from "@/lib/listing-export";
+import { loadPdfBranding } from "@/lib/branding";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -600,6 +601,7 @@ function ListingReview() {
         meta.full_name || meta.name ||
         [meta.first_name, meta.last_name].filter(Boolean).join(" ") ||
         (u?.email ? u.email.split("@")[0] : "");
+      const branding = await loadPdfBranding();
       await exportListingPackage({
         listing: {
           id: listing.id,
@@ -617,6 +619,7 @@ function ListingReview() {
         photos: (photos ?? []) as any,
         roomNameById,
         agent: { name: agentName || null, email: u?.email ?? null },
+        branding,
       });
       toast.success("Listing package downloaded");
     } catch (e: any) {
