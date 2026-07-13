@@ -672,11 +672,36 @@ function ListingReview() {
 
             {hasScores && !scoring ? (
               <>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {featuredCount} featured
+                  </p>
+                  <button
+                    type="button"
+                    onClick={bulkEnhanceFeatured}
+                    disabled={bulkEnhancing || featuredCount === 0}
+                    className="flex min-h-10 items-center gap-1.5 rounded-lg border border-teal px-3 text-xs font-semibold text-teal disabled:opacity-60"
+                  >
+                    {bulkEnhancing ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+                    Enhance all featured
+                  </button>
+                </div>
+                {bulkEnhancing ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Enhancing photo {Math.min(bulkProgress.done + 1, bulkProgress.total)} of {bulkProgress.total}…
+                  </p>
+                ) : null}
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {scoredPhotos.map((p) => (
                     <ScoredCard
                       key={p.id}
                       photo={p}
+                      recs={recsById[p.id]}
+                      analyzing={analyzingId === p.id}
+                      applying={applyingId === p.id}
+                      onEnhance={() => analyzePhoto(p)}
+                      onApply={() => applyEnhancement(p)}
+                      onReset={() => resetEnhancement(p)}
                       onToggleFeatured={(next) => toggleFeatured(p.id, next)}
                       onSetHero={() => setHero(p.id)}
                     />
