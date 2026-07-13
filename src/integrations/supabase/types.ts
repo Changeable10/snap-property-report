@@ -101,6 +101,7 @@ export type Database = {
           overall_status: string
           property_id: string
           smoke_alarms_data: Json
+          team_id: string | null
           updated_at: string
           user_id: string
           ventilation_data: Json
@@ -116,6 +117,7 @@ export type Database = {
           overall_status?: string
           property_id: string
           smoke_alarms_data?: Json
+          team_id?: string | null
           updated_at?: string
           user_id: string
           ventilation_data?: Json
@@ -131,6 +133,7 @@ export type Database = {
           overall_status?: string
           property_id?: string
           smoke_alarms_data?: Json
+          team_id?: string | null
           updated_at?: string
           user_id?: string
           ventilation_data?: Json
@@ -148,6 +151,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "healthy_homes_assessments_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -346,6 +356,7 @@ export type Database = {
           notes: string | null
           property_id: string
           status: Database["public"]["Enums"]["inspection_status"]
+          team_id: string | null
           tenant_names: string | null
           updated_at: string
           user_id: string
@@ -360,6 +371,7 @@ export type Database = {
           notes?: string | null
           property_id: string
           status?: Database["public"]["Enums"]["inspection_status"]
+          team_id?: string | null
           tenant_names?: string | null
           updated_at?: string
           user_id: string
@@ -374,6 +386,7 @@ export type Database = {
           notes?: string | null
           property_id?: string
           status?: Database["public"]["Enums"]["inspection_status"]
+          team_id?: string | null
           tenant_names?: string | null
           updated_at?: string
           user_id?: string
@@ -384,6 +397,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspections_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -517,6 +537,7 @@ export type Database = {
           property_id: string
           status: Database["public"]["Enums"]["listing_status"]
           target_portal: Database["public"]["Enums"]["listing_portal"]
+          team_id: string | null
           title: string | null
           updated_at: string
           user_id: string
@@ -535,6 +556,7 @@ export type Database = {
           property_id: string
           status?: Database["public"]["Enums"]["listing_status"]
           target_portal: Database["public"]["Enums"]["listing_portal"]
+          team_id?: string | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -553,6 +575,7 @@ export type Database = {
           property_id?: string
           status?: Database["public"]["Enums"]["listing_status"]
           target_portal?: Database["public"]["Enums"]["listing_portal"]
+          team_id?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string
@@ -563,6 +586,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -578,6 +608,7 @@ export type Database = {
           postcode: string
           property_type: string
           suburb: string
+          team_id: string | null
           updated_at: string
           user_id: string
         }
@@ -591,6 +622,7 @@ export type Database = {
           postcode: string
           property_type: string
           suburb: string
+          team_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -604,10 +636,19 @@ export type Database = {
           postcode?: string
           property_type?: string
           suburb?: string
+          team_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "properties_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       property_contacts: {
         Row: {
@@ -774,13 +815,97 @@ export type Database = {
         }
         Relationships: []
       }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string
+          invited_email: string
+          joined_at: string | null
+          role: string
+          status: string
+          team_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_email: string
+          joined_at?: string | null
+          role?: string
+          status?: string
+          team_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_email?: string
+          joined_at?: string | null
+          role?: string
+          status?: string
+          team_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          plan: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          plan?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          plan?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      claim_team_invites: { Args: never; Returns: number }
+      get_user_team_id: { Args: { _user_id: string }; Returns: string }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
+        Returns: boolean
+      }
+      has_team_role: {
+        Args: { _roles: string[]; _team_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_team_member: {
+        Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
     }
