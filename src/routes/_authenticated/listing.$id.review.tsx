@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { exportListingPackage } from "@/lib/listing-export";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -575,6 +576,47 @@ function ListingReview() {
 
   const featuredPhotos = useMemo(() => (photos ?? []).filter((p) => p.featured), [photos]);
 
+  const roomNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rooms ?? []) m.set(r.id, r.name);
+    return m;
+  }, [rooms]);
+
+  const [exporting, setExporting] = useState(false);
+  const canExport = hasGenerated && !!title && !!description;
+
+  async function handleExport() {
+    if (!listing || !property) return;
+    if (!canExport) {
+      toast.error("Generate a listing description first");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportListingPackage({
+        listing: {
+          title,
+          description,
+          features,
+          price_line: priceLine,
+          listing_type: listing.listing_type,
+          target_portal: listing.target_portal,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          asking_price: listing.asking_price,
+        },
+        property,
+        photos: (photos ?? []) as any,
+        roomNameById,
+      });
+      toast.success("Listing package downloaded");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (!listing || !property) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -718,12 +760,22 @@ function ListingReview() {
 
               <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
                 Feature list
-                <textarea
-                  value={features}
-                  onChange={(e) => setFeatures(e.target.value)}
-                  rows={6}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
-                />
+                <div className="flex gap-2">
+                  <textarea
+                    value={features}
+                    onChange={(e) => setFeatures(e.target.value)}
+                    rows={6}
+                    className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyText(features, "Features")}
+                    className="self-start rounded-lg border border-border p-2 text-muted-foreground"
+                    aria-label="Copy features"
+                  >
+                    <Copy className="size-4" />
+                  </button>
+                </div>
               </label>
 
               {priceLine ? (
@@ -872,6 +924,51 @@ function ListingReview() {
                 />
               ))}
             </div>
+          </section>
+        ) : null}
+
+        {/* Export listing package */}
+        {canExport ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold">Export listing</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Download a ready-to-paste text file, featured photos (enhanced and staged where available), and a printable one-page PDF summary. Works with Trade Me Property, realestate.co.nz, PropertyMe, Palace, Rex, and more.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => copyText(title, "Title")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy title
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText(description, "Description")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy description
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText(features, "Features")}
+                className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy features
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-60"
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Package className="size-4" />}
+              Export listing package
+            </button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Includes {featuredPhotos.length} featured photo{featuredPhotos.length === 1 ? "" : "s"}. Tap photos above to change which are included.
+            </p>
           </section>
         ) : null}
       </main>
