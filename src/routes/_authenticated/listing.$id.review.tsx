@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
+import { usePlan } from "@/lib/use-plan";
+import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/review")({
   head: () => ({ meta: [{ title: "Listing review — Snapsure" }] }),
@@ -64,6 +67,8 @@ interface PhotoRow {
   quality_score?: number | null;
   quality_reason?: string | null;
   enhanced_url?: string | null;
+  staged_url?: string | null;
+  staging_style?: string | null;
 }
 
 function SignedImg({ path }: { path: string }) {
@@ -146,7 +151,7 @@ function ListingReview() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason,enhanced_url")
+        .select("id,photo_url,room_id,source,featured,is_hero,quality_score,quality_reason,enhanced_url,staged_url,staging_style")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
