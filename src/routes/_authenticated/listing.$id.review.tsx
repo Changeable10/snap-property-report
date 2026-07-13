@@ -760,12 +760,22 @@ function ListingReview() {
 
               <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
                 Feature list
-                <textarea
-                  value={features}
-                  onChange={(e) => setFeatures(e.target.value)}
-                  rows={6}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
-                />
+                <div className="flex gap-2">
+                  <textarea
+                    value={features}
+                    onChange={(e) => setFeatures(e.target.value)}
+                    rows={6}
+                    className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyText(features, "Features")}
+                    className="self-start rounded-lg border border-border p-2 text-muted-foreground"
+                    aria-label="Copy features"
+                  >
+                    <Copy className="size-4" />
+                  </button>
+                </div>
               </label>
 
               {priceLine ? (
