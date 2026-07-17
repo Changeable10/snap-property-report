@@ -42,8 +42,12 @@ function AuthPage() {
         setMessage("Check your email to confirm your account, then sign in.");
         setMode("signin");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.session) {
+          setError("Sign-in did not return a session. Please try again.");
+          return;
+        }
         navigate({ to: "/" });
       }
     } catch (err) {
