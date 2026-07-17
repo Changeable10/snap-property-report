@@ -496,7 +496,9 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
   });
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [generating, setGenerating] = useState(true);
+  const [sending, setSending] = useState(false);
 
   const filename = useMemo(() => {
     if (!property || !inspection) return "inspection-report.pdf";
@@ -515,7 +517,7 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
           inspection, property, rooms, items, photos, signatures, branding,
         });
         created = URL.createObjectURL(blob);
-        if (!cancelled) { setPdfUrl(created); setGenerating(false); }
+        if (!cancelled) { setPdfUrl(created); setPdfBlob(blob); setGenerating(false); }
         else URL.revokeObjectURL(created);
       } catch (e) {
         console.error(e);
@@ -546,10 +548,43 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
       toast.error("Couldn't copy link");
     }
   }
-  function emailReport() {
-    const subject = encodeURIComponent(`Inspection report ${inspection ? refNumber(inspection.id) : ""}`);
-    const body = encodeURIComponent("Please find your property inspection report attached.");
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  async function emailReport() {
+    if (!pdfBlob || !inspection) return;
+    const to = window.prompt("Email report to:");
+    if (!to) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      toast.error("Invalid email address");
+      return;
+    }
+    setSending(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const path = `reports/${userData.user.id}/${inspection.id}-${Date.now()}.pdf`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(path, pdfBlob, { contentType: "application/pdf", upsert: true });
+      if (upErr) throw upErr;
+      const ref = refNumber(inspection.id);
+      const html = emailWrap(`
+        <h2 style="margin:0 0 12px;font-size:20px;color:#0f172a">Inspection Report ${ref}</h2>
+        <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.5">
+          Your property inspection report is attached as a PDF.
+        </p>
+      `);
+      await sendEmail({
+        to,
+        subject: `Inspection Report ${ref}`,
+        body: html,
+        attachmentUrl: `inspection-photos:${path}`,
+        attachmentFilename: filename,
+      });
+      toast.success("Report emailed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to email report");
+    } finally {
+      setSending(false);
+    }
   }
 
   const itemCount = items?.length ?? 0;
@@ -589,8 +624,9 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
             <Download className="size-4" /> Download
           </button>
           <button type="button" onClick={emailReport}
+            disabled={!pdfBlob || sending}
             className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-card text-xs font-medium text-foreground hover:bg-muted">
-            <Mail className="size-4" /> Email
+            <Mail className="size-4" /> {sending ? "Sending…" : "Email"}
           </button>
           <button type="button" onClick={share} disabled={!pdfUrl}
             className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-card text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
