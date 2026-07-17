@@ -61,21 +61,71 @@ function CapturePage() {
     },
   });
 
+  // Only compare on Routine / Exit inspections.
+  const comparisonEnabled =
+    inspection?.inspection_type === "routine" || inspection?.inspection_type === "exit";
+
   const { data: previousInspection } = useQuery({
     queryKey: ["previous-inspection", inspection?.property_id, id],
-    enabled: !!inspection?.property_id,
+    enabled: !!inspection?.property_id && !!comparisonEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inspections")
-        .select("id")
+        .select("id, inspection_date, inspection_type, completed_at")
         .eq("property_id", inspection!.property_id)
         .neq("id", id)
         .in("status", ["completed", "signed"])
+        .order("completed_at", { ascending: false, nullsFirst: false })
         .order("inspection_date", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const previousInspectionId = previousInspection?.id;
+
+  const { data: previousPhotos } = useQuery({
+    queryKey: ["previous-inspection-photos", previousInspectionId],
+    enabled: !!previousInspectionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_photos")
+        .select("id,room_id,photo_url,captured_at,voice_transcript")
+        .eq("inspection_id", previousInspectionId!)
+        .order("captured_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PhotoRow[];
+    },
+  });
+
+  const { data: previousItems } = useQuery({
+    queryKey: ["previous-inspection-items", previousInspectionId],
+    enabled: !!previousInspectionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items")
+        .select("id,room_id,item_name,condition,description,sources,confidence")
+        .eq("inspection_id", previousInspectionId!);
+      if (error) throw error;
+      return (data ?? []) as ItemRow[];
+    },
+  });
+
+  const { data: comparisons } = useQuery({
+    queryKey: ["comparison-photo-changes", id],
+    enabled: !!comparisonEnabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("comparison_results")
+        .select("id, room_id, item_name, description, severity, status, changes_detected, current_photo_id, previous_photo_id")
+        .eq("inspection_id", id)
+        .not("changes_detected", "is", null);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; room_id: string; item_name: string; description: string | null;
+        severity: "minor" | "moderate" | "significant";
+        status: "pending" | "confirmed" | "dismissed";
+        changes_detected: any; current_photo_id: string | null; previous_photo_id: string | null;
+      }>;
     },
   });
 
@@ -190,6 +240,32 @@ function CapturePage() {
     [items, current?.id],
   );
 
+  const previousRoomPhotos = useMemo(
+    () => (previousPhotos ?? []).filter((p) => p.room_id === current?.id),
+    [previousPhotos, current?.id],
+  );
+  const previousRoomItems = useMemo(
+    () => (previousItems ?? []).filter((i) => i.room_id === current?.id),
+    [previousItems, current?.id],
+  );
+  const roomAcceptedChanges = useMemo(
+    () => (comparisons ?? []).filter((c) => c.room_id === current?.id && c.status === "confirmed"),
+    [comparisons, current?.id],
+  );
+
+  // Per-room ephemeral detected changes not yet accepted/dismissed.
+  type DetectedChange = {
+    key: string;
+    item: string;
+    description: string;
+    severity: "minor" | "moderate" | "significant";
+    currentPhotoId: string;
+    previousPhotoId: string | null;
+  };
+  const [pendingChanges, setPendingChanges] = useState<Record<string, DetectedChange[]>>({});
+  const [comparingRoomId, setComparingRoomId] = useState<string | null>(null);
+  const currentPending = current ? (pendingChanges[current.id] ?? []) : [];
+
   const doneRoomIds = useMemo(() => {
     const set = new Set<string>();
     for (const it of items ?? []) set.add(it.room_id);
@@ -206,15 +282,97 @@ function CapturePage() {
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
     if (upErr) { toast.error(upErr.message); return; }
-    const { error: insErr } = await supabase.from("inspection_photos").insert({
+    const { data: inserted, error: insErr } = await supabase.from("inspection_photos").insert({
       user_id: inspection.user_id,
       inspection_id: id,
       room_id: current.id,
       photo_url: path,
-    });
+    }).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
     void analyzePhoto(file, current.id, current.name);
+    if (comparisonEnabled && previousRoomPhotos.length > 0 && inserted?.id) {
+      void runComparison(path, inserted.id, current.id, current.name);
+    }
+  }
+
+  async function signedUrlFor(path: string): Promise<string | null> {
+    const { data } = await supabase.storage.from("inspection-photos").createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }
+
+  async function runComparison(currentPath: string, currentPhotoId: string, roomId: string, roomName: string) {
+    if (!inspection) return;
+    const prev = (previousPhotos ?? []).filter((p) => p.room_id === roomId)[0];
+    if (!prev) return;
+    setComparingRoomId(roomId);
+    try {
+      const [currentUrl, previousUrl] = await Promise.all([
+        signedUrlFor(currentPath),
+        signedUrlFor(prev.photo_url),
+      ]);
+      if (!currentUrl || !previousUrl) return;
+      const { data, error } = await supabase.functions.invoke("compare-inspection-photos", {
+        body: { currentPhotoUrl: currentUrl, previousPhotoUrl: previousUrl, roomName },
+      });
+      if (error) throw error;
+      const changes: Array<{ item: string; description: string; severity: DetectedChange["severity"] }> =
+        Array.isArray(data?.changes) ? data.changes : [];
+      if (changes.length === 0) return;
+      setPendingChanges((prevMap) => {
+        const existing = prevMap[roomId] ?? [];
+        const mapped: DetectedChange[] = changes
+          .filter((c) => c && c.severity && c.severity !== ("none" as any))
+          .map((c, i) => ({
+            key: `${currentPhotoId}-${i}`,
+            item: String(c.item ?? "Item"),
+            description: String(c.description ?? ""),
+            severity: (c.severity as DetectedChange["severity"]) ?? "minor",
+            currentPhotoId,
+            previousPhotoId: prev.id,
+          }));
+        return { ...prevMap, [roomId]: [...existing, ...mapped] };
+      });
+    } catch (err: any) {
+      console.warn("compare-inspection-photos failed", err?.message ?? err);
+    } finally {
+      setComparingRoomId((cur) => (cur === roomId ? null : cur));
+    }
+  }
+
+  async function acceptChange(change: DetectedChange, roomId: string) {
+    if (!inspection || !previousInspectionId) return;
+    const { error } = await supabase.from("comparison_results").insert({
+      user_id: inspection.user_id,
+      inspection_id: id,
+      previous_inspection_id: previousInspectionId,
+      room_id: roomId,
+      item_name: change.item,
+      description: change.description || null,
+      change_type: "deterioration",
+      severity: change.severity,
+      status: "confirmed",
+      current_photo_id: change.currentPhotoId,
+      previous_photo_id: change.previousPhotoId,
+      changes_detected: {
+        item: change.item,
+        description: change.description,
+        severity: change.severity,
+      },
+    });
+    if (error) { toast.error(error.message); return; }
+    setPendingChanges((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((c) => c.key !== change.key),
+    }));
+    qc.invalidateQueries({ queryKey: ["comparison-photo-changes", id] });
+  }
+
+  function dismissChange(change: DetectedChange, roomId: string) {
+    setPendingChanges((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((c) => c.key !== change.key),
+    }));
   }
 
   async function analyzePhoto(file: File, roomId: string, roomName: string) {
