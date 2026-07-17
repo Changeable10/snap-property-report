@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   generateReportPdf, reportFilename, refNumber,
   type PdfProperty, type PdfInspection, type PdfRoom,
-  type PdfItem, type PdfPhoto, type PdfSignature,
+  type PdfItem, type PdfPhoto, type PdfSignature, type PdfComparisonChange,
 } from "@/lib/report-pdf";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { loadPdfBranding } from "@/lib/branding";
@@ -96,8 +96,21 @@ function ReportPage() {
     },
   });
 
+  const { data: changes } = useQuery({
+    queryKey: ["comparison-photo-changes", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("comparison_results")
+        .select("id, room_id, item_name, description, severity, status, changes_detected")
+        .eq("inspection_id", id)
+        .eq("status", "confirmed")
+        .not("changes_detected", "is", null);
+      if (error) throw error;
+      return (data ?? []) as PdfComparisonChange[];
+    },
+  });
+
   useEffect(() => {
-    if (!inspection || !property || !rooms || !items || !photos || !signatures) return;
+    if (!inspection || !property || !rooms || !items || !photos || !signatures || !changes) return;
     let cancelled = false;
     let createdUrl: string | null = null;
 
@@ -106,7 +119,7 @@ function ReportPage() {
       setFilename(reportFilename(property, inspection));
       const branding = await loadPdfBranding();
       const blob = await generateReportPdf({
-        inspection, property, rooms, items, photos, signatures, branding,
+        inspection, property, rooms, items, photos, changes, signatures, branding,
       });
       createdUrl = URL.createObjectURL(blob);
       if (!cancelled) {
@@ -128,7 +141,7 @@ function ReportPage() {
       cancelled = true;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [inspection, property, rooms, items, photos, signatures]);
+  }, [inspection, property, rooms, items, photos, signatures, changes]);
 
   function download() {
     if (!pdfBlob) return;
