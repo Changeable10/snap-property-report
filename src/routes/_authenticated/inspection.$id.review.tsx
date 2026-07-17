@@ -18,6 +18,18 @@ interface ItemRow {
   condition: Condition; description: string | null;
   maintenance_required: boolean; maintenance_notes: string | null;
 }
+interface AcceptedChange {
+  id: string; room_id: string; item_name: string; description: string | null;
+  severity: "minor" | "moderate" | "significant";
+}
+const SEV_BADGE: Record<AcceptedChange["severity"], string> = {
+  minor: "bg-amber-500 text-white",
+  moderate: "bg-orange-500 text-white",
+  significant: "bg-red-600 text-white",
+};
+const SEV_LABEL: Record<AcceptedChange["severity"], string> = {
+  minor: "Minor", moderate: "Moderate", significant: "Significant",
+};
 
 const CONDITIONS: Condition[] = ["good", "fair", "poor", "damaged"];
 const COND_LABEL: Record<Condition, string> = {
@@ -70,6 +82,29 @@ function ReviewPage() {
       return (data ?? []) as ItemRow[];
     },
   });
+
+  const { data: acceptedChanges } = useQuery({
+    queryKey: ["comparison-photo-changes", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("comparison_results")
+        .select("id, room_id, item_name, description, severity, status, changes_detected")
+        .eq("inspection_id", id)
+        .eq("status", "confirmed")
+        .not("changes_detected", "is", null);
+      if (error) throw error;
+      return (data ?? []) as AcceptedChange[];
+    },
+  });
+
+  const changesByRoom = useMemo(() => {
+    const m = new Map<string, AcceptedChange[]>();
+    for (const c of acceptedChanges ?? []) {
+      const arr = m.get(c.room_id) ?? [];
+      arr.push(c);
+      m.set(c.room_id, arr);
+    }
+    return m;
+  }, [acceptedChanges]);
 
   // Mark inspection completed once when review is opened
   useEffect(() => {
@@ -227,6 +262,28 @@ function ReviewPage() {
                         <ReviewItemRow key={it.id} item={it}
                           onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
                       ))}
+                      {(changesByRoom.get(r.id)?.length ?? 0) > 0 && (
+                        <li className="px-4 py-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Changes from previous inspection
+                          </p>
+                          <ul className="space-y-2">
+                            {(changesByRoom.get(r.id) ?? []).map((c) => (
+                              <li key={c.id} className="rounded-lg border border-border bg-background p-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_BADGE[c.severity]}`}>
+                                    {SEV_LABEL[c.severity]}
+                                  </span>
+                                  <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
+                                </div>
+                                {c.description && (
+                                  <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      )}
                     </ul>
                   )}
                 </li>
