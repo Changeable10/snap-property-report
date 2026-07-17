@@ -144,7 +144,7 @@ function SignPage() {
     return (
       <CompletionScreen
         inspectionId={id}
-        onBack={() => navigate({ to: "/" })}
+        onBack={() => navigate({ to: "/" as never })}
       />
     );
   }
