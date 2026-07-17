@@ -136,6 +136,7 @@ function TeamPage() {
           role: inviteRole,
           token,
           expires_at: expiresAt,
+          invited_by: (await supabase.auth.getUser()).data.user?.id,
         });
         if (tokErr) throw tokErr;
         const link = `${window.location.origin}/invite/${token}`;
