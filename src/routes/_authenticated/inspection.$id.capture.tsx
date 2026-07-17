@@ -919,6 +919,29 @@ function CapturePage() {
       <main className="mx-auto max-w-md px-5 py-6">
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
+        {comparisonEnabled && previousInspection && (
+          <div className="mb-4 rounded-xl border border-teal/30 bg-teal/5 px-3 py-2 text-xs font-medium text-teal-dark">
+            Comparing against {capitaliseInspection(previousInspection.inspection_type)} inspection from {formatDMY(previousInspection.completed_at ?? previousInspection.inspection_date)}
+          </div>
+        )}
+
+        {comparisonEnabled && previousInspection && current && (
+          <PreviousInspectionPanel
+            photos={previousRoomPhotos}
+            items={previousRoomItems}
+          />
+        )}
+
+        {comparisonEnabled && previousInspection && current && (
+          <ChangesSection
+            comparing={comparingRoomId === current.id}
+            pending={currentPending}
+            accepted={roomAcceptedChanges}
+            onAccept={(c) => acceptChange(c, current.id)}
+            onDismiss={(c) => dismissChange(c, current.id)}
+          />
+        )}
+
         {roomPhotos.length === 0 ? (
           <div className={`grid gap-3 ${videoSupported ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
