@@ -499,6 +499,9 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [generating, setGenerating] = useState(true);
   const [sending, setSending] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const filename = useMemo(() => {
     if (!property || !inspection) return "inspection-report.pdf";
@@ -548,19 +551,14 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
       toast.error("Couldn't copy link");
     }
   }
-  async function emailReport() {
+  async function emailReport(to: string) {
     if (!pdfBlob || !inspection) return;
-    const to = window.prompt("Email report to:");
-    if (!to) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      toast.error("Invalid email address");
-      return;
-    }
     setSending(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
-      const path = `reports/${userData.user.id}/${inspection.id}-${Date.now()}.pdf`;
+      // Storage RLS requires the first folder segment to equal auth.uid().
+      const path = `${userData.user.id}/reports/${inspection.id}-${Date.now()}.pdf`;
       const { error: upErr } = await supabase.storage
         .from("inspection-photos")
         .upload(path, pdfBlob, { contentType: "application/pdf", upsert: true });
@@ -580,11 +578,25 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
         attachmentFilename: filename,
       });
       toast.success("Report emailed");
+      setEmailModalOpen(false);
+      setEmailInput("");
+      setEmailError(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to email report");
     } finally {
       setSending(false);
     }
+  }
+
+  function submitEmailModal(e: React.FormEvent) {
+    e.preventDefault();
+    const to = emailInput.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    setEmailError(null);
+    void emailReport(to);
   }
 
   const itemCount = items?.length ?? 0;
@@ -623,7 +635,7 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
             className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-card text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
             <Download className="size-4" /> Download
           </button>
-          <button type="button" onClick={emailReport}
+          <button type="button" onClick={() => { setEmailError(null); setEmailModalOpen(true); }}
             disabled={!pdfBlob || sending}
             className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-card text-xs font-medium text-foreground hover:bg-muted">
             <Mail className="size-4" /> {sending ? "Sending…" : "Email"}
@@ -646,6 +658,63 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
           <Home className="size-4" /> Back to dashboard
         </button>
       </main>
+
+      {emailModalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="email-report-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
+          onClick={() => { if (!sending) setEmailModalOpen(false); }}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submitEmailModal}
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+          >
+            <h2 id="email-report-title" className="text-base font-semibold text-foreground">
+              Email report
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              We'll send the PDF report as an attachment.
+            </p>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground" htmlFor="email-report-input">
+              Recipient email
+            </label>
+            <input
+              id="email-report-input"
+              type="email"
+              autoFocus
+              value={emailInput}
+              onChange={(e) => { setEmailInput(e.target.value); if (emailError) setEmailError(null); }}
+              placeholder="name@example.com"
+              className="mt-1 w-full min-h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-teal"
+              disabled={sending}
+              required
+            />
+            {emailError ? (
+              <p className="mt-2 text-xs text-red-600">{emailError}</p>
+            ) : null}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEmailModalOpen(false)}
+                disabled={sending}
+                className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-border bg-background text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={sending || !emailInput.trim()}
+                className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-teal px-3 text-sm font-semibold text-teal-foreground hover:bg-teal-dark disabled:opacity-50"
+              >
+                <Mail className="size-4" /> {sending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
