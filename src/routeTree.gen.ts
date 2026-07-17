@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
@@ -45,6 +46,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
   id: '/team',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
@@ -186,6 +193,7 @@ export interface FileRoutesByTo {
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/': typeof AuthenticatedIndexRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/_authenticated/maintenance': typeof AuthenticatedMaintenanceRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/property/$id': typeof AuthenticatedPropertyIdRoute
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/settings'
     | '/team'
+    | '/invite/$token'
     | '/property/$id'
     | '/property/new'
     | '/sign/$inspectionId/$token'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/settings'
     | '/team'
+    | '/invite/$token'
     | '/'
     | '/property/$id'
     | '/property/new'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/_authenticated/maintenance'
     | '/_authenticated/settings'
     | '/_authenticated/team'
+    | '/invite/$token'
     | '/_authenticated/'
     | '/_authenticated/property/$id'
     | '/_authenticated/property/new'
@@ -304,6 +316,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   SignInspectionIdTokenRoute: typeof SignInspectionIdTokenRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicSignatureTokenTokenRoute: typeof ApiPublicSignatureTokenTokenRoute
@@ -331,6 +344,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/team': {
       id: '/_authenticated/team'
@@ -517,6 +537,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  InviteTokenRoute: InviteTokenRoute,
   SignInspectionIdTokenRoute: SignInspectionIdTokenRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicSignatureTokenTokenRoute: ApiPublicSignatureTokenTokenRoute,
