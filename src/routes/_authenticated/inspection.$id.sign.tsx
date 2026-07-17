@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft, CheckCircle2, Mail, PenLine, Share2, Download, Home,
 } from "lucide-react";
@@ -588,7 +588,7 @@ function CompletionScreen({ inspectionId, onBack }: { inspectionId: string; onBa
     }
   }
 
-  function submitEmailModal(e: React.FormEvent) {
+  function submitEmailModal(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const to = emailInput.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
