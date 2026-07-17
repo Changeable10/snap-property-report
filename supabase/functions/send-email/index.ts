@@ -11,7 +11,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const FROM = "Snapsure <noreply@snapsure.co.nz>";
+// Allow overriding the sender via EMAIL_FROM env while snapsure.co.nz DNS
+// is verifying in Resend. Falls back to the branded verified sender.
+const FROM = Deno.env.get("EMAIL_FROM") ?? "Snapsure <noreply@snapsure.co.nz>";
 
 type Payload = {
   to: string;
@@ -117,7 +119,17 @@ Deno.serve(async (req) => {
   const text = await res.text();
   if (!res.ok) {
     console.error("resend error", res.status, text);
-    return json(res.status, { error: "Resend send failed", detail: text.slice(0, 500) });
+    // Try to extract Resend's human-readable message so the client toast is useful.
+    let message = text.slice(0, 500);
+    try {
+      const parsed = JSON.parse(text) as { message?: string; name?: string };
+      if (parsed?.message) message = parsed.message;
+    } catch { /* keep raw text */ }
+    return json(res.status, {
+      error: "Resend send failed",
+      detail: message,
+      status: res.status,
+    });
   }
 
   let parsed: unknown = null;
