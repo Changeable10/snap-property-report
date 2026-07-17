@@ -13,6 +13,7 @@ import {
 } from "@/lib/report-pdf";
 import { toast } from "sonner";
 import { loadPdfBranding } from "@/lib/branding";
+import { sendEmail, newToken, emailWrap } from "@/lib/email-client";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/sign")({
   head: () => ({ meta: [{ title: "Sign — Snapsure" }] }),
@@ -71,6 +72,7 @@ function SignPage() {
   const [tenantMode, setTenantMode] = useState<"choose" | "device" | "sent">("choose");
   const [tenantEmail, setTenantEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   async function saveSignature(role: "landlord" | "tenant", name: string, dataUrl: string) {
     const { data: userData } = await supabase.auth.getUser();
@@ -85,6 +87,49 @@ function SignPage() {
     if (error) { toast.error(error.message); return; }
     toast.success("Signature saved");
     qc.invalidateQueries({ queryKey: ["inspection-signatures", id] });
+  }
+
+  async function sendTenantSignatureEmail(email: string) {
+    if (!inspection) return;
+    setSendingInvite(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const token = newToken();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      const { error: tokErr } = await supabase.from("signature_tokens").insert({
+        inspection_id: id,
+        user_id: userData.user.id,
+        email,
+        token,
+        expires_at: expiresAt,
+      });
+      if (tokErr) throw tokErr;
+      const link = `${window.location.origin}/sign/${id}/${token}`;
+      const html = emailWrap(`
+        <h2 style="margin:0 0 12px;font-size:20px;color:#0f172a">Please sign your inspection report</h2>
+        <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.5">
+          You've been asked to review and sign the property inspection report.
+          The link below opens a secure page where you can review a summary and sign directly from your device.
+        </p>
+        <p style="margin:24px 0">
+          <a href="${link}" style="display:inline-block;background:#0F6E56;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;font-size:14px">Review and sign report</a>
+        </p>
+        <p style="margin:0;color:#64748b;font-size:12px">This link expires in 7 days.</p>
+      `);
+      await sendEmail({
+        to: email,
+        subject: `Signature requested — Inspection ${refNumber(id)}`,
+        body: html,
+      });
+      setSentEmail(email);
+      setTenantMode("sent");
+      toast.success("Signature request sent");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send email");
+    } finally {
+      setSendingInvite(false);
+    }
   }
 
   async function finalise() {
@@ -196,11 +241,11 @@ function SignPage() {
                     />
                     <button
                       type="button"
-                      disabled={!tenantEmail.trim()}
-                      onClick={() => { setSentEmail(tenantEmail.trim()); setTenantMode("sent"); }}
+                      disabled={!tenantEmail.trim() || sendingInvite}
+                      onClick={() => sendTenantSignatureEmail(tenantEmail.trim())}
                       className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-teal px-3 text-sm font-semibold text-teal-foreground disabled:opacity-50 hover:bg-teal-dark"
                     >
-                      <Mail className="size-4" /> Send
+                      <Mail className="size-4" /> {sendingInvite ? "Sending…" : "Send"}
                     </button>
                   </div>
                 </div>
