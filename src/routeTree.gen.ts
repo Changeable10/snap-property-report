@@ -22,6 +22,7 @@ import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
 import { Route as ApiPublicSignatureTokenTokenRouteImport } from './routes/api/public/signature-token.$token'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicInviteTokenTokenRouteImport } from './routes/api/public/invite-token.$token'
 import { Route as AuthenticatedListingIdReviewRouteImport } from './routes/_authenticated/listing.$id.review'
 import { Route as AuthenticatedListingIdCaptureRouteImport } from './routes/_authenticated/listing.$id.capture'
 import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './routes/_authenticated/inspection.setup.$propertyId'
@@ -100,6 +101,12 @@ const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
     path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicInviteTokenTokenRoute =
+  ApiPublicInviteTokenTokenRouteImport.update({
+    id: '/api/public/invite-token/$token',
+    path: '/api/public/invite-token/$token',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedListingIdReviewRoute =
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/inspection/setup/$propertyId': typeof AuthenticatedInspectionSetupPropertyIdRoute
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
+  '/api/public/invite-token/$token': typeof ApiPublicInviteTokenTokenRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
@@ -208,6 +216,7 @@ export interface FileRoutesByTo {
   '/inspection/setup/$propertyId': typeof AuthenticatedInspectionSetupPropertyIdRoute
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
+  '/api/public/invite-token/$token': typeof ApiPublicInviteTokenTokenRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/inspection/setup/$propertyId': typeof AuthenticatedInspectionSetupPropertyIdRoute
   '/_authenticated/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/_authenticated/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
+  '/api/public/invite-token/$token': typeof ApiPublicInviteTokenTokenRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/inspection/setup/$propertyId'
     | '/listing/$id/capture'
     | '/listing/$id/review'
+    | '/api/public/invite-token/$token'
     | '/api/public/payments/webhook'
     | '/api/public/signature-token/$token'
   fileRoutesByTo: FileRoutesByTo
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/inspection/setup/$propertyId'
     | '/listing/$id/capture'
     | '/listing/$id/review'
+    | '/api/public/invite-token/$token'
     | '/api/public/payments/webhook'
     | '/api/public/signature-token/$token'
   id:
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inspection/setup/$propertyId'
     | '/_authenticated/listing/$id/capture'
     | '/_authenticated/listing/$id/review'
+    | '/api/public/invite-token/$token'
     | '/api/public/payments/webhook'
     | '/api/public/signature-token/$token'
   fileRoutesById: FileRoutesById
@@ -318,6 +331,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   InviteTokenRoute: typeof InviteTokenRoute
   SignInspectionIdTokenRoute: typeof SignInspectionIdTokenRoute
+  ApiPublicInviteTokenTokenRoute: typeof ApiPublicInviteTokenTokenRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicSignatureTokenTokenRoute: typeof ApiPublicSignatureTokenTokenRoute
 }
@@ -413,6 +427,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/payments/webhook'
       fullPath: '/api/public/payments/webhook'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/invite-token/$token': {
+      id: '/api/public/invite-token/$token'
+      path: '/api/public/invite-token/$token'
+      fullPath: '/api/public/invite-token/$token'
+      preLoaderRoute: typeof ApiPublicInviteTokenTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/listing/$id/review': {
@@ -539,6 +560,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   InviteTokenRoute: InviteTokenRoute,
   SignInspectionIdTokenRoute: SignInspectionIdTokenRoute,
+  ApiPublicInviteTokenTokenRoute: ApiPublicInviteTokenTokenRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicSignatureTokenTokenRoute: ApiPublicSignatureTokenTokenRoute,
 }

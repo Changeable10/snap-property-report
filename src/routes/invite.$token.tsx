@@ -24,22 +24,23 @@ function InvitePage() {
   const accept = useServerFn(acceptTeamInviteToken);
   const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [message, setMessage] = useState<string>("");
+  const [mismatch, setMismatch] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
-        sessionStorage.setItem("snapsure.pending_invite", token);
-        navigate({ to: "/auth", search: { next: `/invite/${token}` } as never });
+        navigate({ to: "/auth", search: { redirect: `/invite/${token}` } as never });
         return;
       }
       try {
         await accept({ data: { token } });
-        sessionStorage.removeItem("snapsure.pending_invite");
         setState("done");
         setTimeout(() => navigate({ to: "/team" as never }), 1500);
       } catch (e) {
-        setMessage(e instanceof Error ? e.message : "Failed to accept invite");
+        const msg = e instanceof Error ? e.message : "Failed to accept invite";
+        if (/Sign in as /i.test(msg)) setMismatch(true);
+        setMessage(msg);
         setState("error");
       }
     })();
@@ -52,7 +53,31 @@ function InvitePage() {
       </div>
     );
   }
-  if (state === "error") return <InviteError message={message} />;
+  if (state === "error") {
+    if (mismatch) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-8 text-center space-y-4">
+              <AlertCircle className="h-12 w-12 text-amber-600 mx-auto" />
+              <h1 className="text-xl font-semibold text-slate-900">Wrong account</h1>
+              <p className="text-slate-600 text-sm">{message}</p>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  navigate({ to: "/auth", search: { redirect: `/invite/${token}` } as never });
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-teal px-5 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
+              >
+                Switch account
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    return <InviteError message={message} />;
+  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
       <Card className="max-w-md w-full">
