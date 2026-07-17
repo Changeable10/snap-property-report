@@ -99,7 +99,7 @@ function SignPage() {
       const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
       const { error: tokErr } = await supabase.from("signature_tokens").insert({
         inspection_id: id,
-        user_id: userData.user.id,
+        created_by: userData.user.id,
         email,
         token,
         expires_at: expiresAt,
