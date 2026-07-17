@@ -12,12 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
+import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
+import { Route as ApiPublicSignatureTokenTokenRouteImport } from './routes/api/public/signature-token.$token'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as AuthenticatedListingIdReviewRouteImport } from './routes/_authenticated/listing.$id.review'
 import { Route as AuthenticatedListingIdCaptureRouteImport } from './routes/_authenticated/listing.$id.capture'
@@ -44,6 +47,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -66,6 +74,11 @@ const AuthenticatedInspectionsRoute =
     path: '/inspections',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const SignInspectionIdTokenRoute = SignInspectionIdTokenRouteImport.update({
+  id: '/sign/$inspectionId/$token',
+  path: '/sign/$inspectionId/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPropertyNewRoute =
   AuthenticatedPropertyNewRouteImport.update({
     id: '/property/new',
@@ -77,6 +90,12 @@ const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
   path: '/property/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicSignatureTokenTokenRoute =
+  ApiPublicSignatureTokenTokenRouteImport.update({
+    id: '/api/public/signature-token/$token',
+    path: '/api/public/signature-token/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -151,8 +170,10 @@ export interface FileRoutesByFullPath {
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
+  '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
   '/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
@@ -164,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -171,9 +193,11 @@ export interface FileRoutesByTo {
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/': typeof AuthenticatedIndexRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
+  '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
   '/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
   '/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
@@ -185,6 +209,7 @@ export interface FileRoutesByTo {
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -194,9 +219,11 @@ export interface FileRoutesById {
   '/_authenticated/maintenance': typeof AuthenticatedMaintenanceRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/property/$id': typeof AuthenticatedPropertyIdRoute
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
+  '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
   '/_authenticated/inspection/$id/capture': typeof AuthenticatedInspectionIdCaptureRoute
   '/_authenticated/inspection/$id/compare': typeof AuthenticatedInspectionIdCompareRoute
   '/_authenticated/inspection/$id/healthy-homes': typeof AuthenticatedInspectionIdHealthyHomesRoute
@@ -208,6 +235,7 @@ export interface FileRoutesById {
   '/_authenticated/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/_authenticated/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -218,8 +246,10 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/settings'
     | '/team'
+    | '/invite/$token'
     | '/property/$id'
     | '/property/new'
+    | '/sign/$inspectionId/$token'
     | '/inspection/$id/capture'
     | '/inspection/$id/compare'
     | '/inspection/$id/healthy-homes'
@@ -231,6 +261,7 @@ export interface FileRouteTypes {
     | '/listing/$id/capture'
     | '/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -238,9 +269,11 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/settings'
     | '/team'
+    | '/invite/$token'
     | '/'
     | '/property/$id'
     | '/property/new'
+    | '/sign/$inspectionId/$token'
     | '/inspection/$id/capture'
     | '/inspection/$id/compare'
     | '/inspection/$id/healthy-homes'
@@ -252,6 +285,7 @@ export interface FileRouteTypes {
     | '/listing/$id/capture'
     | '/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   id:
     | '__root__'
     | '/_authenticated'
@@ -260,9 +294,11 @@ export interface FileRouteTypes {
     | '/_authenticated/maintenance'
     | '/_authenticated/settings'
     | '/_authenticated/team'
+    | '/invite/$token'
     | '/_authenticated/'
     | '/_authenticated/property/$id'
     | '/_authenticated/property/new'
+    | '/sign/$inspectionId/$token'
     | '/_authenticated/inspection/$id/capture'
     | '/_authenticated/inspection/$id/compare'
     | '/_authenticated/inspection/$id/healthy-homes'
@@ -274,12 +310,16 @@ export interface FileRouteTypes {
     | '/_authenticated/listing/$id/capture'
     | '/_authenticated/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  InviteTokenRoute: typeof InviteTokenRoute
+  SignInspectionIdTokenRoute: typeof SignInspectionIdTokenRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicSignatureTokenTokenRoute: typeof ApiPublicSignatureTokenTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -304,6 +344,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/team': {
       id: '/_authenticated/team'
@@ -333,6 +380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/sign/$inspectionId/$token': {
+      id: '/sign/$inspectionId/$token'
+      path: '/sign/$inspectionId/$token'
+      fullPath: '/sign/$inspectionId/$token'
+      preLoaderRoute: typeof SignInspectionIdTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/property/new': {
       id: '/_authenticated/property/new'
       path: '/property/new'
@@ -346,6 +400,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/property/$id'
       preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/signature-token/$token': {
+      id: '/api/public/signature-token/$token'
+      path: '/api/public/signature-token/$token'
+      fullPath: '/api/public/signature-token/$token'
+      preLoaderRoute: typeof ApiPublicSignatureTokenTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
@@ -476,18 +537,11 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  InviteTokenRoute: InviteTokenRoute,
+  SignInspectionIdTokenRoute: SignInspectionIdTokenRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicSignatureTokenTokenRoute: ApiPublicSignatureTokenTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

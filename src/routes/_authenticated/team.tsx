@@ -122,13 +122,45 @@ function TeamPage() {
     if (!inviteEmail.trim()) return;
     setBusy(true);
     try {
-      await invokeInvite({
-        data: { teamId: team!.id, email: inviteEmail.trim(), role: inviteRole },
-      });
+      const email = inviteEmail.trim().toLowerCase();
+      await invokeInvite({ data: { teamId: team!.id, email, role: inviteRole } });
+
+      // Create invite token + send email
+      try {
+        const { newToken, sendEmail, emailWrap } = await import("@/lib/email-client");
+        const token = newToken();
+        const expiresAt = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+        const { error: tokErr } = await supabase.from("team_invite_tokens").insert({
+          team_id: team!.id,
+          invited_email: email,
+          role: inviteRole,
+          token,
+          expires_at: expiresAt,
+        });
+        if (tokErr) throw tokErr;
+        const link = `${window.location.origin}/invite/${token}`;
+        await sendEmail({
+          to: email,
+          subject: `You've been invited to join ${team!.name} on Snapsure`,
+          body: emailWrap(`
+            <h2 style="margin:0 0 12px;font-size:20px;color:#0f172a">Join ${team!.name} on Snapsure</h2>
+            <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.5">
+              You've been invited to join <strong>${team!.name}</strong> as a ${inviteRole} on Snapsure.
+            </p>
+            <p style="margin:24px 0">
+              <a href="${link}" style="display:inline-block;background:#0F6E56;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;font-size:14px">Accept invitation</a>
+            </p>
+            <p style="margin:0;color:#64748b;font-size:12px">This link expires in 14 days.</p>
+          `),
+        });
+        toast.success("Invite sent");
+      } catch (e) {
+        toast.error(`Invite created but email failed: ${e instanceof Error ? e.message : "unknown"}`);
+      }
+
       setInviteEmail("");
       setInviteRole("member");
       setInviteOpen(false);
-      toast.success("Invite sent");
       await refetch();
       qc.invalidateQueries({ queryKey: ["my-team"] });
     } catch (e) {
