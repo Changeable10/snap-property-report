@@ -1439,3 +1439,154 @@ function ManualAddItem({
     </div>
   );
 }
+
+// ---------- Comparison helpers ----------
+
+const INSPECTION_LABEL: Record<string, string> = {
+  entry: "Entry",
+  routine: "Routine",
+  exit: "Exit",
+};
+function capitaliseInspection(t: string | null | undefined) {
+  return INSPECTION_LABEL[t ?? ""] ?? "Previous";
+}
+function formatDMY(s: string | null | undefined) {
+  if (!s) return "";
+  const d = s.split("T")[0];
+  const [y, m, day] = d.split("-");
+  if (!y || !m || !day) return d;
+  return `${day}/${m}/${y}`;
+}
+
+type DetectedChange = {
+  key: string;
+  item: string;
+  description: string;
+  severity: "minor" | "moderate" | "significant";
+  currentPhotoId: string;
+  previousPhotoId: string | null;
+};
+
+const SEVERITY_BADGE: Record<"minor" | "moderate" | "significant", string> = {
+  minor: "bg-amber-500 text-white",
+  moderate: "bg-orange-500 text-white",
+  significant: "bg-red-600 text-white",
+};
+const SEVERITY_LABEL: Record<"minor" | "moderate" | "significant", string> = {
+  minor: "Minor",
+  moderate: "Moderate",
+  significant: "Significant",
+};
+
+function PreviousInspectionPanel({
+  photos, items,
+}: { photos: PhotoRow[]; items: ItemRow[] }) {
+  const hasData = photos.length > 0 || items.length > 0;
+  return (
+    <section className="mb-4 rounded-2xl border border-border bg-card p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Previous inspection
+      </p>
+      {!hasData ? (
+        <p className="text-sm text-muted-foreground">No previous inspection data for this room</p>
+      ) : (
+        <>
+          {photos.length > 0 && (
+            <PreviousPhoto path={photos[0].photo_url} />
+          )}
+          {items.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {items.slice(0, 8).map((it) => (
+                <li key={it.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate font-medium text-foreground">{it.item_name}</span>
+                  <ConditionBadge condition={it.condition} />
+                </li>
+              ))}
+              {items.length > 8 && (
+                <li className="text-[11px] text-muted-foreground">+ {items.length - 8} more…</li>
+              )}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PreviousPhoto({ path }: { path: string }) {
+  const url = useSignedUrl(path);
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-muted">
+      {url ? (
+        <img src={url} alt="Previous inspection" className="block w-full aspect-video object-cover" />
+      ) : (
+        <div className="aspect-video" />
+      )}
+    </div>
+  );
+}
+
+function ChangesSection({
+  comparing, pending, accepted, onAccept, onDismiss,
+}: {
+  comparing: boolean;
+  pending: DetectedChange[];
+  accepted: Array<{ id: string; item_name: string; description: string | null; severity: "minor" | "moderate" | "significant" }>;
+  onAccept: (c: DetectedChange) => void;
+  onDismiss: (c: DetectedChange) => void;
+}) {
+  if (!comparing && pending.length === 0 && accepted.length === 0) return null;
+  return (
+    <section className="mb-4 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Changes detected
+      </p>
+      {comparing && (
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+          <Loader2 className="size-4 animate-spin" /> Comparing against previous photo…
+        </div>
+      )}
+      {pending.map((c) => (
+        <div key={c.key} className="rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEVERITY_BADGE[c.severity]}`}>
+              {SEVERITY_LABEL[c.severity]}
+            </span>
+            <p className="text-sm font-semibold text-foreground">{c.item}</p>
+          </div>
+          {c.description && (
+            <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+          )}
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button" onClick={() => onDismiss(c)}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button" onClick={() => onAccept(c)}
+              className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
+            >
+              Accept
+            </button>
+          </div>
+        </div>
+      ))}
+      {accepted.map((c) => (
+        <div key={c.id} className="rounded-xl border border-teal/30 bg-teal/5 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEVERITY_BADGE[c.severity]}`}>
+              {SEVERITY_LABEL[c.severity]}
+            </span>
+            <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
+            <span className="ml-auto text-[11px] font-semibold text-teal">Accepted</span>
+          </div>
+          {c.description && (
+            <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
