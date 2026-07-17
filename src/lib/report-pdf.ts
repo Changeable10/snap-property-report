@@ -19,6 +19,11 @@ export interface PdfItem {
   maintenance_notes: string | null; sort_order: number;
 }
 export interface PdfPhoto { id: string; room_id: string; photo_url: string; captured_at: string }
+export interface PdfComparisonChange {
+  id: string; room_id: string; item_name: string;
+  description: string | null;
+  severity: "minor" | "moderate" | "significant";
+}
 export interface PdfSignature {
   signer_role: "landlord" | "tenant";
   signer_name: string;
@@ -105,12 +110,13 @@ export interface GenerateReportArgs {
   rooms: PdfRoom[];
   items: PdfItem[];
   photos: PdfPhoto[];
+  changes?: PdfComparisonChange[];
   signatures?: PdfSignature[];
   branding?: PdfBranding | null;
 }
 
 export async function generateReportPdf({
-  inspection, property, rooms, items, photos, signatures = [], branding = null,
+  inspection, property, rooms, items, photos, changes = [], signatures = [], branding = null,
 }: GenerateReportArgs): Promise<Blob> {
   const ref = refNumber(inspection.id);
 
@@ -230,6 +236,17 @@ export async function generateReportPdf({
     const arr = photosByRoom.get(p.room_id) ?? [];
     arr.push(p); photosByRoom.set(p.room_id, arr);
   }
+  const changesByRoom = new Map<string, PdfComparisonChange[]>();
+  for (const c of changes) {
+    const arr = changesByRoom.get(c.room_id) ?? [];
+    arr.push(c); changesByRoom.set(c.room_id, arr);
+  }
+  const SEVERITY_RGB: Record<PdfComparisonChange["severity"], [number, number, number]> = {
+    minor: [217, 155, 38], moderate: [217, 108, 38], significant: [200, 45, 45],
+  };
+  const SEVERITY_LABEL: Record<PdfComparisonChange["severity"], string> = {
+    minor: "Minor", moderate: "Moderate", significant: "Significant",
+  };
 
   // ---------- Room sections ----------
   // Max photo height 200 points = ~70.56 mm
@@ -299,6 +316,42 @@ export async function generateReportPdf({
     });
     // @ts-expect-error autoTable augments doc
     y = doc.lastAutoTable.finalY + 6;
+
+    const roomChanges = changesByRoom.get(room.id) ?? [];
+    if (roomChanges.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...accent);
+      doc.text("Changes Noted", margin, y);
+      y += 5;
+      autoTable(doc, {
+        startY: y,
+        head: [["Item", "Severity", "Change"]],
+        body: roomChanges.map((c) => [
+          c.item_name,
+          SEVERITY_LABEL[c.severity],
+          c.description ?? "—",
+        ]),
+        margin: { left: margin, right: margin },
+        styles: { font: "helvetica", fontSize: 10, cellPadding: 2.5, textColor: 30, valign: "top" },
+        headStyles: { fillColor: accent, textColor: 255 },
+        alternateRowStyles: { fillColor: [246, 246, 246] },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: "bold" },
+          1: { cellWidth: 24, halign: "center", fontStyle: "bold" },
+          2: { cellWidth: "auto" },
+        },
+        theme: "grid",
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 1) {
+            const sev = roomChanges[data.row.index]?.severity;
+            if (sev) data.cell.styles.textColor = SEVERITY_RGB[sev];
+          }
+        },
+      });
+      // @ts-expect-error autoTable augments doc
+      y = doc.lastAutoTable.finalY + 6;
+    }
   }
 
   // ---------- Maintenance summary page ----------

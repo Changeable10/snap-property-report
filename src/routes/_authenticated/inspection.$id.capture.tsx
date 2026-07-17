@@ -61,21 +61,71 @@ function CapturePage() {
     },
   });
 
+  // Only compare on Routine / Exit inspections.
+  const comparisonEnabled =
+    inspection?.inspection_type === "routine" || inspection?.inspection_type === "exit";
+
   const { data: previousInspection } = useQuery({
     queryKey: ["previous-inspection", inspection?.property_id, id],
-    enabled: !!inspection?.property_id,
+    enabled: !!inspection?.property_id && !!comparisonEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inspections")
-        .select("id")
+        .select("id, inspection_date, inspection_type, completed_at")
         .eq("property_id", inspection!.property_id)
         .neq("id", id)
         .in("status", ["completed", "signed"])
+        .order("completed_at", { ascending: false, nullsFirst: false })
         .order("inspection_date", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const previousInspectionId = previousInspection?.id;
+
+  const { data: previousPhotos } = useQuery({
+    queryKey: ["previous-inspection-photos", previousInspectionId],
+    enabled: !!previousInspectionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_photos")
+        .select("id,room_id,photo_url,captured_at,voice_transcript")
+        .eq("inspection_id", previousInspectionId!)
+        .order("captured_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as PhotoRow[];
+    },
+  });
+
+  const { data: previousItems } = useQuery({
+    queryKey: ["previous-inspection-items", previousInspectionId],
+    enabled: !!previousInspectionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inspection_items")
+        .select("id,room_id,item_name,condition,description,sources,confidence")
+        .eq("inspection_id", previousInspectionId!);
+      if (error) throw error;
+      return (data ?? []) as ItemRow[];
+    },
+  });
+
+  const { data: comparisons } = useQuery({
+    queryKey: ["comparison-photo-changes", id],
+    enabled: !!comparisonEnabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("comparison_results")
+        .select("id, room_id, item_name, description, severity, status, changes_detected, current_photo_id, previous_photo_id")
+        .eq("inspection_id", id)
+        .not("changes_detected", "is", null);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; room_id: string; item_name: string; description: string | null;
+        severity: "minor" | "moderate" | "significant";
+        status: "pending" | "confirmed" | "dismissed";
+        changes_detected: any; current_photo_id: string | null; previous_photo_id: string | null;
+      }>;
     },
   });
 
@@ -190,6 +240,32 @@ function CapturePage() {
     [items, current?.id],
   );
 
+  const previousRoomPhotos = useMemo(
+    () => (previousPhotos ?? []).filter((p) => p.room_id === current?.id),
+    [previousPhotos, current?.id],
+  );
+  const previousRoomItems = useMemo(
+    () => (previousItems ?? []).filter((i) => i.room_id === current?.id),
+    [previousItems, current?.id],
+  );
+  const roomAcceptedChanges = useMemo(
+    () => (comparisons ?? []).filter((c) => c.room_id === current?.id && c.status === "confirmed"),
+    [comparisons, current?.id],
+  );
+
+  // Per-room ephemeral detected changes not yet accepted/dismissed.
+  type DetectedChange = {
+    key: string;
+    item: string;
+    description: string;
+    severity: "minor" | "moderate" | "significant";
+    currentPhotoId: string;
+    previousPhotoId: string | null;
+  };
+  const [pendingChanges, setPendingChanges] = useState<Record<string, DetectedChange[]>>({});
+  const [comparingRoomId, setComparingRoomId] = useState<string | null>(null);
+  const currentPending = current ? (pendingChanges[current.id] ?? []) : [];
+
   const doneRoomIds = useMemo(() => {
     const set = new Set<string>();
     for (const it of items ?? []) set.add(it.room_id);
@@ -206,15 +282,97 @@ function CapturePage() {
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
     if (upErr) { toast.error(upErr.message); return; }
-    const { error: insErr } = await supabase.from("inspection_photos").insert({
+    const { data: inserted, error: insErr } = await supabase.from("inspection_photos").insert({
       user_id: inspection.user_id,
       inspection_id: id,
       room_id: current.id,
       photo_url: path,
-    });
+    }).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
     void analyzePhoto(file, current.id, current.name);
+    if (comparisonEnabled && previousRoomPhotos.length > 0 && inserted?.id) {
+      void runComparison(path, inserted.id, current.id, current.name);
+    }
+  }
+
+  async function signedUrlFor(path: string): Promise<string | null> {
+    const { data } = await supabase.storage.from("inspection-photos").createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }
+
+  async function runComparison(currentPath: string, currentPhotoId: string, roomId: string, roomName: string) {
+    if (!inspection) return;
+    const prev = (previousPhotos ?? []).filter((p) => p.room_id === roomId)[0];
+    if (!prev) return;
+    setComparingRoomId(roomId);
+    try {
+      const [currentUrl, previousUrl] = await Promise.all([
+        signedUrlFor(currentPath),
+        signedUrlFor(prev.photo_url),
+      ]);
+      if (!currentUrl || !previousUrl) return;
+      const { data, error } = await supabase.functions.invoke("compare-inspection-photos", {
+        body: { currentPhotoUrl: currentUrl, previousPhotoUrl: previousUrl, roomName },
+      });
+      if (error) throw error;
+      const changes: Array<{ item: string; description: string; severity: DetectedChange["severity"] }> =
+        Array.isArray(data?.changes) ? data.changes : [];
+      if (changes.length === 0) return;
+      setPendingChanges((prevMap) => {
+        const existing = prevMap[roomId] ?? [];
+        const mapped: DetectedChange[] = changes
+          .filter((c) => c && c.severity && c.severity !== ("none" as any))
+          .map((c, i) => ({
+            key: `${currentPhotoId}-${i}`,
+            item: String(c.item ?? "Item"),
+            description: String(c.description ?? ""),
+            severity: (c.severity as DetectedChange["severity"]) ?? "minor",
+            currentPhotoId,
+            previousPhotoId: prev.id,
+          }));
+        return { ...prevMap, [roomId]: [...existing, ...mapped] };
+      });
+    } catch (err: any) {
+      console.warn("compare-inspection-photos failed", err?.message ?? err);
+    } finally {
+      setComparingRoomId((cur) => (cur === roomId ? null : cur));
+    }
+  }
+
+  async function acceptChange(change: DetectedChange, roomId: string) {
+    if (!inspection || !previousInspectionId) return;
+    const { error } = await supabase.from("comparison_results").insert({
+      user_id: inspection.user_id,
+      inspection_id: id,
+      previous_inspection_id: previousInspectionId,
+      room_id: roomId,
+      item_name: change.item,
+      description: change.description || null,
+      change_type: "deterioration",
+      severity: change.severity,
+      status: "confirmed",
+      current_photo_id: change.currentPhotoId,
+      previous_photo_id: change.previousPhotoId,
+      changes_detected: {
+        item: change.item,
+        description: change.description,
+        severity: change.severity,
+      },
+    });
+    if (error) { toast.error(error.message); return; }
+    setPendingChanges((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((c) => c.key !== change.key),
+    }));
+    qc.invalidateQueries({ queryKey: ["comparison-photo-changes", id] });
+  }
+
+  function dismissChange(change: DetectedChange, roomId: string) {
+    setPendingChanges((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((c) => c.key !== change.key),
+    }));
   }
 
   async function analyzePhoto(file: File, roomId: string, roomName: string) {
@@ -761,6 +919,29 @@ function CapturePage() {
       <main className="mx-auto max-w-md px-5 py-6">
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
+        {comparisonEnabled && previousInspection && (
+          <div className="mb-4 rounded-xl border border-teal/30 bg-teal/5 px-3 py-2 text-xs font-medium text-teal-dark">
+            Comparing against {capitaliseInspection(previousInspection.inspection_type)} inspection from {formatDMY(previousInspection.completed_at ?? previousInspection.inspection_date)}
+          </div>
+        )}
+
+        {comparisonEnabled && previousInspection && current && (
+          <PreviousInspectionPanel
+            photos={previousRoomPhotos}
+            items={previousRoomItems}
+          />
+        )}
+
+        {comparisonEnabled && previousInspection && current && (
+          <ChangesSection
+            comparing={comparingRoomId === current.id}
+            pending={currentPending}
+            accepted={roomAcceptedChanges}
+            onAccept={(c) => acceptChange(c, current.id)}
+            onDismiss={(c) => dismissChange(c, current.id)}
+          />
+        )}
+
         {roomPhotos.length === 0 ? (
           <div className={`grid gap-3 ${videoSupported ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
@@ -1256,5 +1437,156 @@ function ManualAddItem({
         </button>
       </div>
     </div>
+  );
+}
+
+// ---------- Comparison helpers ----------
+
+const INSPECTION_LABEL: Record<string, string> = {
+  entry: "Entry",
+  routine: "Routine",
+  exit: "Exit",
+};
+function capitaliseInspection(t: string | null | undefined) {
+  return INSPECTION_LABEL[t ?? ""] ?? "Previous";
+}
+function formatDMY(s: string | null | undefined) {
+  if (!s) return "";
+  const d = s.split("T")[0];
+  const [y, m, day] = d.split("-");
+  if (!y || !m || !day) return d;
+  return `${day}/${m}/${y}`;
+}
+
+type DetectedChange = {
+  key: string;
+  item: string;
+  description: string;
+  severity: "minor" | "moderate" | "significant";
+  currentPhotoId: string;
+  previousPhotoId: string | null;
+};
+
+const SEVERITY_BADGE: Record<"minor" | "moderate" | "significant", string> = {
+  minor: "bg-amber-500 text-white",
+  moderate: "bg-orange-500 text-white",
+  significant: "bg-red-600 text-white",
+};
+const SEVERITY_LABEL: Record<"minor" | "moderate" | "significant", string> = {
+  minor: "Minor",
+  moderate: "Moderate",
+  significant: "Significant",
+};
+
+function PreviousInspectionPanel({
+  photos, items,
+}: { photos: PhotoRow[]; items: ItemRow[] }) {
+  const hasData = photos.length > 0 || items.length > 0;
+  return (
+    <section className="mb-4 rounded-2xl border border-border bg-card p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Previous inspection
+      </p>
+      {!hasData ? (
+        <p className="text-sm text-muted-foreground">No previous inspection data for this room</p>
+      ) : (
+        <>
+          {photos.length > 0 && (
+            <PreviousPhoto path={photos[0].photo_url} />
+          )}
+          {items.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {items.slice(0, 8).map((it) => (
+                <li key={it.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate font-medium text-foreground">{it.item_name}</span>
+                  <ConditionBadge condition={it.condition} />
+                </li>
+              ))}
+              {items.length > 8 && (
+                <li className="text-[11px] text-muted-foreground">+ {items.length - 8} more…</li>
+              )}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PreviousPhoto({ path }: { path: string }) {
+  const url = useSignedUrl(path);
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-muted">
+      {url ? (
+        <img src={url} alt="Previous inspection" className="block w-full aspect-video object-cover" />
+      ) : (
+        <div className="aspect-video" />
+      )}
+    </div>
+  );
+}
+
+function ChangesSection({
+  comparing, pending, accepted, onAccept, onDismiss,
+}: {
+  comparing: boolean;
+  pending: DetectedChange[];
+  accepted: Array<{ id: string; item_name: string; description: string | null; severity: "minor" | "moderate" | "significant" }>;
+  onAccept: (c: DetectedChange) => void;
+  onDismiss: (c: DetectedChange) => void;
+}) {
+  if (!comparing && pending.length === 0 && accepted.length === 0) return null;
+  return (
+    <section className="mb-4 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Changes detected
+      </p>
+      {comparing && (
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-3 text-sm font-medium text-teal">
+          <Loader2 className="size-4 animate-spin" /> Comparing against previous photo…
+        </div>
+      )}
+      {pending.map((c) => (
+        <div key={c.key} className="rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEVERITY_BADGE[c.severity]}`}>
+              {SEVERITY_LABEL[c.severity]}
+            </span>
+            <p className="text-sm font-semibold text-foreground">{c.item}</p>
+          </div>
+          {c.description && (
+            <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+          )}
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button" onClick={() => onDismiss(c)}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button" onClick={() => onAccept(c)}
+              className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
+            >
+              Accept
+            </button>
+          </div>
+        </div>
+      ))}
+      {accepted.map((c) => (
+        <div key={c.id} className="rounded-xl border border-teal/30 bg-teal/5 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEVERITY_BADGE[c.severity]}`}>
+              {SEVERITY_LABEL[c.severity]}
+            </span>
+            <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
+            <span className="ml-auto text-[11px] font-semibold text-teal">Accepted</span>
+          </div>
+          {c.description && (
+            <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }

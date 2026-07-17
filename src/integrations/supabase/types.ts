@@ -32,10 +32,12 @@ export type Database = {
       comparison_results: {
         Row: {
           change_type: Database["public"]["Enums"]["comparison_change_type"]
+          changes_detected: Json | null
           created_at: string
           current_condition:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          current_photo_id: string | null
           description: string | null
           id: string
           inspection_id: string
@@ -43,6 +45,8 @@ export type Database = {
           previous_condition:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          previous_inspection_id: string | null
+          previous_photo_id: string | null
           room_id: string
           severity: Database["public"]["Enums"]["comparison_severity"]
           status: Database["public"]["Enums"]["comparison_status"]
@@ -51,10 +55,12 @@ export type Database = {
         }
         Insert: {
           change_type: Database["public"]["Enums"]["comparison_change_type"]
+          changes_detected?: Json | null
           created_at?: string
           current_condition?:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          current_photo_id?: string | null
           description?: string | null
           id?: string
           inspection_id: string
@@ -62,6 +68,8 @@ export type Database = {
           previous_condition?:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          previous_inspection_id?: string | null
+          previous_photo_id?: string | null
           room_id: string
           severity?: Database["public"]["Enums"]["comparison_severity"]
           status?: Database["public"]["Enums"]["comparison_status"]
@@ -70,10 +78,12 @@ export type Database = {
         }
         Update: {
           change_type?: Database["public"]["Enums"]["comparison_change_type"]
+          changes_detected?: Json | null
           created_at?: string
           current_condition?:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          current_photo_id?: string | null
           description?: string | null
           id?: string
           inspection_id?: string
@@ -81,6 +91,8 @@ export type Database = {
           previous_condition?:
             | Database["public"]["Enums"]["condition_type"]
             | null
+          previous_inspection_id?: string | null
+          previous_photo_id?: string | null
           room_id?: string
           severity?: Database["public"]["Enums"]["comparison_severity"]
           status?: Database["public"]["Enums"]["comparison_status"]
@@ -89,10 +101,31 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "comparison_results_current_photo_id_fkey"
+            columns: ["current_photo_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_photos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "comparison_results_inspection_id_fkey"
             columns: ["inspection_id"]
             isOneToOne: false
             referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparison_results_previous_inspection_id_fkey"
+            columns: ["previous_inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparison_results_previous_photo_id_fkey"
+            columns: ["previous_photo_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_photos"
             referencedColumns: ["id"]
           },
           {
