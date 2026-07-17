@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LABEL, usePlan } from "@/lib/use-plan";
 import { cn } from "@/lib/utils";
+import { useMyTeam } from "@/lib/use-team";
 
 interface NavItem {
   to: string;
@@ -81,6 +82,12 @@ export function Sidebar({ user }: SidebarProps) {
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const counts = useCounts();
   const { data: plan } = usePlan(user?.id ?? "");
+  const { data: teamData } = useMyTeam(!!user?.id);
+  const team = teamData?.team ?? null;
+  const myRole = teamData?.myRole ?? null;
+  const isOwner = !!user?.id && team?.owner_id === user.id;
+  // For non-owner team members, show team + role instead of a personal plan.
+  const showTeamBadge = !!team && !isOwner;
   const displayName =
     user?.user_metadata?.name ??
     user?.user_metadata?.full_name ??
@@ -101,7 +108,7 @@ export function Sidebar({ user }: SidebarProps) {
     { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
   const agencyItems: NavItem[] =
-    plan === "agency"
+    plan === "agency" || !!team
       ? [{ to: "/team", label: "Team", icon: Users, match: "/team" }]
       : [];
 
@@ -143,7 +150,11 @@ export function Sidebar({ user }: SidebarProps) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-white">{displayName}</p>
             <p className="truncate text-[11px]" style={{ color: "var(--color-sidebar-text)" }}>
-              {plan ? PLAN_LABEL[plan] : "Free"}
+              {showTeamBadge
+                ? `${team!.name} · ${roleLabel(myRole)}`
+                : plan
+                  ? PLAN_LABEL[plan]
+                  : "Free"}
             </p>
           </div>
           <Link
@@ -157,6 +168,11 @@ export function Sidebar({ user }: SidebarProps) {
       </div>
     </aside>
   );
+}
+
+function roleLabel(role: string | null): string {
+  if (!role) return "Member";
+  return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 function NavSection({
