@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { acceptTeamInviteToken } from "@/lib/team.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { ONBOARDED_KEY } from "@/components/Onboarding";
 
 export const Route = createFileRoute("/invite/$token")({
   head: () => ({
@@ -25,6 +27,7 @@ function InvitePage() {
   const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [message, setMessage] = useState<string>("");
   const [mismatch, setMismatch] = useState(false);
+  const [teamName, setTeamName] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -34,9 +37,12 @@ function InvitePage() {
         return;
       }
       try {
-        await accept({ data: { token } });
+        const res = await accept({ data: { token } });
+        setTeamName(res.teamName);
+        try { localStorage.setItem(ONBOARDED_KEY, "true"); } catch { /* ignore */ }
+        toast.success(res.teamName ? `You've joined ${res.teamName}!` : "You've joined the team!");
         setState("done");
-        setTimeout(() => navigate({ to: "/team" as never }), 1500);
+        setTimeout(() => navigate({ to: "/" }), 1200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to accept invite";
         if (/Sign in as /i.test(msg)) setMismatch(true);
@@ -83,8 +89,10 @@ function InvitePage() {
       <Card className="max-w-md w-full">
         <CardContent className="p-8 text-center space-y-3">
           <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
-          <h1 className="text-xl font-semibold text-slate-900">You're on the team</h1>
-          <p className="text-slate-600 text-sm">Redirecting to your team page…</p>
+          <h1 className="text-xl font-semibold text-slate-900">
+            {teamName ? `Welcome to ${teamName}` : "You're on the team"}
+          </h1>
+          <p className="text-slate-600 text-sm">Redirecting to your dashboard…</p>
         </CardContent>
       </Card>
     </div>
