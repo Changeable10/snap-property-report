@@ -257,5 +257,10 @@ export const acceptTeamInviteToken = createServerFn({ method: "POST" })
       .update({ accepted_at: new Date().toISOString() })
       .eq("id", tok.id);
 
-    return { teamId: tok.team_id };
+    const { data: team } = await supabaseAdmin
+      .from("teams")
+      .select("name")
+      .eq("id", tok.team_id)
+      .maybeSingle();
+    return { teamId: tok.team_id, teamName: team?.name ?? null, role: tok.role };
   });
