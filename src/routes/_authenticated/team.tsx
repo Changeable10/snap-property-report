@@ -155,7 +155,19 @@ function TeamPage() {
         });
         toast.success("Invite sent");
       } catch (e) {
-        toast.error(`Invite created but email failed: ${e instanceof Error ? e.message : "unknown"}`);
+        console.error("Invite email failed", e);
+        const detail =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : e && typeof e === "object"
+                ? ((e as { message?: string; error?: string; detail?: string }).detail ??
+                   (e as { message?: string; error?: string }).message ??
+                   (e as { error?: string }).error ??
+                   JSON.stringify(e))
+                : "unknown";
+        toast.error(`Invite created but email failed: ${detail}`);
       }
 
       setInviteEmail("");
