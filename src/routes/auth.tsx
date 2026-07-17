@@ -5,11 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({ meta: [{ title: "Sign in — Snapsure" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    redirect: typeof s.redirect === "string" ? s.redirect : undefined,
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +21,10 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
+  const [inviteTeam, setInviteTeam] = useState<string | null>(null);
+
+  const inviteToken =
+    redirect && redirect.startsWith("/invite/") ? redirect.slice("/invite/".length) : null;
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -24,7 +32,23 @@ function AuthPage() {
     });
   }, []);
 
-  if (authed) return <Navigate to="/" />;
+  useEffect(() => {
+    if (!inviteToken) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/public/invite-token/${encodeURIComponent(inviteToken)}`);
+        if (!res.ok) return;
+        const j = (await res.json()) as { invitedEmail?: string; teamName?: string | null };
+        if (j.invitedEmail) setEmail(j.invitedEmail);
+        if (j.teamName) setInviteTeam(j.teamName);
+      } catch { /* ignore */ }
+    })();
+  }, [inviteToken]);
+
+  if (authed) {
+    if (redirect) return <Navigate to={redirect as never} />;
+    return <Navigate to="/" />;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,9 +60,19 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: redirect
+              ? `${window.location.origin}${redirect}`
+              : window.location.origin,
+          },
         });
         if (error) throw error;
+        // If session is present (auto-confirm), go to redirect. Otherwise ask to confirm.
+        const { data: sess } = await supabase.auth.getSession();
+        if (sess.session && redirect) {
+          navigate({ to: redirect as never });
+          return;
+        }
         setMessage("Check your email to confirm your account, then sign in.");
         setMode("signin");
       } else {
@@ -48,7 +82,7 @@ function AuthPage() {
           setError("Sign-in did not return a session. Please try again.");
           return;
         }
-        navigate({ to: "/" });
+        navigate({ to: (redirect ?? "/") as never });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -66,6 +100,12 @@ function AuthPage() {
             {mode === "signin" ? "Sign in to your account" : "Create your account"}
           </p>
         </div>
+        {inviteToken ? (
+          <div className="mb-4 rounded-xl border border-teal/30 bg-teal/10 px-4 py-3 text-sm text-foreground">
+            Sign in or create an account to accept your
+            {inviteTeam ? <> invitation to <span className="font-semibold">{inviteTeam}</span></> : <> team invitation</>}.
+          </div>
+        ) : null}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm font-medium">
             Email
