@@ -7,6 +7,7 @@ import type { PropertyType } from "@/lib/property-types";
 import { cn } from "@/lib/utils";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { usePlan, usePropertyCount, PLAN_LIMITS } from "@/lib/use-plan";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/property/new")({
   head: () => ({ meta: [{ title: "Add property — Snapsure" }] }),
@@ -101,6 +102,19 @@ function NewProperty() {
         setSaving(false);
         return;
       }
+
+      // Ensure a valid auth session is attached to the insert request.
+      let { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        sessionData = { session: refreshed.session };
+      }
+      if (!sessionData.session) {
+        toast.error("Your session has expired. Please sign in again.");
+        navigate({ to: "/auth" });
+        return;
+      }
+
       const { data: property, error: propErr } = await supabase
         .from("properties")
         .insert({
@@ -115,7 +129,16 @@ function NewProperty() {
         })
         .select()
         .single();
-      if (propErr) throw propErr;
+      if (propErr) {
+        if ((propErr as { code?: string }).code === "42501") {
+          toast.error("Session error — please sign out and sign back in.");
+        } else {
+          toast.error(propErr.message);
+        }
+        setError(propErr.message);
+        setSaving(false);
+        return;
+      }
 
       const template = buildRoomTemplate(propertyType, bedrooms, bathrooms);
       const { error: roomErr } = await supabase.from("rooms").insert(
@@ -126,11 +149,22 @@ function NewProperty() {
           sort_order: r.sort_order,
         })),
       );
-      if (roomErr) throw roomErr;
+      if (roomErr) {
+        if ((roomErr as { code?: string }).code === "42501") {
+          toast.error("Session error — please sign out and sign back in.");
+        } else {
+          toast.error(roomErr.message);
+        }
+        setError(roomErr.message);
+        setSaving(false);
+        return;
+      }
 
       navigate({ to: "/property/$id", params: { id: property.id } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create property");
+      const msg = err instanceof Error ? err.message : "Failed to create property";
+      toast.error(msg);
+      setError(msg);
       setSaving(false);
     }
   }
