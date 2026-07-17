@@ -196,3 +196,66 @@ export const claimTeamInvites = createServerFn({ method: "POST" })
     if (error) throw error;
     return { claimed: data?.length ?? 0 };
   });
+
+// ---- Accept an invite via token (public flow after sign-in) ----
+export const acceptTeamInviteToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ token: z.string().trim().min(8).max(128) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { userId, claims } = context;
+    const userEmail = (claims.email as string | undefined)?.toLowerCase();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: tok, error: tokErr } = await supabaseAdmin
+      .from("team_invite_tokens")
+      .select("id, team_id, invited_email, role, expires_at, accepted_at")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (tokErr) throw tokErr;
+    if (!tok) throw new Error("Invite not found");
+    if (tok.accepted_at) throw new Error("Invite already accepted");
+    if (new Date(tok.expires_at).getTime() < Date.now()) throw new Error("Invite expired");
+    if (userEmail && userEmail !== tok.invited_email.toLowerCase()) {
+      throw new Error(`Sign in as ${tok.invited_email} to accept this invite`);
+    }
+
+    // Upsert membership row (match on team_id + invited_email)
+    const { data: existing } = await supabaseAdmin
+      .from("team_members")
+      .select("id")
+      .eq("team_id", tok.team_id)
+      .eq("invited_email", tok.invited_email)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabaseAdmin
+        .from("team_members")
+        .update({
+          user_id: userId,
+          role: tok.role,
+          status: "active",
+          joined_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabaseAdmin.from("team_members").insert({
+        team_id: tok.team_id,
+        user_id: userId,
+        invited_email: tok.invited_email,
+        role: tok.role,
+        status: "active",
+        joined_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    }
+
+    await supabaseAdmin
+      .from("team_invite_tokens")
+      .update({ accepted_at: new Date().toISOString() })
+      .eq("id", tok.id);
+
+    return { teamId: tok.team_id };
+  });

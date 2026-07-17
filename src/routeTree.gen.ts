@@ -18,6 +18,7 @@ import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenti
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
+import { Route as ApiPublicSignatureTokenTokenRouteImport } from './routes/api/public/signature-token.$token'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as AuthenticatedListingIdReviewRouteImport } from './routes/_authenticated/listing.$id.review'
 import { Route as AuthenticatedListingIdCaptureRouteImport } from './routes/_authenticated/listing.$id.capture'
@@ -77,6 +78,12 @@ const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
   path: '/property/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicSignatureTokenTokenRoute =
+  ApiPublicSignatureTokenTokenRouteImport.update({
+    id: '/api/public/signature-token/$token',
+    path: '/api/public/signature-token/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -164,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -185,6 +193,7 @@ export interface FileRoutesByTo {
   '/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -208,6 +217,7 @@ export interface FileRoutesById {
   '/_authenticated/listing/$id/capture': typeof AuthenticatedListingIdCaptureRoute
   '/_authenticated/listing/$id/review': typeof AuthenticatedListingIdReviewRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/signature-token/$token': typeof ApiPublicSignatureTokenTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/listing/$id/capture'
     | '/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/listing/$id/capture'
     | '/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   id:
     | '__root__'
     | '/_authenticated'
@@ -274,12 +286,14 @@ export interface FileRouteTypes {
     | '/_authenticated/listing/$id/capture'
     | '/_authenticated/listing/$id/review'
     | '/api/public/payments/webhook'
+    | '/api/public/signature-token/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicSignatureTokenTokenRoute: typeof ApiPublicSignatureTokenTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -346,6 +360,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/property/$id'
       preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/signature-token/$token': {
+      id: '/api/public/signature-token/$token'
+      path: '/api/public/signature-token/$token'
+      fullPath: '/api/public/signature-token/$token'
+      preLoaderRoute: typeof ApiPublicSignatureTokenTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
@@ -477,6 +498,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicSignatureTokenTokenRoute: ApiPublicSignatureTokenTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
