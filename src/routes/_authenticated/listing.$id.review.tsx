@@ -812,9 +812,29 @@ function ListingReview() {
             Photos ({photos?.length ?? 0})
           </p>
           {photos && photos.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {photos.map((p) => <SignedImg key={p.id} path={p.photo_url} />)}
-            </div>
+            <>
+              {plan !== "free" && stagingLimit !== Infinity ? (
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  {stagingUsed} of {stagingLimit} staging credits used this month
+                </p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {photos.map((p) => {
+                  const showCompare = !!p.staged_url && !acceptedStagedIds.has(p.id);
+                  return (
+                    <PhotoStagingTile
+                      key={p.id}
+                      photo={p}
+                      staging={stagingId === p.id}
+                      showCompare={showCompare}
+                      onStage={() => requestStage(p)}
+                      onUseStaged={() => setAcceptedStagedIds((s) => new Set(s).add(p.id))}
+                      onKeepOriginal={() => removeStagedPhoto(p)}
+                    />
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">No photos captured.</p>
           )}
@@ -1172,6 +1192,13 @@ function ListingReview() {
           onChoose={handleStyleChosen}
           bulk={styleModalFor === "bulk"}
           bulkCount={featuredPhotos.length}
+          usageText={
+            plan === "free"
+              ? undefined
+              : stagingLimit === Infinity
+                ? "Unlimited staging on your plan"
+                : `${stagingUsed} of ${stagingLimit} staging credits used this month`
+          }
         />
       ) : null}
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
