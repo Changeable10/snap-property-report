@@ -42,7 +42,8 @@ type Listing = {
 
 function DowngradePage() {
   const { user } = Route.useRouteContext();
-  const { plan: targetPlan } = Route.useSearch();
+  const search = Route.useSearch() as { plan: Plan };
+  const targetPlan: Plan = search.plan;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: currentPlan } = usePlan(user.id);
