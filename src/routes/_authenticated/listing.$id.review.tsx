@@ -545,6 +545,24 @@ function ListingReview() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [bulkStaging, setBulkStaging] = useState(false);
   const [bulkStageProgress, setBulkStageProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [acceptedStagedIds, setAcceptedStagedIds] = useState<Set<string>>(new Set());
+
+  async function removeStagedPhoto(p: PhotoRow) {
+    try {
+      if (p.staged_url) {
+        await supabase.storage.from("inspection-photos").remove([p.staged_url]);
+      }
+      const { error } = await supabase.from("listing_photos")
+        .update({ staged_url: null, staging_style: null })
+        .eq("id", p.id);
+      if (error) throw error;
+      setAcceptedStagedIds((s) => { const n = new Set(s); n.delete(p.id); return n; });
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success("Kept original photo");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to remove staged version");
+    }
+  }
 
   async function stagePhoto(p: PhotoRow, styleKey: string): Promise<boolean> {
     setStagingId(p.id);
@@ -794,9 +812,29 @@ function ListingReview() {
             Photos ({photos?.length ?? 0})
           </p>
           {photos && photos.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {photos.map((p) => <SignedImg key={p.id} path={p.photo_url} />)}
-            </div>
+            <>
+              {plan !== "free" && stagingLimit !== Infinity ? (
+                <p className="mb-2 text-[11px] text-muted-foreground">
+                  {stagingUsed} of {stagingLimit} staging credits used this month
+                </p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {photos.map((p) => {
+                  const showCompare = !!p.staged_url && !acceptedStagedIds.has(p.id);
+                  return (
+                    <PhotoStagingTile
+                      key={p.id}
+                      photo={p}
+                      staging={stagingId === p.id}
+                      showCompare={showCompare}
+                      onStage={() => requestStage(p)}
+                      onUseStaged={() => setAcceptedStagedIds((s) => new Set(s).add(p.id))}
+                      onKeepOriginal={() => removeStagedPhoto(p)}
+                    />
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">No photos captured.</p>
           )}
@@ -1154,6 +1192,13 @@ function ListingReview() {
           onChoose={handleStyleChosen}
           bulk={styleModalFor === "bulk"}
           bulkCount={featuredPhotos.length}
+          usageText={
+            plan === "free"
+              ? undefined
+              : stagingLimit === Infinity
+                ? "Unlimited staging on your plan"
+                : `${stagingUsed} of ${stagingLimit} staging credits used this month`
+          }
         />
       ) : null}
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
@@ -1166,11 +1211,13 @@ function StyleModal({
   onChoose,
   bulk,
   bulkCount,
+  usageText,
 }: {
   onClose: () => void;
   onChoose: (styleKey: string) => void;
   bulk: boolean;
   bulkCount: number;
+  usageText?: string;
 }) {
   return (
     <div
@@ -1209,6 +1256,9 @@ function StyleModal({
             </button>
           ))}
         </div>
+        {usageText ? (
+          <p className="mt-3 text-center text-[11px] text-muted-foreground">{usageText}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -1440,6 +1490,110 @@ function ScoredCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PhotoStagingTile({
+  photo,
+  staging,
+  showCompare,
+  onStage,
+  onUseStaged,
+  onKeepOriginal,
+}: {
+  photo: PhotoRow;
+  staging: boolean;
+  showCompare: boolean;
+  onStage: () => void;
+  onUseStaged: () => void;
+  onKeepOriginal: () => void;
+}) {
+  const [origUrl, setOrigUrl] = useState<string | undefined>();
+  const [stagedUrl, setStagedUrl] = useState<string | undefined>();
+  useEffect(() => {
+    let cancel = false;
+    supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
+      if (!cancel) setOrigUrl(data?.signedUrl);
+    });
+    return () => { cancel = true; };
+  }, [photo.photo_url]);
+  useEffect(() => {
+    let cancel = false;
+    if (photo.staged_url) {
+      supabase.storage.from("inspection-photos").createSignedUrl(photo.staged_url, 3600).then(({ data }) => {
+        if (!cancel) setStagedUrl(data?.signedUrl);
+      });
+    } else {
+      setStagedUrl(undefined);
+    }
+    return () => { cancel = true; };
+  }, [photo.staged_url]);
+
+  const hasStaged = !!photo.staged_url;
+
+  if (hasStaged && showCompare) {
+    return (
+      <div className="col-span-2 overflow-hidden rounded-lg border border-border bg-background sm:col-span-3">
+        <div className="grid grid-cols-2">
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
+            <span className="absolute left-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+              Original
+            </span>
+          </div>
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
+            <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+              Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 p-2">
+          <button
+            type="button"
+            onClick={onUseStaged}
+            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md bg-teal px-2 text-xs font-semibold text-teal-foreground"
+          >
+            <Check className="size-3.5" /> Use staged
+          </button>
+          <button
+            type="button"
+            onClick={onKeepOriginal}
+            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 text-xs font-semibold text-foreground"
+          >
+            <RotateCcw className="size-3.5" /> Keep original
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const displaySrc = hasStaged ? stagedUrl : origUrl;
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+      {displaySrc ? <img src={displaySrc} alt="" className="size-full object-cover" /> : null}
+      {hasStaged ? (
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+          Staged
+        </span>
+      ) : null}
+      {staging ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
+          <Loader2 className="size-5 animate-spin" />
+          <p className="text-[11px] font-medium">Staging…</p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onStage}
+          title="Virtual staging"
+          aria-label="Virtual staging"
+          className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/85 text-teal shadow-md backdrop-blur-sm transition hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-teal"
+        >
+          <Wand2 className="size-4" />
+        </button>
+      )}
     </div>
   );
 }
