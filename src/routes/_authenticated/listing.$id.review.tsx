@@ -595,8 +595,9 @@ function ListingReview() {
         .update({ staged_url: stagedPath, staging_style: styleKey })
         .eq("id", p.id);
       if (dbErr) throw dbErr;
+      const { data: { user: _authUser } } = await supabase.auth.getUser();
       await supabase.from("staging_usage").insert({
-        user_id: listing!.user_id,
+        user_id: _authUser?.id ?? listing!.user_id,
         listing_photo_id: p.id,
         style: styleKey,
       });
