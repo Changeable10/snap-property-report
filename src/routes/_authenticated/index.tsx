@@ -161,6 +161,18 @@ function Index() {
     },
   });
 
+  const { data: listings } = useQuery({
+    queryKey: ["all-listings-feed"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("id,property_id,listing_type,target_portal,status,created_at,title")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ListingFeedRow[];
+    },
+  });
+
   const now = new Date();
 
   const hasOnboardedFlag =
