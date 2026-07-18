@@ -3,10 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Video, Loader2,
-  Lightbulb, X, AlertTriangle, RefreshCw,
+  Lightbulb, X, AlertTriangle, RefreshCw, Wand2, Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePlan } from "@/lib/use-plan";
+import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -14,7 +17,15 @@ export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
 });
 
 interface Room { id: string; name: string; sort_order: number }
-interface ListingPhoto { id: string; room_id: string | null; photo_url: string; source: "photo" | "video_frame"; captured_at: string }
+interface ListingPhoto {
+  id: string;
+  room_id: string | null;
+  photo_url: string;
+  source: "photo" | "video_frame";
+  captured_at: string;
+  staged_url: string | null;
+  staging_style: string | null;
+}
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
 
 type ShotRating = "good" | "consider_retaking" | "retake_recommended";
@@ -84,7 +95,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -147,6 +158,86 @@ function ListingCapture() {
     for (const r of listingRooms ?? []) if (r.transcript || r.notes) set.add(r.room_id);
     return set;
   }, [photos, listingRooms]);
+
+  // ---- Virtual staging ----
+  const { data: plan = "free" } = usePlan(listing?.user_id);
+  const { data: stagingUsed = 0, refetch: refetchStagingUsage } = useStagingThisMonth(listing?.user_id);
+  const stagingLimit = STAGING_MONTHLY_LIMIT[plan];
+  const stagingRemaining = stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
+  const outOfCredits = plan !== "free" && stagingRemaining < 1;
+  const [stagingId, setStagingId] = useState<string | null>(null);
+  const [styleModalFor, setStyleModalFor] = useState<ListingPhoto | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  function requestStage(p: ListingPhoto) {
+    if (plan === "free" || stagingRemaining < 1) {
+      setShowUpgrade(true);
+      return;
+    }
+    setStyleModalFor(p);
+  }
+
+  async function stagePhoto(p: ListingPhoto, styleKey: string) {
+    setStagingId(p.id);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos").createSignedUrl(p.photo_url, 3600);
+      const url = signed?.signedUrl;
+      if (!url) throw new Error("Signed URL failed");
+      const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
+        body: { image_url: url, style: styleKey },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const stagedRemote = (data as any).staged_url as string;
+      const resp = await fetch(stagedRemote);
+      if (!resp.ok) throw new Error("Failed to fetch staged image");
+      const blob = await resp.blob();
+      const rawName = p.photo_url.split("/").pop() ?? `${p.id}.jpg`;
+      const baseName = rawName.replace(/\.[^.]+$/, "");
+      const stagedPath = `listing-${id}/staged-${baseName}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("listing_photos")
+        .update({ staged_url: stagedPath, staging_style: styleKey })
+        .eq("id", p.id);
+      if (dbErr) throw dbErr;
+      await supabase.from("staging_usage").insert({
+        user_id: listing!.user_id,
+        listing_photo_id: p.id,
+        style: styleKey,
+      });
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      await refetchStagingUsage();
+      toast.success("Staged version ready");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Staging failed");
+    } finally {
+      setStagingId(null);
+    }
+  }
+
+  async function handleStyleChosen(styleKey: string) {
+    const target = styleModalFor;
+    setStyleModalFor(null);
+    if (!target) return;
+    if (stagingRemaining < 1) { setShowUpgrade(true); return; }
+    await stagePhoto(target, styleKey);
+  }
+
+  async function keepOriginal(p: ListingPhoto) {
+    if (!p.staged_url) return;
+    try {
+      await supabase.storage.from("inspection-photos").remove([p.staged_url]);
+    } catch { /* ignore */ }
+    const { error } = await supabase.from("listing_photos")
+      .update({ staged_url: null, staging_style: null })
+      .eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -560,8 +651,25 @@ function ListingCapture() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Photos ({roomPhotos.length})
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+            {plan !== "free" ? (
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                {stagingLimit === Infinity
+                  ? "Unlimited virtual staging on your plan."
+                  : `${stagingUsed} of ${stagingLimit} staging credits used this month.`}
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              {roomPhotos.map((p) => (
+                <StagedPhotoCard
+                  key={p.id}
+                  photo={p}
+                  staging={stagingId === p.id}
+                  outOfCredits={outOfCredits}
+                  freePlan={plan === "free"}
+                  onStage={() => requestStage(p)}
+                  onKeepOriginal={() => keepOriginal(p)}
+                />
+              ))}
             </div>
             {checking ? (
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
@@ -655,15 +763,148 @@ function ListingCapture() {
           )}
         </div>
       </nav>
+
+      {styleModalFor ? (
+        <StyleModal onClose={() => setStyleModalFor(null)} onChoose={handleStyleChosen} />
+      ) : null}
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }
 
-function PhotoThumb({ path }: { path: string }) {
-  const url = useSignedUrl(path);
+function StagedPhotoCard({
+  photo,
+  staging,
+  outOfCredits,
+  freePlan,
+  onStage,
+  onKeepOriginal,
+}: {
+  photo: ListingPhoto;
+  staging: boolean;
+  outOfCredits: boolean;
+  freePlan: boolean;
+  onStage: () => void;
+  onKeepOriginal: () => void;
+}) {
+  const origUrl = useSignedUrl(photo.photo_url);
+  const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
+  const hasStaged = !!photo.staged_url;
+  const [view, setView] = useState<"before" | "after">("after");
+  useEffect(() => { setView(hasStaged ? "after" : "before"); }, [hasStaged]);
+  const disabled = staging || (!hasStaged && (freePlan || outOfCredits));
+  const label = freePlan
+    ? "Upgrade for staging"
+    : outOfCredits && !hasStaged
+      ? "Upgrade for more credits"
+      : hasStaged ? "Try another style" : "Virtual staging";
+
   return (
-    <div className="aspect-square overflow-hidden rounded-lg bg-muted">
-      {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+    <div className="overflow-hidden rounded-lg border border-border bg-background">
+      {hasStaged ? (
+        <div className="grid grid-cols-2 gap-px bg-border">
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
+            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">Before</span>
+          </div>
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
+            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
+              After{photo.staging_style ? ` · ${photo.staging_style}` : ""}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="relative aspect-square w-full overflow-hidden bg-muted">
+          {origUrl ? <img src={origUrl} alt="" className="size-full object-cover" /> : null}
+          {staging ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
+              <Loader2 className="size-5 animate-spin" />
+              <p className="text-[11px] font-medium">Staging your room…</p>
+            </div>
+          ) : null}
+        </div>
+      )}
+      <div className="space-y-1.5 p-2">
+        {hasStaged ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setView(view === "before" ? "after" : "before")}
+              className="flex min-h-8 items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
+              aria-label="Toggle preview"
+            >
+              {view === "before" ? "Preview staged" : "Preview original"}
+            </button>
+            <button
+              type="button"
+              onClick={onKeepOriginal}
+              className="flex min-h-8 items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
+            >
+              Keep original
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onStage}
+          disabled={disabled}
+          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {staging ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+          {staging ? "Staging…" : label}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StyleModal({
+  onClose,
+  onChoose,
+}: {
+  onClose: () => void;
+  onChoose: (styleKey: string) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="relative w-full max-w-md rounded-t-3xl bg-background p-6 shadow-xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
+        >
+          <X className="size-5" />
+        </button>
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-5 text-teal" />
+          <h3 className="pr-10 text-lg font-semibold text-foreground">Choose a style</h3>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The AI will re-stage this room in your chosen style.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {STAGING_STYLES.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => onChoose(s.key)}
+              className="flex min-h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-teal hover:bg-teal-light"
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
