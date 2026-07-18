@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, Pencil, Wrench } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, RefreshCw, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
 import type { Condition } from "@/lib/parse-transcript";
@@ -18,17 +18,19 @@ interface ItemRow {
   condition: Condition; description: string | null;
   maintenance_required: boolean; maintenance_notes: string | null;
 }
+type ChangeSeverity = "none" | "minor" | "moderate" | "significant";
 interface AcceptedChange {
   id: string; room_id: string; item_name: string; description: string | null;
-  severity: "minor" | "moderate" | "significant";
+  severity: ChangeSeverity;
 }
-const SEV_BADGE: Record<AcceptedChange["severity"], string> = {
+const SEV_BADGE: Record<ChangeSeverity, string> = {
+  none: "bg-green-600 text-white",
   minor: "bg-amber-500 text-white",
   moderate: "bg-orange-500 text-white",
   significant: "bg-red-600 text-white",
 };
-const SEV_LABEL: Record<AcceptedChange["severity"], string> = {
-  minor: "Minor", moderate: "Moderate", significant: "Significant",
+const SEV_LABEL: Record<ChangeSeverity, string> = {
+  none: "None", minor: "Minor", moderate: "Moderate", significant: "Significant",
 };
 
 const CONDITIONS: Condition[] = ["good", "fair", "poor", "damaged"];
