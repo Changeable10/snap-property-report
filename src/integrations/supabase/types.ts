@@ -534,6 +534,7 @@ export type Database = {
       }
       listing_rooms: {
         Row: {
+          ai_description: string | null
           created_at: string
           id: string
           listing_id: string
@@ -545,6 +546,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_description?: string | null
           created_at?: string
           id?: string
           listing_id: string
@@ -556,6 +558,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_description?: string | null
           created_at?: string
           id?: string
           listing_id?: string

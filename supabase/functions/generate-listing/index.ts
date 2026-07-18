@@ -20,7 +20,7 @@ const PORTAL_GUIDANCE: Record<string, string> = {
 
 function buildPrompt(ctx: any) {
   const rooms = (ctx.rooms ?? [])
-    .map((r: any) => `- ${r.name}: ${[r.transcript, r.notes].filter(Boolean).join(" | ") || "(no notes)"}`)
+    .map((r: any) => `- [id:${r.id ?? "?"}] ${r.name}: ${[r.transcript, r.notes].filter(Boolean).join(" | ") || "(no notes)"}`)
     .join("\n");
   return `You are writing a New Zealand property listing.
 
@@ -49,8 +49,10 @@ Return STRICT JSON with this shape:
   "title": string (max 80 characters, catchy),
   "description": string (150-250 words, formatted for the target portal),
   "features": string[] (5-10 short bullet points),
-  "price_line": string (e.g. "Asking $X" for sale, "Rent $X per week" for rent, or "" if no asking price)
-}`;
+  "price_line": string (e.g. "Asking $X" for sale, "Rent $X per week" for rent, or "" if no asking price),
+  "room_descriptions": [ { "room_id": string (echo the id shown in brackets above), "description": string (40-90 words, marketing-oriented, portal-appropriate, grounded in the room's notes) } ]
+}
+Include one entry in room_descriptions for every room listed above, preserving the exact room_id.`;
 }
 
 Deno.serve(async (req) => {
@@ -110,7 +112,23 @@ Deno.serve(async (req) => {
     const description = String(parsed.description ?? "");
     const features = Array.isArray(parsed.features) ? parsed.features.map((f: any) => String(f)) : [];
     const price_line = String(parsed.price_line ?? "");
-    return new Response(JSON.stringify({ title, description, features, price_line }), {
+    const roomDescriptions = Array.isArray(parsed.room_descriptions)
+      ? parsed.room_descriptions
+          .map((r: any) => ({
+            roomId: String(r?.room_id ?? r?.roomId ?? ""),
+            description: String(r?.description ?? ""),
+          }))
+          .filter((r: any) => r.roomId && r.description)
+      : [];
+    return new Response(JSON.stringify({
+      title,
+      description,
+      features,
+      price_line,
+      // New contract
+      propertyDescription: description,
+      roomDescriptions,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

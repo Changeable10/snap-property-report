@@ -58,7 +58,7 @@ interface PropertyRow {
 }
 
 interface RoomRow { id: string; name: string; sort_order: number }
-interface ListingRoomRow { room_id: string; transcript: string | null; notes: string | null }
+interface ListingRoomRow { room_id: string; transcript: string | null; notes: string | null; ai_description: string | null }
 interface PhotoRow {
   id: string;
   photo_url: string;
@@ -96,6 +96,24 @@ async function copyText(text: string, label: string) {
   } catch {
     toast.error("Copy failed");
   }
+}
+
+async function readFunctionError(error: any): Promise<string> {
+  try {
+    const res = error?.context;
+    if (res && typeof res.text === "function") {
+      const txt = await res.text();
+      if (txt) {
+        try {
+          const j = JSON.parse(txt);
+          if (j?.error === "upgrade_required") return "Upgrade required to generate listings.";
+          if (j?.error === "monthly_limit_reached") return `Monthly limit reached (${j.limit}). Upgrade for more.`;
+          return typeof j?.error === "string" ? j.error : txt;
+        } catch { return txt; }
+      }
+    }
+  } catch { /* ignore */ }
+  return error?.message ?? "Request failed";
 }
 
 function ListingReview() {
@@ -143,7 +161,7 @@ function ListingReview() {
     queryKey: ["listing-rooms", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_rooms")
-        .select("room_id,transcript,notes").eq("listing_id", id);
+        .select("room_id,transcript,notes,ai_description").eq("listing_id", id);
       if (error) throw error;
       return (data ?? []) as ListingRoomRow[];
     },
@@ -169,6 +187,7 @@ function ListingReview() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [roomDescriptions, setRoomDescriptions] = useState<Record<string, string>>({});
 
   // Best-shot scoring state
   const [scoring, setScoring] = useState(false);
@@ -187,6 +206,17 @@ function ListingReview() {
     setFeatures(listing.features ?? "");
     setHasGenerated(!!listing.ai_generated_at);
   }, [listing?.id]);
+
+  useEffect(() => {
+    if (!listingRooms) return;
+    setRoomDescriptions((prev) => {
+      const next: Record<string, string> = { ...prev };
+      for (const r of listingRooms) {
+        if (next[r.room_id] === undefined) next[r.room_id] = r.ai_description ?? "";
+      }
+      return next;
+    });
+  }, [listingRooms]);
 
   const roomNotes = useMemo(() => {
     const map = new Map((listingRooms ?? []).map((r) => [r.room_id, r]));
@@ -213,18 +243,36 @@ function ListingReview() {
         bathrooms: listing.bathrooms ?? property.bathrooms,
         asking_price: listing.asking_price,
         key_features: listing.key_features,
-        rooms: roomNotes
-          .filter((r) => r.transcript || r.notes)
-          .map((r) => ({ name: r.name, transcript: r.transcript, notes: r.notes })),
+        rooms: roomNotes.map((r) => ({
+          id: r.id,
+          name: r.name,
+          transcript: r.transcript,
+          notes: r.notes,
+        })),
       };
       const { data, error } = await supabase.functions.invoke("generate-listing", { body: payload });
-      if (error) throw error;
+      if (error) throw new Error(await readFunctionError(error));
       if ((data as any)?.error) throw new Error((data as any).error);
-      const out = data as { title: string; description: string; features: string[]; price_line: string };
+      const out = data as {
+        title: string;
+        description: string;
+        features: string[];
+        price_line: string;
+        roomDescriptions?: { roomId: string; description: string }[];
+      };
       setTitle(out.title || "");
       setDescription(out.description || "");
       setFeatures((out.features ?? []).map((f) => `• ${f}`).join("\n"));
       setPriceLine(out.price_line || "");
+      if (Array.isArray(out.roomDescriptions) && out.roomDescriptions.length > 0) {
+        setRoomDescriptions((prev) => {
+          const next = { ...prev };
+          for (const rd of out.roomDescriptions!) {
+            if (rd.roomId) next[rd.roomId] = rd.description ?? "";
+          }
+          return next;
+        });
+      }
       setHasGenerated(true);
       toast.success("Listing generated");
     } catch (e: any) {
@@ -246,7 +294,18 @@ function ListingReview() {
         ai_generated_at: hasGenerated ? new Date().toISOString() : listing.ai_generated_at,
       }).eq("id", id);
       if (error) throw error;
+      // Persist per-room AI descriptions (only where we have a value)
+      const roomUpdates = Object.entries(roomDescriptions).filter(([, v]) => (v ?? "").trim() !== "");
+      for (const [roomId, desc] of roomUpdates) {
+        const { error: upErr } = await supabase
+          .from("listing_rooms")
+          .update({ ai_description: desc })
+          .eq("listing_id", id)
+          .eq("room_id", roomId);
+        if (upErr) console.warn("room description save failed", roomId, upErr);
+      }
       qc.invalidateQueries({ queryKey: ["listing", id] });
+      qc.invalidateQueries({ queryKey: ["listing-rooms", id] });
       toast.success("Listing saved");
       navigate({ to: "/property/$id", params: { id: listing.property_id } });
     } catch (e: any) {
@@ -849,6 +908,40 @@ function ListingReview() {
               {priceLine ? (
                 <div className="rounded-lg bg-teal-light px-3 py-2 text-sm font-medium text-teal">
                   {priceLine}
+                </div>
+              ) : null}
+
+              {roomNotes.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Room descriptions
+                  </p>
+                  <div className="space-y-3">
+                    {roomNotes.map((r) => (
+                      <label key={r.id} className="block space-y-1">
+                        <span className="text-xs font-medium text-foreground">{r.name}</span>
+                        <div className="flex items-start gap-2">
+                          <textarea
+                            rows={3}
+                            value={roomDescriptions[r.id] ?? ""}
+                            onChange={(e) =>
+                              setRoomDescriptions((prev) => ({ ...prev, [r.id]: e.target.value }))
+                            }
+                            placeholder="AI-generated description will appear here after you tap Generate."
+                            className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => copyText(roomDescriptions[r.id] ?? "", `${r.name} description`)}
+                            className="self-start rounded-lg border border-border p-2 text-muted-foreground"
+                            aria-label={`Copy ${r.name} description`}
+                          >
+                            <Copy className="size-4" />
+                          </button>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
