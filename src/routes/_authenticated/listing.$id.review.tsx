@@ -911,6 +911,40 @@ function ListingReview() {
                 </div>
               ) : null}
 
+              {roomNotes.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Room descriptions
+                  </p>
+                  <div className="space-y-3">
+                    {roomNotes.map((r) => (
+                      <label key={r.id} className="block space-y-1">
+                        <span className="text-xs font-medium text-foreground">{r.name}</span>
+                        <div className="flex items-start gap-2">
+                          <textarea
+                            rows={3}
+                            value={roomDescriptions[r.id] ?? ""}
+                            onChange={(e) =>
+                              setRoomDescriptions((prev) => ({ ...prev, [r.id]: e.target.value }))
+                            }
+                            placeholder="AI-generated description will appear here after you tap Generate."
+                            className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => copyText(roomDescriptions[r.id] ?? "", `${r.name} description`)}
+                            className="self-start rounded-lg border border-border p-2 text-muted-foreground"
+                            aria-label={`Copy ${r.name} description`}
+                          >
+                            <Copy className="size-4" />
+                          </button>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <button
                 type="button"
                 onClick={save}
