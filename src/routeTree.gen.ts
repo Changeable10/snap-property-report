@@ -18,6 +18,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
 import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
+import { Route as AuthenticatedDowngradeRouteImport } from './routes/_authenticated/downgrade'
 import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
@@ -81,6 +82,11 @@ const AuthenticatedInspectionsRoute =
     path: '/inspections',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDowngradeRoute = AuthenticatedDowngradeRouteImport.update({
+  id: '/downgrade',
+  path: '/downgrade',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const SignInspectionIdTokenRoute = SignInspectionIdTokenRouteImport.update({
   id: '/sign/$inspectionId/$token',
   path: '/sign/$inspectionId/$token',
@@ -179,6 +185,7 @@ const AuthenticatedInspectionIdCaptureRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/downgrade': typeof AuthenticatedDowngradeRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
   '/listings': typeof AuthenticatedListingsRoute
   '/maintenance': typeof AuthenticatedMaintenanceRoute
@@ -204,6 +211,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/downgrade': typeof AuthenticatedDowngradeRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
   '/listings': typeof AuthenticatedListingsRoute
   '/maintenance': typeof AuthenticatedMaintenanceRoute
@@ -232,6 +240,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/downgrade': typeof AuthenticatedDowngradeRoute
   '/_authenticated/inspections': typeof AuthenticatedInspectionsRoute
   '/_authenticated/listings': typeof AuthenticatedListingsRoute
   '/_authenticated/maintenance': typeof AuthenticatedMaintenanceRoute
@@ -261,6 +270,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/downgrade'
     | '/inspections'
     | '/listings'
     | '/maintenance'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/downgrade'
     | '/inspections'
     | '/listings'
     | '/maintenance'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/downgrade'
     | '/_authenticated/inspections'
     | '/_authenticated/listings'
     | '/_authenticated/maintenance'
@@ -411,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/inspections'
       fullPath: '/inspections'
       preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/downgrade': {
+      id: '/_authenticated/downgrade'
+      path: '/downgrade'
+      fullPath: '/downgrade'
+      preLoaderRoute: typeof AuthenticatedDowngradeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/sign/$inspectionId/$token': {
@@ -529,6 +548,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDowngradeRoute: typeof AuthenticatedDowngradeRoute
   AuthenticatedInspectionsRoute: typeof AuthenticatedInspectionsRoute
   AuthenticatedListingsRoute: typeof AuthenticatedListingsRoute
   AuthenticatedMaintenanceRoute: typeof AuthenticatedMaintenanceRoute
@@ -550,6 +570,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDowngradeRoute: AuthenticatedDowngradeRoute,
   AuthenticatedInspectionsRoute: AuthenticatedInspectionsRoute,
   AuthenticatedListingsRoute: AuthenticatedListingsRoute,
   AuthenticatedMaintenanceRoute: AuthenticatedMaintenanceRoute,

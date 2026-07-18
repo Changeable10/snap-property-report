@@ -71,6 +71,29 @@ function SettingsPage() {
           </a>
         ) : null}
       </div>
+      {current !== "free" ? (
+        <div className="mb-4 rounded-xl border border-input bg-card p-4">
+          <p className="text-sm font-semibold text-foreground">Switch to a lower plan</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            If your current data exceeds the target plan's limits, you'll be asked to
+            archive properties or listings before the switch completes.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(["free", "professional", "portfolio"] as const)
+              .filter((p) => p !== current)
+              .map((p) => (
+                <Link
+                  key={p}
+                  to="/downgrade"
+                  search={{ plan: p }}
+                  className="rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-accent"
+                >
+                  Switch to {PLAN_LABEL[p]}
+                </Link>
+              ))}
+          </div>
+        </div>
+      ) : null}
       {isAdmin ? (
         <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4">
           <p className="text-sm font-semibold text-slate-900">Debug: properties</p>

@@ -147,6 +147,7 @@ function Index() {
       const { data, error } = await supabase
         .from("properties")
         .select("id,address,suburb,postcode,property_type,bedrooms,bathrooms,created_at")
+        .is("archived_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as PropertyRow[];
@@ -193,6 +194,7 @@ function Index() {
       const { data, error } = await supabase
         .from("listings")
         .select("id,property_id,listing_type,target_portal,status,created_at,title")
+        .is("archived_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as ListingFeedRow[];

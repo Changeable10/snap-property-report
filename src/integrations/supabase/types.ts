@@ -596,6 +596,8 @@ export type Database = {
       listings: {
         Row: {
           ai_generated_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
           asking_price: string | null
           bathrooms: number | null
           bedrooms: number | null
@@ -615,6 +617,8 @@ export type Database = {
         }
         Insert: {
           ai_generated_at?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
           asking_price?: string | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -634,6 +638,8 @@ export type Database = {
         }
         Update: {
           ai_generated_at?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
           asking_price?: string | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -671,6 +677,8 @@ export type Database = {
       properties: {
         Row: {
           address: string
+          archive_reason: string | null
+          archived_at: string | null
           bathrooms: number
           bedrooms: number
           city: string
@@ -685,6 +693,8 @@ export type Database = {
         }
         Insert: {
           address: string
+          archive_reason?: string | null
+          archived_at?: string | null
           bathrooms: number
           bedrooms: number
           city?: string
@@ -699,6 +709,8 @@ export type Database = {
         }
         Update: {
           address?: string
+          archive_reason?: string | null
+          archived_at?: string | null
           bathrooms?: number
           bedrooms?: number
           city?: string

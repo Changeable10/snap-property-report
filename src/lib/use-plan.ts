@@ -113,7 +113,8 @@ export function usePropertyCount(userId: string | undefined) {
       const { count } = await supabase
         .from("properties")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", userId!);
+        .eq("user_id", userId!)
+        .is("archived_at", null);
       return count ?? 0;
     },
   });

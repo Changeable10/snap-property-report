@@ -20,7 +20,8 @@ export function useListingsThisMonth(userId: string | undefined) {
         .from("listings")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId!)
-        .gte("created_at", since.toISOString());
+        .gte("created_at", since.toISOString())
+        .is("archived_at", null);
       return count ?? 0;
     },
   });
