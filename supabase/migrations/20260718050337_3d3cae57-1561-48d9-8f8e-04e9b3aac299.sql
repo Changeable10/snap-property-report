@@ -1,0 +1,1 @@
+ALTER TABLE public.listing_rooms ADD COLUMN IF NOT EXISTS ai_description text;
