@@ -157,6 +157,16 @@ function ReviewPage() {
   }, [items]);
 
   const [openRoom, setOpenRoom] = useState<string | null>(null);
+  const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
+
+  const toggleChanges = (roomId: string) => {
+    setOpenChanges((prev) => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background pb-32">
