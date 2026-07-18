@@ -1106,6 +1106,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_listing_photo_for_update: {
+        Args: {
+          _listing_id: string
+          _photo_team_id: string
+          _photo_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       claim_team_invites: { Args: never; Returns: number }
       get_user_team_id: { Args: { _user_id: string }; Returns: string }
       has_active_subscription: {
