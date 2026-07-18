@@ -17,7 +17,7 @@ const VALID: Plan[] = ["free", "professional", "portfolio", "agency"];
 
 export const Route = createFileRoute("/_authenticated/downgrade")({
   head: () => ({ meta: [{ title: "Change plan — Snapsure" }] }),
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): { plan: Plan } => {
     const raw = String(search.plan ?? "");
     const plan = (VALID as string[]).includes(raw) ? (raw as Plan) : ("free" as Plan);
     return { plan };
