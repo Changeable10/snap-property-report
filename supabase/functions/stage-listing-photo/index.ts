@@ -7,9 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Map UI style keys → Decor8 design_style values
+// Map UI style keys → Decor8 design_style values.
+// Valid Decor8 styles include: minimalist, scandinavian, industrial, boho, traditional,
+// artdeco, midcenturymodern, coastal, tropical, eclectic, contemporary, frenchcountry,
+// rustic, modern, farmhouse, japandi, warmminimalist, organicmodern, ... (see api-docs.decor8.ai).
 const STYLE_MAP: Record<string, string> = {
-  modern: "modernminimalist",
+  modern: "modern",
   scandinavian: "scandinavian",
   minimalist: "minimalist",
   industrial: "industrial",
@@ -106,15 +109,17 @@ Deno.serve(async (req) => {
       return json({ error: `Staging provider error (${resp.status}): ${text.slice(0, 400)}` }, status);
     }
     const data: any = await resp.json();
+    console.log("[stage-listing-photo] Decor8 raw response:", JSON.stringify(data).slice(0, 2000));
     const images: any[] =
       data?.info?.images ?? data?.images ?? data?.output?.images ?? [];
     const stagedUrl: string | undefined =
       images[0]?.url ?? images[0]?.image_url ?? data?.image_url;
     if (!stagedUrl) {
       console.error("[stage-listing-photo] staging response missing URL", data);
-      return json({ error: "Staging response missing image URL" }, 502);
+      const providerMsg = data?.error || data?.message || "Staging response missing image URL";
+      return json({ error: `Staging provider: ${providerMsg}` }, 502);
     }
-    console.log("[stage-listing-photo] success", { ms: Date.now() - t0 });
+    console.log("[stage-listing-photo] success", { ms: Date.now() - t0, stagedUrl });
     return json({ staged_url: stagedUrl, style: designStyle });
   } catch (err: any) {
     const msg = err?.name === "AbortError" ? "timeout" : (err?.message ?? "unknown error");
