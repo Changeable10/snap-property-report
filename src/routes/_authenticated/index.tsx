@@ -248,7 +248,23 @@ function Index() {
     actionsByProperty.set(ins.property_id, list);
   });
 
-  const recentInspections = (inspections ?? []).slice(0, 5);
+  type FeedEntry =
+    | { kind: "inspection"; date: string; ins: InspectionRow }
+    | { kind: "listing"; date: string; listing: ListingFeedRow };
+  const feed: FeedEntry[] = [
+    ...(inspections ?? []).map((ins) => ({
+      kind: "inspection" as const,
+      date: ins.inspection_date,
+      ins,
+    })),
+    ...(listings ?? []).map((listing) => ({
+      kind: "listing" as const,
+      date: listing.created_at,
+      listing,
+    })),
+  ]
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, 8);
 
   return (
     <div>
