@@ -21,11 +21,21 @@ const STYLE_MAP: Record<string, string> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const t0 = Date.now();
+  console.log("[stage-listing-photo] request start", { method: req.method });
   const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-  const gate = await requirePlan(auth.userId, ["professional", "portfolio", "agency"], corsHeaders);
-  if (gate) return gate;
+  if (auth instanceof Response) {
+    console.warn("[stage-listing-photo] unauthorized");
+    return auth;
+  }
+  console.log("[stage-listing-photo] user", auth.userId);
   const plan = await getUserPlan(auth.userId);
+  console.log("[stage-listing-photo] plan", plan);
+  const gate = await requirePlan(auth.userId, ["professional", "portfolio", "agency"], corsHeaders);
+  if (gate) {
+    console.warn("[stage-listing-photo] plan gate blocked", { plan });
+    return gate;
+  }
   const stagingLimits: Record<string, number> = {
     free: 0,
     professional: 10,
@@ -33,7 +43,10 @@ Deno.serve(async (req) => {
     agency: Infinity,
   };
   const overLimit = await requireMonthlyLimit(auth.userId, "staging_usage", stagingLimits[plan] ?? 0, corsHeaders);
-  if (overLimit) return overLimit;
+  if (overLimit) {
+    console.warn("[stage-listing-photo] monthly limit reached", { plan });
+    return overLimit;
+  }
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
@@ -43,10 +56,23 @@ Deno.serve(async (req) => {
   try {
     const apiKey = Deno.env.get("DECOR8_API_KEY");
     if (!apiKey) {
+      console.error("[stage-listing-photo] DECOR8_API_KEY missing");
       return json({ error: "Virtual staging API key not configured" }, 503);
     }
 
-    const { image_url, style, room_type } = await req.json();
+    let payload: { image_url?: string; style?: string; room_type?: string };
+    try {
+      payload = await req.json();
+    } catch (e) {
+      console.error("[stage-listing-photo] invalid JSON body", e);
+      return json({ error: "Invalid JSON body" }, 400);
+    }
+    const { image_url, style, room_type } = payload;
+    console.log("[stage-listing-photo] payload", {
+      hasImageUrl: !!image_url,
+      style,
+      room_type,
+    });
     if (!image_url || !style) {
       return json({ error: "image_url and style are required" }, 400);
     }
@@ -56,6 +82,7 @@ Deno.serve(async (req) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
 
+    console.log("[stage-listing-photo] calling Decor8", { designStyle, rt });
     const resp = await fetch("https://api.decor8.ai/generate_designs_for_room", {
       method: "POST",
       signal: controller.signal,
@@ -74,7 +101,9 @@ Deno.serve(async (req) => {
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      return json({ error: `Decor8 ${resp.status}: ${text.slice(0, 400)}` }, 502);
+      console.error("[stage-listing-photo] Decor8 non-2xx", { status: resp.status, text: text.slice(0, 400) });
+      const status = resp.status === 429 ? 429 : 502;
+      return json({ error: `Staging provider error (${resp.status}): ${text.slice(0, 400)}` }, status);
     }
     const data: any = await resp.json();
     const images: any[] =
@@ -82,11 +111,15 @@ Deno.serve(async (req) => {
     const stagedUrl: string | undefined =
       images[0]?.url ?? images[0]?.image_url ?? data?.image_url;
     if (!stagedUrl) {
-      return json({ error: "Staging response missing image URL", raw: data }, 502);
+      console.error("[stage-listing-photo] staging response missing URL", data);
+      return json({ error: "Staging response missing image URL" }, 502);
     }
+    console.log("[stage-listing-photo] success", { ms: Date.now() - t0 });
     return json({ staged_url: stagedUrl, style: designStyle });
   } catch (err: any) {
     const msg = err?.name === "AbortError" ? "timeout" : (err?.message ?? "unknown error");
-    return json({ error: msg }, 504);
+    const status = err?.name === "AbortError" ? 504 : 500;
+    console.error("[stage-listing-photo] handler error", { msg, status });
+    return json({ error: msg }, status);
   }
 });

@@ -575,7 +575,10 @@ function ListingReview() {
       const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
         body: { image_url: url, style: styleKey },
       });
-      if (error) throw error;
+      if (error) {
+        const { unwrapFunctionsError } = await import("@/lib/email-client");
+        throw new Error(await unwrapFunctionsError(error, "Staging failed"));
+      }
       if ((data as any)?.error) throw new Error((data as any).error);
       const stagedUrl = (data as any).staged_url as string;
       const resp = await fetch(stagedUrl);

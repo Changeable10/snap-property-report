@@ -1,5 +1,26 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Unwrap a supabase.functions.invoke error. Non-2xx responses stash the raw
+ * Response on `error.context`; parse the JSON body to surface the real message.
+ */
+export async function unwrapFunctionsError(error: unknown, fallback = "Request failed"): Promise<string> {
+  let detail = "";
+  const ctx = (error as { context?: Response } | null)?.context;
+  if (ctx && typeof ctx.text === "function") {
+    try {
+      const txt = await ctx.text();
+      try {
+        const j = JSON.parse(txt) as { error?: string; detail?: string; message?: string };
+        detail = j.detail ?? j.error ?? j.message ?? txt;
+      } catch {
+        detail = txt;
+      }
+    } catch { /* ignore */ }
+  }
+  return detail || (error as { message?: string })?.message || fallback;
+}
+
 export type SendEmailInput = {
   to: string;
   subject: string;
