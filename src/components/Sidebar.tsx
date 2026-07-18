@@ -101,7 +101,7 @@ export function Sidebar({ user }: SidebarProps) {
     { to: "/", label: "All properties", icon: HomeIcon, match: "/properties", badge: counts.properties },
     { to: "/inspections", label: "Inspections", icon: ClipboardList, match: "/inspections", badge: counts.inspections },
     { to: "/inspections", label: "Compliance", icon: ShieldCheck, match: "/compliance" },
-    { to: "/inspections", label: "Listings", icon: Tag, match: "/listings" },
+    { to: "/listings", label: "Listings", icon: Tag, match: "/listings" },
   ];
   const records: NavItem[] = [
     { to: "/maintenance", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
