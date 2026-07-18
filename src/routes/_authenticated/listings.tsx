@@ -55,6 +55,7 @@ function ListingsPage() {
         .select(
           "id,listing_type,target_portal,status,created_at,title,property:properties(address,suburb)",
         )
+        .is("archived_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as Row[];
