@@ -1493,3 +1493,107 @@ function ScoredCard({
     </div>
   );
 }
+
+function PhotoStagingTile({
+  photo,
+  staging,
+  showCompare,
+  onStage,
+  onUseStaged,
+  onKeepOriginal,
+}: {
+  photo: PhotoRow;
+  staging: boolean;
+  showCompare: boolean;
+  onStage: () => void;
+  onUseStaged: () => void;
+  onKeepOriginal: () => void;
+}) {
+  const [origUrl, setOrigUrl] = useState<string | undefined>();
+  const [stagedUrl, setStagedUrl] = useState<string | undefined>();
+  useEffect(() => {
+    let cancel = false;
+    supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
+      if (!cancel) setOrigUrl(data?.signedUrl);
+    });
+    return () => { cancel = true; };
+  }, [photo.photo_url]);
+  useEffect(() => {
+    let cancel = false;
+    if (photo.staged_url) {
+      supabase.storage.from("inspection-photos").createSignedUrl(photo.staged_url, 3600).then(({ data }) => {
+        if (!cancel) setStagedUrl(data?.signedUrl);
+      });
+    } else {
+      setStagedUrl(undefined);
+    }
+    return () => { cancel = true; };
+  }, [photo.staged_url]);
+
+  const hasStaged = !!photo.staged_url;
+
+  if (hasStaged && showCompare) {
+    return (
+      <div className="col-span-2 overflow-hidden rounded-lg border border-border bg-background sm:col-span-3">
+        <div className="grid grid-cols-2">
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
+            <span className="absolute left-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+              Original
+            </span>
+          </div>
+          <div className="relative aspect-square overflow-hidden bg-muted">
+            {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
+            <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+              Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 p-2">
+          <button
+            type="button"
+            onClick={onUseStaged}
+            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md bg-teal px-2 text-xs font-semibold text-teal-foreground"
+          >
+            <Check className="size-3.5" /> Use staged
+          </button>
+          <button
+            type="button"
+            onClick={onKeepOriginal}
+            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 text-xs font-semibold text-foreground"
+          >
+            <RotateCcw className="size-3.5" /> Keep original
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const displaySrc = hasStaged ? stagedUrl : origUrl;
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+      {displaySrc ? <img src={displaySrc} alt="" className="size-full object-cover" /> : null}
+      {hasStaged ? (
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+          Staged
+        </span>
+      ) : null}
+      {staging ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
+          <Loader2 className="size-5 animate-spin" />
+          <p className="text-[11px] font-medium">Staging…</p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onStage}
+          title="Virtual staging"
+          aria-label="Virtual staging"
+          className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/85 text-teal shadow-md backdrop-blur-sm transition hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-teal"
+        >
+          <Wand2 className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+}
