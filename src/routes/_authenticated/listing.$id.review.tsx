@@ -545,6 +545,24 @@ function ListingReview() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [bulkStaging, setBulkStaging] = useState(false);
   const [bulkStageProgress, setBulkStageProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [acceptedStagedIds, setAcceptedStagedIds] = useState<Set<string>>(new Set());
+
+  async function removeStagedPhoto(p: PhotoRow) {
+    try {
+      if (p.staged_url) {
+        await supabase.storage.from("inspection-photos").remove([p.staged_url]);
+      }
+      const { error } = await supabase.from("listing_photos")
+        .update({ staged_url: null, staging_style: null })
+        .eq("id", p.id);
+      if (error) throw error;
+      setAcceptedStagedIds((s) => { const n = new Set(s); n.delete(p.id); return n; });
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success("Kept original photo");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to remove staged version");
+    }
+  }
 
   async function stagePhoto(p: PhotoRow, styleKey: string): Promise<boolean> {
     setStagingId(p.id);
