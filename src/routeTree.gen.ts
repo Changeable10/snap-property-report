@@ -16,6 +16,7 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
+import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
 import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
 import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
@@ -69,6 +70,11 @@ const AuthenticatedMaintenanceRoute =
     path: '/maintenance',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedListingsRoute = AuthenticatedListingsRouteImport.update({
+  id: '/listings',
+  path: '/listings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInspectionsRoute =
   AuthenticatedInspectionsRouteImport.update({
     id: '/inspections',
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
+  '/listings': typeof AuthenticatedListingsRoute
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
+  '/listings': typeof AuthenticatedListingsRoute
   '/maintenance': typeof AuthenticatedMaintenanceRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/inspections': typeof AuthenticatedInspectionsRoute
+  '/_authenticated/listings': typeof AuthenticatedListingsRoute
   '/_authenticated/maintenance': typeof AuthenticatedMaintenanceRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/inspections'
+    | '/listings'
     | '/maintenance'
     | '/settings'
     | '/team'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/inspections'
+    | '/listings'
     | '/maintenance'
     | '/settings'
     | '/team'
@@ -303,6 +314,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/inspections'
+    | '/_authenticated/listings'
     | '/_authenticated/maintenance'
     | '/_authenticated/settings'
     | '/_authenticated/team'
@@ -385,6 +397,13 @@ declare module '@tanstack/react-router' {
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof AuthenticatedMaintenanceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/listings': {
+      id: '/_authenticated/listings'
+      path: '/listings'
+      fullPath: '/listings'
+      preLoaderRoute: typeof AuthenticatedListingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inspections': {
@@ -511,6 +530,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedInspectionsRoute: typeof AuthenticatedInspectionsRoute
+  AuthenticatedListingsRoute: typeof AuthenticatedListingsRoute
   AuthenticatedMaintenanceRoute: typeof AuthenticatedMaintenanceRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
@@ -531,6 +551,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInspectionsRoute: AuthenticatedInspectionsRoute,
+  AuthenticatedListingsRoute: AuthenticatedListingsRoute,
   AuthenticatedMaintenanceRoute: AuthenticatedMaintenanceRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
