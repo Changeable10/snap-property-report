@@ -478,37 +478,75 @@ function Index() {
           </div>
         </section>
 
-        {/* Recent inspections */}
-        {recentInspections.length > 0 ? (
+        {/* Recent inspections & listings */}
+        {feed.length > 0 ? (
           <section className="mt-10">
-            <h2 className="mb-3 text-lg font-semibold text-foreground">Recent inspections</h2>
+            <h2 className="mb-3 text-lg font-semibold text-foreground">
+              Recent Inspections &amp; Listings
+            </h2>
             <ul className="flex flex-col gap-2">
-              {recentInspections.map((ins) => {
-                const prop = propertyById.get(ins.property_id);
-                const count = (items ?? []).filter((i) => i.inspection_id === ins.id).length;
-                const target =
-                  ins.status === "in_progress"
-                    ? { to: "/inspection/$id/capture" as const }
-                    : ins.status === "completed"
-                    ? { to: "/inspection/$id/review" as const }
-                    : { to: "/inspection/$id/report" as const };
+              {feed.map((entry) => {
+                if (entry.kind === "inspection") {
+                  const ins = entry.ins;
+                  const prop = propertyById.get(ins.property_id);
+                  const count = (items ?? []).filter((i) => i.inspection_id === ins.id).length;
+                  const to =
+                    ins.status === "in_progress"
+                      ? ("/inspection/$id/capture" as const)
+                      : ins.status === "completed"
+                        ? ("/inspection/$id/review" as const)
+                        : ("/inspection/$id/report" as const);
+                  return (
+                    <li key={`ins-${ins.id}`}>
+                      <Link
+                        to={to}
+                        params={{ id: ins.id }}
+                        className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-accent/40"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center rounded-full bg-teal-light px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-dark">
+                              {TYPE_LABEL[ins.inspection_type] ?? "Inspection"}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-sm font-semibold text-foreground">
+                            {prop?.address ?? "Property"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDMY(ins.inspection_date)} · {count} items
+                          </p>
+                        </div>
+                        <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
+                          {STATUS_LABEL[ins.status]}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                }
+                const l = entry.listing;
+                const prop = propertyById.get(l.property_id);
                 return (
-                  <li key={ins.id}>
+                  <li key={`lst-${l.id}`}>
                     <Link
-                      to={target.to}
-                      params={{ id: ins.id }}
+                      to="/listing/$id/review"
+                      params={{ id: l.id }}
                       className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-accent/40"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {prop?.address ?? "Property"}
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            Listing
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm font-semibold text-foreground">
+                          {l.title || prop?.address || "Listing"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {TYPE_LABEL[ins.inspection_type]} · {formatDMY(ins.inspection_date)} · {count} items
+                          {LISTING_TYPE_LABEL[l.listing_type] ?? l.listing_type} · {PORTAL_LABEL[l.target_portal] ?? l.target_portal} · {formatDMY(l.created_at)}
                         </p>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
-                        {STATUS_LABEL[ins.status]}
+                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ring-inset ${LISTING_STATUS_STYLE[l.status]}`}>
+                        {l.status}
                       </span>
                     </Link>
                   </li>
