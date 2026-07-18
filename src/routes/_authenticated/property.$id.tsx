@@ -159,6 +159,19 @@ function PropertyDetail() {
     },
   });
 
+  const { data: propListings } = useQuery({
+    queryKey: ["property-listings", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("id,listing_type,target_portal,status,created_at,title")
+        .eq("property_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ListingRow[];
+    },
+  });
+
   const inspectionIds = (inspections ?? []).map((i) => i.id);
   const { data: items } = useQuery({
     queryKey: ["property-items", id, inspectionIds.join(",")],
