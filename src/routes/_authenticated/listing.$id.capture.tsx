@@ -200,6 +200,7 @@ function ListingCapture() {
         const { unwrapFunctionsError } = await import("@/lib/email-client");
         throw new Error(await unwrapFunctionsError(error, "Staging failed"));
       }
+      console.log("[virtual-staging] stage-listing-photo response", data);
       if ((data as any)?.error) throw new Error((data as any).error);
       const stagedPathFromServer = (data as any)?.staged_path as string | undefined;
       if (stagedPathFromServer) {
@@ -209,12 +210,15 @@ function ListingCapture() {
         return;
       }
       const stagedRemote = (data as any).staged_url as string;
+      console.log("[virtual-staging] remote stagedUrl", stagedRemote);
       const resp = await fetch(stagedRemote);
       if (!resp.ok) throw new Error("Failed to fetch staged image");
       const blob = await resp.blob();
-      const rawName = p.photo_url.split("/").pop() ?? `${p.id}.jpg`;
-      const baseName = rawName.replace(/\.[^.]+$/, "");
-      const stagedPath = `listing-${id}/staged-${baseName}.jpg`;
+      // Storage RLS requires first folder to equal auth.uid().
+      const { data: { user: _u } } = await supabase.auth.getUser();
+      const uid = _u?.id ?? authUserId;
+      if (!uid) throw new Error("Sign in required to save staged image");
+      const stagedPath = `${uid}/staging/${id}/${p.id}-staged.jpg`;
       const { error: upErr } = await supabase.storage
         .from("inspection-photos")
         .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
