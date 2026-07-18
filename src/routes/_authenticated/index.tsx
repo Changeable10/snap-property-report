@@ -55,6 +55,16 @@ interface ItemRow {
 }
 interface RoomRow { id: string; name: string; property_id: string }
 
+interface ListingFeedRow {
+  id: string;
+  property_id: string;
+  listing_type: string;
+  target_portal: string;
+  status: "draft" | "published";
+  created_at: string;
+  title: string | null;
+}
+
 const TYPE_LABEL: Record<InspectionType, string> = {
   entry: "Entry", routine: "Routine", exit: "Exit",
 };
