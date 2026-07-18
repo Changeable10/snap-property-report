@@ -1,0 +1,1 @@
+UPDATE public.listing_photos SET staged_url = NULL, staging_style = NULL WHERE staged_url LIKE 'listing-%';
