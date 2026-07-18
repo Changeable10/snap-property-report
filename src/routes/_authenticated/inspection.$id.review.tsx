@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, Pencil, Wrench } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, RefreshCw, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
 import type { Condition } from "@/lib/parse-transcript";
@@ -18,17 +18,19 @@ interface ItemRow {
   condition: Condition; description: string | null;
   maintenance_required: boolean; maintenance_notes: string | null;
 }
+type ChangeSeverity = "none" | "minor" | "moderate" | "significant";
 interface AcceptedChange {
   id: string; room_id: string; item_name: string; description: string | null;
-  severity: "minor" | "moderate" | "significant";
+  severity: ChangeSeverity;
 }
-const SEV_BADGE: Record<AcceptedChange["severity"], string> = {
+const SEV_BADGE: Record<ChangeSeverity, string> = {
+  none: "bg-green-600 text-white",
   minor: "bg-amber-500 text-white",
   moderate: "bg-orange-500 text-white",
   significant: "bg-red-600 text-white",
 };
-const SEV_LABEL: Record<AcceptedChange["severity"], string> = {
-  minor: "Minor", moderate: "Moderate", significant: "Significant",
+const SEV_LABEL: Record<ChangeSeverity, string> = {
+  none: "None", minor: "Minor", moderate: "Moderate", significant: "Significant",
 };
 
 const CONDITIONS: Condition[] = ["good", "fair", "poor", "damaged"];
@@ -155,6 +157,16 @@ function ReviewPage() {
   }, [items]);
 
   const [openRoom, setOpenRoom] = useState<string | null>(null);
+  const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
+
+  const toggleChanges = (roomId: string) => {
+    setOpenChanges((prev) => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -263,25 +275,35 @@ function ReviewPage() {
                           onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
                       ))}
                       {(changesByRoom.get(r.id)?.length ?? 0) > 0 && (
-                        <li className="px-4 py-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Changes from previous inspection
-                          </p>
-                          <ul className="space-y-2">
-                            {(changesByRoom.get(r.id) ?? []).map((c) => (
-                              <li key={c.id} className="rounded-lg border border-border bg-background p-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_BADGE[c.severity]}`}>
-                                    {SEV_LABEL[c.severity]}
-                                  </span>
-                                  <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
-                                </div>
-                                {c.description && (
-                                  <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                        <li className="border-t border-border px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleChanges(r.id)}
+                            className="mb-2 flex w-full items-center justify-between text-left"
+                          >
+                            <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              <RefreshCw className="size-3.5" />
+                              Changes from previous inspection
+                            </span>
+                            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${openChanges.has(r.id) ? "rotate-180" : ""}`} />
+                          </button>
+                          {openChanges.has(r.id) && (
+                            <ul className="space-y-2">
+                              {(changesByRoom.get(r.id) ?? []).map((c) => (
+                                <li key={c.id} className="rounded-lg border border-border bg-background p-2.5">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_BADGE[c.severity]}`}>
+                                      {SEV_LABEL[c.severity]}
+                                    </span>
+                                    <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
+                                  </div>
+                                  {c.description && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">{c.description}</p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </li>
                       )}
                     </ul>
