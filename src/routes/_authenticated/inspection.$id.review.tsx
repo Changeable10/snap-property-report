@@ -275,25 +275,35 @@ function ReviewPage() {
                           onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
                       ))}
                       {(changesByRoom.get(r.id)?.length ?? 0) > 0 && (
-                        <li className="px-4 py-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Changes from previous inspection
-                          </p>
-                          <ul className="space-y-2">
-                            {(changesByRoom.get(r.id) ?? []).map((c) => (
-                              <li key={c.id} className="rounded-lg border border-border bg-background p-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_BADGE[c.severity]}`}>
-                                    {SEV_LABEL[c.severity]}
-                                  </span>
-                                  <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
-                                </div>
-                                {c.description && (
-                                  <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                        <li className="border-t border-border px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleChanges(r.id)}
+                            className="mb-2 flex w-full items-center justify-between text-left"
+                          >
+                            <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              <RefreshCw className="size-3.5" />
+                              Changes from previous inspection
+                            </span>
+                            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${openChanges.has(r.id) ? "rotate-180" : ""}`} />
+                          </button>
+                          {openChanges.has(r.id) && (
+                            <ul className="space-y-2">
+                              {(changesByRoom.get(r.id) ?? []).map((c) => (
+                                <li key={c.id} className="rounded-lg border border-border bg-background p-2.5">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${SEV_BADGE[c.severity]}`}>
+                                      {SEV_LABEL[c.severity]}
+                                    </span>
+                                    <p className="text-sm font-semibold text-foreground">{c.item_name}</p>
+                                  </div>
+                                  {c.description && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">{c.description}</p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </li>
                       )}
                     </ul>
