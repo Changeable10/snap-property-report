@@ -139,9 +139,10 @@ async function persistStagedPhoto(params: {
     return { error: "Failed to save staged image", status: 502 };
   }
   const blob = await stagedFetch.blob();
-  const rawName = (params.photoPath || photo.photo_url || `${params.photoId}.jpg`).split("/").pop() ?? `${params.photoId}.jpg`;
-  const baseName = rawName.replace(/\.[^.]+$/, "");
-  const stagedPath = `listing-${params.listingId}/staged-${baseName}.jpg`;
+  // Storage RLS on `inspection-photos` requires the first path segment to be
+  // the caller's user id. Nest staged files under `{userId}/staging/...` so
+  // the client can createSignedUrl / read them back.
+  const stagedPath = `${params.userId}/staging/${params.listingId}/${params.photoId}-staged.jpg`;
   const { error: uploadErr } = await admin.storage
     .from("inspection-photos")
     .upload(stagedPath, blob, {
