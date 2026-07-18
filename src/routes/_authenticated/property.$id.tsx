@@ -624,6 +624,44 @@ function PropertyDetail() {
           )}
         </section>
 
+        {propListings && propListings.length > 0 ? (
+          <section className="mt-10">
+            <h2 className="mb-3 text-lg font-semibold text-foreground">Listings</h2>
+            <ul className="flex flex-col gap-2">
+              {propListings.map((l) => (
+                <li key={l.id}>
+                  <Link
+                    to="/listing/$id/review"
+                    params={{ id: l.id }}
+                    className="block rounded-xl border border-border bg-card px-4 py-3 hover:bg-accent/40"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {l.title || `${LISTING_TYPE_LABEL[l.listing_type] ?? l.listing_type} listing`}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>{LISTING_TYPE_LABEL[l.listing_type] ?? l.listing_type}</span>
+                          <span aria-hidden>•</span>
+                          <span>{PORTAL_LABEL[l.target_portal] ?? l.target_portal}</span>
+                          <span aria-hidden>•</span>
+                          <span>{formatDMY(l.created_at)}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ring-inset ${LISTING_STATUS_STYLE[l.status]}`}>
+                          {l.status}
+                        </span>
+                        <span className="text-xs font-semibold text-primary">View/Edit</span>
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <section className="mt-10">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-foreground">Maintenance log</h2>
