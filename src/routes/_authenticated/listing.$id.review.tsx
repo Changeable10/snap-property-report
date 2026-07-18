@@ -1211,11 +1211,13 @@ function StyleModal({
   onChoose,
   bulk,
   bulkCount,
+  usageText,
 }: {
   onClose: () => void;
   onChoose: (styleKey: string) => void;
   bulk: boolean;
   bulkCount: number;
+  usageText?: string;
 }) {
   return (
     <div
@@ -1254,6 +1256,9 @@ function StyleModal({
             </button>
           ))}
         </div>
+        {usageText ? (
+          <p className="mt-3 text-center text-[11px] text-muted-foreground">{usageText}</p>
+        ) : null}
       </div>
     </div>
   );
