@@ -536,8 +536,17 @@ function ListingReview() {
   const featuredCount = (photos ?? []).filter((p) => p.featured).length;
 
   // -------- Virtual staging --------
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error) console.error("[virtual-staging] Failed to read authenticated user", error);
+      if (active) setAuthUserId(data.user?.id);
+    });
+    return () => { active = false; };
+  }, []);
   const { data: plan = "free" } = usePlan(listing?.user_id);
-  const { data: stagingUsed = 0, refetch: refetchStagingUsage } = useStagingThisMonth(listing?.user_id);
+  const { data: stagingUsed = 0, refetch: refetchStagingUsage } = useStagingThisMonth(authUserId);
   const stagingLimit = STAGING_MONTHLY_LIMIT[plan];
   const stagingRemaining = stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
   const [stagingId, setStagingId] = useState<string | null>(null);
@@ -573,13 +582,19 @@ function ListingReview() {
       const url = signed?.signedUrl;
       if (!url) throw new Error("Signed URL failed");
       const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
-        body: { image_url: url, style: styleKey },
+        body: { image_url: url, style: styleKey, listing_id: id, photo_id: p.id, photo_path: p.photo_url },
       });
       if (error) {
         const { unwrapFunctionsError } = await import("@/lib/email-client");
         throw new Error(await unwrapFunctionsError(error, "Staging failed"));
       }
       if ((data as any)?.error) throw new Error((data as any).error);
+      const stagedPathFromServer = (data as any)?.staged_path as string | undefined;
+      if (stagedPathFromServer) {
+        await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+        await refetchStagingUsage();
+        return true;
+      }
       const stagedUrl = (data as any).staged_url as string;
       const resp = await fetch(stagedUrl);
       if (!resp.ok) throw new Error("Failed to fetch staged image");
@@ -594,13 +609,31 @@ function ListingReview() {
       const { error: dbErr } = await supabase.from("listing_photos")
         .update({ staged_url: stagedPath, staging_style: styleKey })
         .eq("id", p.id);
-      if (dbErr) throw dbErr;
-      const { data: { user: _authUser } } = await supabase.auth.getUser();
-      await supabase.from("staging_usage").insert({
-        user_id: _authUser?.id ?? listing!.user_id,
+      if (dbErr) {
+        console.error("[virtual-staging] Failed to update photo", {
+          table: "listing_photos",
+          operation: "update",
+          error: dbErr,
+        });
+        throw new Error("Failed to update photo");
+      }
+      const { data: { user: _authUser }, error: userErr } = await supabase.auth.getUser();
+      if (userErr) console.error("[virtual-staging] Failed to read authenticated user before staging usage insert", userErr);
+      const usageUserId = _authUser?.id ?? authUserId;
+      if (!usageUserId) throw new Error("Sign in required to save staging usage");
+      const { error: usageErr } = await supabase.from("staging_usage").insert({
+        user_id: usageUserId,
         listing_photo_id: p.id,
         style: styleKey,
       });
+      if (usageErr) {
+        console.error("[virtual-staging] Failed to save staging usage", {
+          table: "staging_usage",
+          operation: "insert",
+          error: usageErr,
+        });
+        throw new Error("Failed to save staging usage");
+      }
       await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
       await refetchStagingUsage();
       return true;
