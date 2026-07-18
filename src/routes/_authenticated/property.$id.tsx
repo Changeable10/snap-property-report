@@ -48,6 +48,31 @@ interface InspectionRow {
   status: InspectionStatus;
 }
 
+interface ListingRow {
+  id: string;
+  listing_type: string;
+  target_portal: string;
+  status: "draft" | "published";
+  created_at: string;
+  title: string | null;
+}
+
+const LISTING_TYPE_LABEL: Record<string, string> = {
+  rent: "For Rent",
+  sale: "For Sale",
+  short_stay: "Short Stay",
+};
+const PORTAL_LABEL: Record<string, string> = {
+  trademe: "Trade Me",
+  realestate: "realestate.co.nz",
+  airbnb: "Airbnb / Bookabach",
+  general: "General",
+};
+const LISTING_STATUS_STYLE: Record<"draft" | "published", string> = {
+  draft: "bg-condition-fair/15 text-condition-fair ring-condition-fair/40",
+  published: "bg-condition-good/15 text-condition-good ring-condition-good/40",
+};
+
 type Condition = "good" | "fair" | "poor" | "damaged";
 type Priority = "low" | "medium" | "high";
 
