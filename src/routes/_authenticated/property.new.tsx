@@ -103,6 +103,22 @@ function NewProperty() {
         return;
       }
 
+      // Safety net: re-check the user's active property count against their
+      // plan limit at submit time in case the initial gate raced or was skipped.
+      {
+        const { count } = await supabase
+          .from("properties")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("archived_at", null);
+        if ((count ?? 0) >= limit) {
+          toast.error("You've reached your plan's property limit. Upgrade to add more.");
+          setSaving(false);
+          navigate({ to: "/" });
+          return;
+        }
+      }
+
       // Ensure a valid auth session is attached to the insert request.
       let { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
