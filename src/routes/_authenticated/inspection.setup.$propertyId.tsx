@@ -308,6 +308,30 @@ function InspectionSetup() {
           </>
         ) : (
           <>
+            {listingLimit !== Infinity && plan !== "free" ? (
+              <div
+                className={`mb-4 rounded-xl border p-3 text-sm ${
+                  listingLimitReached
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-teal/30 bg-teal-light text-teal-dark"
+                }`}
+              >
+                <div className="font-semibold">
+                  Listing {Math.min(listingsThisMonth + 1, listingLimit)} of {listingLimit} this month
+                </div>
+                <div className="mt-0.5 text-xs opacity-80">
+                  {listingLimitReached
+                    ? plan === "professional"
+                      ? "Upgrade to Portfolio for unlimited listings."
+                      : "Upgrade to create more listings."
+                    : `${listingsThisMonth} used · ${Math.max(listingLimit - listingsThisMonth, 0)} remaining on the ${plan} plan.`}
+                </div>
+              </div>
+            ) : listingLimit === Infinity ? (
+              <div className="mb-4 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                Unlimited listings on the {plan} plan.
+              </div>
+            ) : null}
             <section className="flex flex-col gap-3">
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Listing title <span className="font-normal text-muted-foreground">(optional)</span>
