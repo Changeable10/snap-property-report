@@ -267,6 +267,63 @@ function CapturePage() {
   const [comparingRoomId, setComparingRoomId] = useState<string | null>(null);
   const currentPending = current ? (pendingChanges[current.id] ?? []) : [];
 
+  // Suggested (low-confidence) AI items awaiting user Accept/Dismiss.
+  type SuggestedItem = {
+    key: string;
+    name: string;
+    condition: Condition;
+    description: string | null;
+    maintenance_required: boolean;
+    maintenance_notes: string | null;
+    confidence: number | null;
+    source: "photo" | "video";
+  };
+  const [suggestedItems, setSuggestedItems] = useState<Record<string, SuggestedItem[]>>({});
+  const currentSuggested = current ? (suggestedItems[current.id] ?? []) : [];
+
+  async function acceptSuggested(s: SuggestedItem, roomId: string) {
+    if (!inspection) return;
+    // Merge with existing item of the same canonical name if present.
+    const existing = (items ?? []).filter((i) => i.room_id === roomId);
+    const key = s.name.toLowerCase();
+    const match = existing.find((it) => canonicalizeItemName(it.item_name).toLowerCase() === key);
+    if (match) {
+      const sources = Array.from(new Set([...(match.sources ?? []), s.source]));
+      const { error } = await supabase.from("inspection_items").update({
+        sources,
+        confidence: s.confidence ?? match.confidence,
+      }).eq("id", match.id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { error } = await supabase.from("inspection_items").insert({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        item_name: s.name,
+        condition: s.condition,
+        description: s.description,
+        maintenance_required: s.maintenance_required,
+        maintenance_notes: s.maintenance_notes,
+        sources: [s.source],
+        confidence: s.confidence,
+        sort_order: existing.length * 10,
+      });
+      if (error) { toast.error(error.message); return; }
+    }
+    setSuggestedItems((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((x) => x.key !== s.key),
+    }));
+    qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+  }
+
+  function dismissSuggested(s: SuggestedItem, roomId: string) {
+    setSuggestedItems((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((x) => x.key !== s.key),
+    }));
+  }
+
   const doneRoomIds = useMemo(() => {
     const set = new Set<string>();
     for (const it of items ?? []) set.add(it.room_id);
