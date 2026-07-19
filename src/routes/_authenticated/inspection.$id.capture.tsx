@@ -446,6 +446,9 @@ function CapturePage() {
           confidence: typeof ai.confidence === "number" ? ai.confidence : null,
           sort_order: nowSort + idx * 10,
         });
+        // Reserve the key so a second AI item with the same canonical name
+        // doesn't insert a duplicate in this same call.
+        byName.set(key, { id: "__pending__" } as any);
         idx++;
       }
       if (toInsert.length > 0) {
