@@ -267,6 +267,63 @@ function CapturePage() {
   const [comparingRoomId, setComparingRoomId] = useState<string | null>(null);
   const currentPending = current ? (pendingChanges[current.id] ?? []) : [];
 
+  // Suggested (low-confidence) AI items awaiting user Accept/Dismiss.
+  type SuggestedItem = {
+    key: string;
+    name: string;
+    condition: Condition;
+    description: string | null;
+    maintenance_required: boolean;
+    maintenance_notes: string | null;
+    confidence: number | null;
+    source: "photo" | "video";
+  };
+  const [suggestedItems, setSuggestedItems] = useState<Record<string, SuggestedItem[]>>({});
+  const currentSuggested = current ? (suggestedItems[current.id] ?? []) : [];
+
+  async function acceptSuggested(s: SuggestedItem, roomId: string) {
+    if (!inspection) return;
+    // Merge with existing item of the same canonical name if present.
+    const existing = (items ?? []).filter((i) => i.room_id === roomId);
+    const key = s.name.toLowerCase();
+    const match = existing.find((it) => canonicalizeItemName(it.item_name).toLowerCase() === key);
+    if (match) {
+      const sources = Array.from(new Set([...(match.sources ?? []), s.source]));
+      const { error } = await supabase.from("inspection_items").update({
+        sources,
+        confidence: s.confidence ?? match.confidence,
+      }).eq("id", match.id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { error } = await supabase.from("inspection_items").insert({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        item_name: s.name,
+        condition: s.condition,
+        description: s.description,
+        maintenance_required: s.maintenance_required,
+        maintenance_notes: s.maintenance_notes,
+        sources: [s.source],
+        confidence: s.confidence,
+        sort_order: existing.length * 10,
+      });
+      if (error) { toast.error(error.message); return; }
+    }
+    setSuggestedItems((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((x) => x.key !== s.key),
+    }));
+    qc.invalidateQueries({ queryKey: ["inspection-items", id] });
+  }
+
+  function dismissSuggested(s: SuggestedItem, roomId: string) {
+    setSuggestedItems((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).filter((x) => x.key !== s.key),
+    }));
+  }
+
   const doneRoomIds = useMemo(() => {
     const set = new Set<string>();
     for (const it of items ?? []) set.add(it.room_id);
@@ -417,6 +474,7 @@ function CapturePage() {
       const existing = (items ?? []).filter((i) => i.room_id === roomId);
       const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
       const toInsert: any[] = [];
+      const toSuggest: SuggestedItem[] = [];
       const nowSort = existing.length * 10;
       let idx = 0;
       for (const ai of aiItems) {
@@ -433,6 +491,23 @@ function CapturePage() {
           }).eq("id", existingItem.id);
           continue;
         }
+        const conf = typeof ai.confidence === "number" ? ai.confidence : null;
+        // Low-confidence detections go to Suggested items for user review,
+        // instead of being auto-inserted.
+        if (conf !== null && conf < 0.7) {
+          toSuggest.push({
+            key: `${roomId}-${canonicalName}-${crypto.randomUUID()}`,
+            name: canonicalName,
+            condition: cond,
+            description: ai.description || null,
+            maintenance_required: !!ai.maintenance_required,
+            maintenance_notes: ai.maintenance_notes || null,
+            confidence: conf,
+            source: "photo",
+          });
+          byName.set(key, { id: "__pending__" } as any);
+          continue;
+        }
         toInsert.push({
           user_id: inspection.user_id,
           inspection_id: id,
@@ -443,7 +518,7 @@ function CapturePage() {
           maintenance_required: !!ai.maintenance_required,
           maintenance_notes: ai.maintenance_notes || null,
           sources: ["photo"],
-          confidence: typeof ai.confidence === "number" ? ai.confidence : null,
+          confidence: conf,
           sort_order: nowSort + idx * 10,
         });
         // Reserve the key so a second AI item with the same canonical name
@@ -454,6 +529,12 @@ function CapturePage() {
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
         if (insErr) throw insErr;
+      }
+      if (toSuggest.length > 0) {
+        setSuggestedItems((prev) => ({
+          ...prev,
+          [roomId]: [...(prev[roomId] ?? []), ...toSuggest],
+        }));
       }
       qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     } catch (err: any) {
@@ -871,6 +952,7 @@ function CapturePage() {
     const existing = (items ?? []).filter((i) => i.room_id === roomId);
     const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
     const toInsert: any[] = [];
+    const toSuggestVideo: SuggestedItem[] = [];
     const nowSort = existing.length * 10;
     let insIdx = 0;
     for (const m of merged.values()) {
@@ -887,6 +969,20 @@ function CapturePage() {
           description: existingItem.description ? existingItem.description : description,
           confidence: m.confidence || existingItem.confidence,
         }).eq("id", existingItem.id);
+        continue;
+      }
+      // Low-confidence video items → Suggested for review instead of auto-insert.
+      if (m.confidence > 0 && m.confidence < 0.7) {
+        toSuggestVideo.push({
+          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
+          name: m.name,
+          condition: m.condition,
+          description,
+          maintenance_required: m.maintenance_required,
+          maintenance_notes: notes,
+          confidence: m.confidence,
+          source: "video",
+        });
         continue;
       }
       toInsert.push({
@@ -907,6 +1003,12 @@ function CapturePage() {
     if (toInsert.length > 0) {
       const { error } = await supabase.from("inspection_items").insert(toInsert);
       if (error) toast.error(error.message);
+    }
+    if (toSuggestVideo.length > 0) {
+      setSuggestedItems((prev) => ({
+        ...prev,
+        [roomId]: [...(prev[roomId] ?? []), ...toSuggestVideo],
+      }));
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
@@ -1226,6 +1328,59 @@ function CapturePage() {
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <AlertTriangle className="size-4" /> Photo analysis unavailable — continue with voice or manual entry.
           </div>
+        )}
+
+        {current && currentSuggested.length > 0 && (
+          <section className="mt-6 space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Suggested items
+              </p>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                {currentSuggested.length} to review
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Low-confidence AI detections — please review before adding to the inspection.
+            </p>
+            {currentSuggested.map((s) => (
+              <div key={s.key} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                      {s.source === "photo"
+                        ? <Camera className="size-3.5 text-amber-700" aria-label="From photo" />
+                        : <Video className="size-3.5 text-amber-700" aria-label="From video" />}
+                    </div>
+                    <p className="mt-0.5 text-[11px] font-medium text-amber-700">
+                      Low confidence{typeof s.confidence === "number" ? ` (${Math.round(s.confidence * 100)}%)` : ""} — please review
+                    </p>
+                  </div>
+                  <ConditionBadge condition={s.condition} />
+                </div>
+                {s.description && (
+                  <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
+                )}
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => dismissSuggested(s, current.id)}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => acceptSuggested(s, current.id)}
+                    className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
+                  >
+                    Accept
+                  </button>
+                </div>
+              </div>
+            ))}
+          </section>
         )}
 
         <section className="mt-8">
