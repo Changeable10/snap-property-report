@@ -23,6 +23,7 @@ export interface PdfPhoto { id: string; room_id: string; photo_url: string; enha
 export interface PdfPhotoExt extends PdfPhoto {
   inspection_item_id?: string | null;
   voice_transcript?: string | null;
+  ai_classification?: Record<string, unknown> | null;
 }
 export interface PdfComparisonChange {
   id: string; room_id: string; item_name: string;
@@ -454,7 +455,40 @@ export async function generateReportPdf({
             const capY = y + rowH + 3;
             const linked = p.inspection_item_id ? itemsById.get(p.inspection_item_id) : undefined;
             const src = inferSource(p);
-            const title = linked?.item_name ?? "Additional photo";
+
+            // Caption data — prefer linked inspection item, else fall back
+            // to the photo's own ai_classification + voice_transcript.
+            const ai = (p.ai_classification && typeof p.ai_classification === "object")
+              ? p.ai_classification as Record<string, unknown>
+              : null;
+            const titleCase = (s: string) =>
+              s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+            const aiItemType = ai && typeof ai.item_type === "string" ? String(ai.item_type) : "";
+            const aiCondRaw = ai && typeof ai.condition === "string" ? String(ai.condition).toLowerCase() : "";
+            const aiCondition = (["good","fair","poor","damaged"] as const).includes(aiCondRaw as Condition)
+              ? (aiCondRaw as Condition) : null;
+
+            let title: string;
+            let condition: Condition | null;
+            let description: string;
+            if (linked) {
+              title = linked.item_name;
+              condition = linked.condition as Condition;
+              description = (linked.description ?? "").slice(0, 80);
+            } else if (ai) {
+              title = aiItemType ? titleCase(aiItemType) : "Room detail";
+              condition = aiCondition;
+              description = (p.voice_transcript ?? "").slice(0, 80);
+            } else {
+              title = "Room detail";
+              condition = null;
+              description = "";
+            }
+            console.log(
+              `PDF grid photo: item_id=${p.inspection_item_id ?? null}, ` +
+              `ai_class=${JSON.stringify(p.ai_classification ?? null)}, ` +
+              `label=${title}, condition=${condition ?? null}`,
+            );
 
             // Line 1: item name — condition  [source]
             doc.setFont("helvetica", "bold");
@@ -472,9 +506,9 @@ export async function generateReportPdf({
             let lineY = capY + headerLines.length * 3.2;
 
             // Line 2: coloured condition badge
-            if (linked) {
-              const [r, g, b] = COND_RGB[linked.condition] ?? [90, 90, 90];
-              const label = COND_LABEL[linked.condition] ?? String(linked.condition ?? "");
+            if (condition && COND_RGB[condition]) {
+              const [r, g, b] = COND_RGB[condition];
+              const label = COND_LABEL[condition];
               doc.setFont("helvetica", "bold");
               doc.setFontSize(7);
               const textW = doc.getTextWidth(label);
@@ -489,7 +523,7 @@ export async function generateReportPdf({
             }
 
             // Line 3+: 80-char description snippet
-            const snippet = (linked?.description ?? "").slice(0, 80);
+            const snippet = description;
             if (snippet) {
               doc.setFont("helvetica", "normal");
               doc.setFontSize(7.5);

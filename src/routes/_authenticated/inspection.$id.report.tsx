@@ -77,7 +77,7 @@ function ReportPage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,enhanced_url,captured_at,inspection_item_id,voice_transcript")
+        .select("id,room_id,photo_url,enhanced_url,captured_at,inspection_item_id,voice_transcript,ai_classification")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
