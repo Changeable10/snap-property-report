@@ -78,6 +78,10 @@ function InspectionSetup() {
   }, [property]);
 
   async function start() {
+    if (!tenants.trim()) {
+      setError("Tenant name is required for a compliant inspection report.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const { data, error } = await supabase
@@ -228,14 +232,25 @@ function InspectionSetup() {
 
         <section className="mt-6 flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Tenant name(s)
+            Tenant name(s) <span className="text-destructive">*</span>
             <input
               type="text"
               value={tenants}
-              onChange={(e) => setTenants(e.target.value)}
+              onChange={(e) => {
+                setTenants(e.target.value);
+                if (error && e.target.value.trim()) setError(null);
+              }}
               placeholder="e.g. Jane Smith"
-              className="min-h-11 rounded-xl border border-input bg-card px-3 text-base"
+              aria-invalid={!!error && !tenants.trim()}
+              className={`min-h-11 rounded-xl border bg-card px-3 text-base ${
+                error && !tenants.trim() ? "border-destructive" : "border-input"
+              }`}
             />
+            {error && !tenants.trim() ? (
+              <span className="text-xs font-medium text-destructive">
+                Tenant name is required for a compliant inspection report.
+              </span>
+            ) : null}
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">
             Inspection date
@@ -248,7 +263,7 @@ function InspectionSetup() {
           </label>
         </section>
 
-        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+        {error && tenants.trim() ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
 
         <button
           type="button"

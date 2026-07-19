@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, RefreshCw, Wrench } from "lucide-react";
@@ -47,6 +47,8 @@ const COND_BG: Record<Condition, string> = {
 function ReviewPage() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [gate, setGate] = useState<null | "empty" | "partial">(null);
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -167,6 +169,21 @@ function ReviewPage() {
       return next;
     });
   };
+
+  const totalRooms = rooms?.length ?? 0;
+  const emptyRoomCount = Math.max(0, totalRooms - roomsWithItems.size);
+
+  function handleGenerate() {
+    if (totalItems === 0) {
+      setGate("empty");
+      return;
+    }
+    if (emptyRoomCount > 0) {
+      setGate("partial");
+      return;
+    }
+    navigate({ to: "/inspection/$id/report", params: { id } });
+  }
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -321,12 +338,70 @@ function ReviewPage() {
             className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-semibold text-foreground">
             Edit
           </Link>
-          <Link to="/inspection/$id/report" params={{ id }}
+          <button type="button" onClick={handleGenerate}
             className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-teal text-sm font-semibold text-teal-foreground hover:bg-teal-dark">
             Generate report
-          </Link>
+          </button>
         </div>
       </nav>
+
+      {gate !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
+          onClick={() => setGate(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {gate === "empty" ? (
+              <>
+                <h3 className="text-base font-semibold text-foreground">No inspection data captured</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  At least one room must have photos, voice notes, or manually added items before generating a report. Return to the inspection to capture data.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <Link
+                    to="/inspection/$id/capture"
+                    params={{ id }}
+                    className="flex min-h-11 items-center justify-center rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
+                  >
+                    Return to inspection
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-semibold text-foreground">Some rooms have no data</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {emptyRoomCount} of {totalRooms} rooms have no inspection data. Generate report anyway?
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGate(null)}
+                    className="min-h-11 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground"
+                  >
+                    Go back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGate(null);
+                      navigate({ to: "/inspection/$id/report", params: { id } });
+                    }}
+                    className="min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
