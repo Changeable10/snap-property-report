@@ -11,6 +11,7 @@ import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
@@ -766,6 +767,7 @@ function ListingCapture() {
                   freePlan={plan === "free"}
                   onStage={() => requestStage(p)}
                   onKeepOriginal={() => keepOriginal(p)}
+                  onDeleted={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
                 />
               ))}
             </div>
