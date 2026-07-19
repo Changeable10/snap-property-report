@@ -18,7 +18,7 @@ export interface PdfItem {
   description: string | null; maintenance_required: boolean;
   maintenance_notes: string | null; sort_order: number;
 }
-export interface PdfPhoto { id: string; room_id: string; photo_url: string; captured_at: string }
+export interface PdfPhoto { id: string; room_id: string; photo_url: string; enhanced_url?: string | null; captured_at: string }
 export interface PdfComparisonChange {
   id: string; room_id: string; item_name: string;
   description: string | null;
@@ -266,7 +266,7 @@ export async function generateReportPdf({
 
     // First photo at top of room, scaled to page width, max 200pt height
     if (rPhotos.length > 0) {
-      const img = await fetchPhotoDataUrl(rPhotos[0].photo_url);
+      const img = await fetchPhotoDataUrl(rPhotos[0].enhanced_url ?? rPhotos[0].photo_url);
       if (img) {
         const ratio = img.w / img.h;
         let w = contentW;
