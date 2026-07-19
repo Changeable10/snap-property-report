@@ -23,6 +23,7 @@ export interface PdfPhoto { id: string; room_id: string; photo_url: string; enha
 export interface PdfPhotoExt extends PdfPhoto {
   inspection_item_id?: string | null;
   voice_transcript?: string | null;
+  ai_classification?: Record<string, unknown> | null;
 }
 export interface PdfComparisonChange {
   id: string; room_id: string; item_name: string;
