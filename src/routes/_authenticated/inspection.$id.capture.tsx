@@ -307,6 +307,10 @@ function CapturePage() {
       const sources = Array.from(new Set([...(match.sources ?? []), s.source]));
       const { error } = await supabase.from("inspection_items").update({
         sources,
+        condition: s.condition,
+        description: s.description,
+        maintenance_required: s.maintenance_required,
+        maintenance_notes: s.maintenance_notes,
         confidence: s.confidence ?? match.confidence,
       }).eq("id", match.id);
       if (error) { toast.error(error.message); return; }
@@ -507,6 +511,7 @@ function CapturePage() {
         const key = canonicalName.toLowerCase();
         const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
         const existingItem = byName.get(key);
+        if (existingItem?.id === "__pending__") continue;
         const conf = normaliseAiConfidence(ai.confidence);
         const isLowConf = shouldSuggestAiItem(ai);
         if (isLowConf) {
@@ -524,7 +529,6 @@ function CapturePage() {
           continue;
         }
         if (existingItem) {
-          if (existingItem.id === "__pending__") continue;
           const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
           await supabase.from("inspection_items").update({
             sources,
