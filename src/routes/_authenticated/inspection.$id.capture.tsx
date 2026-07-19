@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
-import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, type Condition } from "@/lib/parse-transcript";
+import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
@@ -393,8 +393,16 @@ function CapturePage() {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 15000),
       );
+      const existingForRoom = (items ?? [])
+        .filter((i) => i.room_id === roomId)
+        .map((i) => ({ name: i.item_name, condition: i.condition, description: i.description }));
       const call = supabase.functions.invoke("analyze-photo", {
-        body: { image_base64: base64, mime_type: file.type, room_type: roomName },
+        body: {
+          image_base64: base64,
+          mime_type: file.type,
+          room_type: roomName,
+          existing_items: existingForRoom,
+        },
       });
       const { data, error } = (await Promise.race([call, timeout])) as any;
       if (error) throw error;
@@ -405,15 +413,16 @@ function CapturePage() {
       }> = Array.isArray(data?.items) ? data.items : [];
       if (aiItems.length === 0) { setAnalyzing(false); return; }
 
-      // Merge with existing items in this room (case-insensitive name match).
+      // Merge with existing items in this room (canonical name match).
       const existing = (items ?? []).filter((i) => i.room_id === roomId);
-      const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+      const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
       const toInsert: any[] = [];
       const nowSort = existing.length * 10;
       let idx = 0;
       for (const ai of aiItems) {
         if (!ai?.name) continue;
-        const key = ai.name.toLowerCase();
+        const canonicalName = canonicalizeItemName(ai.name);
+        const key = canonicalName.toLowerCase();
         const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
         const existingItem = byName.get(key);
         if (existingItem) {
@@ -428,7 +437,7 @@ function CapturePage() {
           user_id: inspection.user_id,
           inspection_id: id,
           room_id: roomId,
-          item_name: ai.name,
+          item_name: canonicalName,
           condition: cond,
           description: ai.description || null,
           maintenance_required: !!ai.maintenance_required,
@@ -437,6 +446,9 @@ function CapturePage() {
           confidence: typeof ai.confidence === "number" ? ai.confidence : null,
           sort_order: nowSort + idx * 10,
         });
+        // Reserve the key so a second AI item with the same canonical name
+        // doesn't insert a duplicate in this same call.
+        byName.set(key, { id: "__pending__" } as any);
         idx++;
       }
       if (toInsert.length > 0) {
@@ -773,8 +785,21 @@ function CapturePage() {
     for (let i = 0; i < frames.length; i++) {
       setVideoProgress({ current: i + 1, total: frames.length });
       try {
+        // Pass items detected so far (from existing rows + prior frames in
+        // this run) so the model reuses canonical names across frames.
+        const existingForRoom = (items ?? [])
+          .filter((i2) => i2.room_id === roomId)
+          .map((i2) => ({ name: i2.item_name, condition: i2.condition, description: i2.description }));
+        const fromFrames = Array.from(merged.values()).map((m) => ({
+          name: m.name, condition: m.condition, description: m.description,
+        }));
         const call = supabase.functions.invoke("analyze-photo", {
-          body: { image_base64: frames[i].base64, mime_type: "image/jpeg", room_type: roomName },
+          body: {
+            image_base64: frames[i].base64,
+            mime_type: "image/jpeg",
+            room_type: roomName,
+            existing_items: [...existingForRoom, ...fromFrames],
+          },
         });
         const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
         const { data, error } = (await Promise.race([call, timeout])) as any;
@@ -784,11 +809,12 @@ function CapturePage() {
           if (!ai?.name) continue;
           const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
           const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
-          const key = ai.name.toLowerCase().trim();
+          const canonicalName = canonicalizeItemName(ai.name);
+          const key = canonicalName.toLowerCase().trim();
           const prev = merged.get(key);
           if (!prev) {
             merged.set(key, {
-              name: ai.name,
+              name: canonicalName,
               condition: cond,
               confidence: conf,
               description: ai.description?.trim() || null,
@@ -796,19 +822,27 @@ function CapturePage() {
               maintenance_notes: ai.maintenance_notes?.trim() || null,
               bestFrameIdx: i,
             });
-          } else if (rank[cond] > rank[prev.condition]) {
-            // Worse condition — replace the record entirely.
+          } else {
+            // Merge duplicates across frames: keep the WORST condition and
+            // the MOST DETAILED description.
+            const nextCond = rank[cond] > rank[prev.condition] ? cond : prev.condition;
+            const aiDesc = ai.description?.trim() || "";
+            const prevDesc = prev.description ?? "";
+            const nextDesc = aiDesc.length > prevDesc.length ? aiDesc : prevDesc;
+            const nextNotes = (ai.maintenance_notes?.trim() || "").length > (prev.maintenance_notes ?? "").length
+              ? (ai.maintenance_notes?.trim() || null)
+              : prev.maintenance_notes;
+            const worseWon = rank[cond] > rank[prev.condition];
             merged.set(key, {
-              name: ai.name,
-              condition: cond,
-              confidence: conf,
-              description: ai.description?.trim() || null,
-              maintenance_required: !!ai.maintenance_required,
-              maintenance_notes: ai.maintenance_notes?.trim() || null,
-              bestFrameIdx: i,
+              name: canonicalName,
+              condition: nextCond,
+              confidence: Math.max(conf, prev.confidence),
+              description: nextDesc || null,
+              maintenance_required: prev.maintenance_required || !!ai.maintenance_required,
+              maintenance_notes: nextNotes,
+              bestFrameIdx: worseWon ? i : prev.bestFrameIdx,
             });
           }
-          // else: same or better condition → keep the first (highest-confidence) instance.
         }
       } catch {
         // continue on error
@@ -835,7 +869,7 @@ function CapturePage() {
 
     // Merge into inspection_items (matching by name, video source).
     const existing = (items ?? []).filter((i) => i.room_id === roomId);
-    const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+    const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
     const toInsert: any[] = [];
     const nowSort = existing.length * 10;
     let insIdx = 0;

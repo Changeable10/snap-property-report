@@ -44,6 +44,31 @@ const ALIAS_TABLE: AliasEntry[] = [
 
 export const ITEM_NAMES = ALIAS_TABLE.map((e) => e.canonical);
 
+/**
+ * Normalize an arbitrary item name (typically from AI output) into a canonical
+ * inspection item name. If it matches a known alias, return the canonical
+ * form (e.g. "wall surface" → "Walls", "doorway and frame" → "Door"). Otherwise
+ * return a title-cased version of the input so item names remain consistent.
+ */
+export function canonicalizeItemName(name: string): string {
+  const raw = (name ?? "").trim();
+  if (!raw) return raw;
+  const lower = raw.toLowerCase();
+  const flat: { canonical: string; alias: string }[] = [];
+  for (const entry of ALIAS_TABLE) for (const a of entry.aliases) flat.push({ canonical: entry.canonical, alias: a });
+  flat.sort((a, b) => b.alias.length - a.alias.length);
+  for (const { canonical, alias } of flat) {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, "i");
+    if (re.test(lower)) return canonical;
+  }
+  // Title case fallback
+  return raw
+    .split(/\s+/)
+    .map((t) => (t.length <= 2 && /^[a-z]+$/i.test(t) ? t.toLowerCase() : t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()))
+    .join(" ");
+}
+
 const CONDITION_KEYWORDS: Record<Condition, string[]> = {
   good: ["good condition", "fine", "clean", "no issues", "good", "great"],
   fair: ["bit of wear", "minor", "small mark", "slight", "some wear"],
