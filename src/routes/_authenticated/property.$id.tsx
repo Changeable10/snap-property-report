@@ -945,6 +945,44 @@ function PropertyDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog
+        open={!!inspectionToDelete}
+        onOpenChange={(v) => {
+          if (deleteInspection.isPending) return;
+          if (!v) setInspectionToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this inspection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {inspectionToDelete ? (
+                <>
+                  Delete this {TYPE_LABEL[inspectionToDelete.inspection_type]} inspection from {formatDMY(inspectionToDelete.inspection_date)}? All photos, items, and any generated reports will be permanently deleted.
+                  {inspectionToDelete.status === "signed" ? (
+                    <span className="mt-2 block font-semibold text-destructive">
+                      This inspection has been signed and finalised. Deleting it will remove the compliance record.
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteInspection.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (inspectionToDelete) deleteInspection.mutate(inspectionToDelete.id);
+              }}
+              disabled={deleteInspection.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteInspection.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
