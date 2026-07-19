@@ -110,17 +110,8 @@ function ReviewPage() {
     return m;
   }, [acceptedChanges]);
 
-  // Mark inspection completed once when review is opened
-  useEffect(() => {
-    if (!inspection) return;
-    if (inspection.status === "completed" || inspection.status === "signed") return;
-    (async () => {
-      const { error } = await supabase.from("inspections")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
-        .eq("id", id);
-      if (!error) qc.invalidateQueries({ queryKey: ["inspection", id] });
-    })();
-  }, [inspection?.status, id]);
+  // Note: inspection status is only marked "completed" when the user explicitly
+  // taps "Generate report" — not merely by opening the review screen.
 
   const counts = useMemo(() => {
     const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
