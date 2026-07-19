@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -25,6 +26,7 @@ interface ListingPhoto {
   captured_at: string;
   staged_url: string | null;
   staging_style: string | null;
+  enhanced_url?: string | null;
 }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
 
@@ -95,7 +97,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -830,8 +832,12 @@ function StagedPhotoCard({
   onKeepOriginal: () => void;
 }) {
   const origUrl = useSignedUrl(photo.photo_url);
+  const enhancedUrl = useSignedUrl(photo.enhanced_url ?? undefined);
   const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
   const hasStaged = !!photo.staged_url;
+  const hasEnhanced = !!photo.enhanced_url;
+  const [enhanceOpen, setEnhanceOpen] = useState(false);
+  const qc = useQueryClient();
   const [view, setView] = useState<"before" | "after">("after");
   useEffect(() => { setView(hasStaged ? "after" : "before"); }, [hasStaged]);
   const disabled = staging || (!hasStaged && (freePlan || outOfCredits));
@@ -858,7 +864,24 @@ function StagedPhotoCard({
         </div>
       ) : (
         <div className="relative aspect-square w-full overflow-hidden bg-muted">
-          {origUrl ? <img src={origUrl} alt="" className="size-full object-cover" /> : null}
+          {(hasEnhanced ? enhancedUrl : origUrl) ? (
+            <img src={hasEnhanced ? enhancedUrl : origUrl} alt="" className="size-full object-cover" />
+          ) : null}
+          {hasEnhanced ? (
+            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
+              Enhanced
+            </span>
+          ) : null}
+          {!staging ? (
+            <button
+              type="button"
+              onClick={() => setEnhanceOpen(true)}
+              className="absolute bottom-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+              aria-label="Enhance photo"
+            >
+              <Sparkles className="size-3.5" />
+            </button>
+          ) : null}
           {staging ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
               <Loader2 className="size-5 animate-spin" />
@@ -897,6 +920,15 @@ function StagedPhotoCard({
           {staging ? "Staging…" : label}
         </button>
       </div>
+      <EnhancePhotoModal
+        open={enhanceOpen}
+        onClose={() => setEnhanceOpen(false)}
+        photoId={photo.id}
+        photoPath={photo.photo_url}
+        table="listing_photos"
+        onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
+        onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
+      />
     </div>
   );
 }

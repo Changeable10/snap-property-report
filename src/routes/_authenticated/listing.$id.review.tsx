@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Copy, Loader2, Sparkles, Check, Camera, Star, Download, Wand2, RotateCcw, Sofa, X, Package } from "lucide-react";
+import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
@@ -1551,6 +1552,8 @@ function PhotoStagingTile({
 }) {
   const [origUrl, setOrigUrl] = useState<string | undefined>();
   const [stagedUrl, setStagedUrl] = useState<string | undefined>();
+  const [enhanceOpen, setEnhanceOpen] = useState(false);
+  const qc = useQueryClient();
   useEffect(() => {
     let cancel = false;
     supabase.storage.from("inspection-photos").createSignedUrl(photo.photo_url, 3600).then(({ data }) => {
@@ -1617,6 +1620,10 @@ function PhotoStagingTile({
         <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
           Staged
         </span>
+      ) : photo.enhanced_url ? (
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+          Enhanced
+        </span>
       ) : null}
       {staging ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
@@ -1624,16 +1631,36 @@ function PhotoStagingTile({
           <p className="text-[11px] font-medium">Staging…</p>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={onStage}
-          title="Virtual staging"
-          aria-label="Virtual staging"
-          className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/85 text-teal shadow-md backdrop-blur-sm transition hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-teal"
-        >
-          <Wand2 className="size-4" />
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => setEnhanceOpen(true)}
+            title="Enhance photo"
+            aria-label="Enhance photo"
+            className="absolute bottom-1.5 left-1.5 flex size-8 items-center justify-center rounded-full bg-background/85 text-teal shadow-md backdrop-blur-sm transition hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-teal"
+          >
+            <Sparkles className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onStage}
+            title="Virtual staging"
+            aria-label="Virtual staging"
+            className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/85 text-teal shadow-md backdrop-blur-sm transition hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-teal"
+          >
+            <Wand2 className="size-4" />
+          </button>
+        </>
       )}
+      <EnhancePhotoModal
+        open={enhanceOpen}
+        onClose={() => setEnhanceOpen(false)}
+        photoId={photo.id}
+        photoPath={photo.photo_url}
+        table="listing_photos"
+        onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
+        onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
+      />
     </div>
   );
 }

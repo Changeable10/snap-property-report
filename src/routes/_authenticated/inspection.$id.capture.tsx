@@ -2,12 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video, Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
 import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
+import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -18,6 +19,7 @@ interface Room { id: string; name: string; sort_order: number }
 interface PhotoRow {
   id: string; room_id: string; photo_url: string; captured_at: string;
   voice_transcript: string | null;
+  enhanced_url?: string | null;
 }
 interface ItemRow {
   id: string; room_id: string; item_name: string;
@@ -92,7 +94,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
         .eq("inspection_id", previousInspectionId!)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -147,7 +149,7 @@ function CapturePage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -1107,7 +1109,16 @@ function CapturePage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+              {roomPhotos.map((p) => (
+                <PhotoThumb
+                  key={p.id}
+                  photoId={p.id}
+                  displayPath={p.enhanced_url ?? p.photo_url}
+                  originalPath={p.photo_url}
+                  isEnhanced={!!p.enhanced_url}
+                  onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
+                />
+              ))}
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -1482,14 +1493,45 @@ function CapturePage() {
   );
 }
 
-function PhotoThumb({ path }: { path: string }) {
-  const url = useSignedUrl(path);
+function PhotoThumb({
+  photoId,
+  displayPath,
+  originalPath,
+  isEnhanced,
+  onEnhanced,
+}: {
+  photoId: string;
+  displayPath: string;
+  originalPath: string;
+  isEnhanced: boolean;
+  onEnhanced?: () => void;
+}) {
+  const url = useSignedUrl(displayPath);
+  const [open, setOpen] = useState(false);
   return (
     <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
       {url && <img src={url} alt="Captured" className="h-full w-full object-cover" />}
       <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-condition-good text-white shadow ring-2 ring-white">
         <Check className="size-3.5" strokeWidth={3} />
       </span>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+        aria-label="Enhance photo"
+      >
+        <Sparkles className="size-3" />
+        {isEnhanced ? "Enhanced" : "Enhance"}
+      </button>
+      <EnhancePhotoModal
+        open={open}
+        onClose={() => setOpen(false)}
+        photoId={photoId}
+        photoPath={originalPath}
+        table="inspection_photos"
+        onApplied={() => onEnhanced?.()}
+        onDiscarded={() => onEnhanced?.()}
+      />
     </div>
   );
 }
