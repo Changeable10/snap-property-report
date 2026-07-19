@@ -279,6 +279,7 @@ export async function generateReportPdf({
   for (const room of roomsWithItems) {
     const rItems = itemsByRoom.get(room.id) ?? [];
     const rPhotosAll = (photosByRoom.get(room.id) ?? []) as PdfPhotoExt[];
+    console.log(`PDF: Room "${room.name}" has ${rPhotosAll.length} photos`);
 
     doc.addPage();
     y = margin;
@@ -287,23 +288,6 @@ export async function generateReportPdf({
     doc.setTextColor(...accent);
     doc.text(room.name, margin, y + 2);
     y += 8;
-
-    // First photo at top of room, scaled to page width, max 200pt height
-    if (rPhotosAll.length > 0) {
-      const img = await fetchPhotoDataUrl(rPhotosAll[0].enhanced_url ?? rPhotosAll[0].photo_url);
-      if (img) {
-        const ratio = img.w / img.h;
-        let w = contentW;
-        let h = w / ratio;
-        if (h > MAX_PHOTO_MM) { h = MAX_PHOTO_MM; w = h * ratio; }
-        try {
-          doc.addImage(img.dataUrl, "JPEG", margin, y, w, h, undefined, "FAST");
-        } catch {
-          try { doc.addImage(img.dataUrl, "PNG", margin, y, w, h); } catch { /* skip */ }
-        }
-        y += h + 6;
-      }
-    }
 
     autoTable(doc, {
         startY: y,
