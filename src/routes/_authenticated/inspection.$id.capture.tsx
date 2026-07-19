@@ -9,6 +9,7 @@ import { ConditionBadge } from "@/components/ConditionBadge";
 import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -360,6 +361,7 @@ function CapturePage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !current || !inspection) return;
+    if (!isAcceptedImage(file)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
     const path = `${inspection.user_id}/${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
@@ -1103,7 +1105,7 @@ function CapturePage() {
       </header>
 
       <main className="mx-auto max-w-md px-5 py-6">
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
+        <input ref={fileRef} type="file" accept={ACCEPTED_IMAGE_ACCEPT_ATTR} capture="environment" onChange={onFile} className="hidden" />
 
         {comparisonEnabled && previousInspection && (
           <div className="mb-4 rounded-xl border border-teal/30 bg-teal/5 px-3 py-2 text-xs font-medium text-teal-dark">

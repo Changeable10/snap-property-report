@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/healthy-homes")({
   head: () => ({ meta: [{ title: "Healthy Homes assessment — Snapsure" }] }),
@@ -578,13 +579,15 @@ function PhotoButton({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPTED_IMAGE_ACCEPT_ATTR}
         capture="environment"
         className="hidden"
         onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) await onUpload(f);
+          if (!f) return;
+          if (!isAcceptedImage(f)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
+          await onUpload(f);
         }}
       />
     </div>
