@@ -226,13 +226,15 @@ function PropertyDetail() {
     },
   });
 
+  const roomIds = (rooms ?? []).map((r) => r.id);
   const { data: roomPhotos } = useQuery({
-    queryKey: ["property-photos", id],
+    queryKey: ["property-photos", id, roomIds.join(",")],
+    enabled: roomIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inspection_photos")
         .select("id,room_id")
-        .eq("property_id", id);
+        .in("room_id", roomIds);
       if (error) throw error;
       return (data ?? []) as { id: string; room_id: string }[];
     },
