@@ -67,7 +67,10 @@ function withRequiredConfidenceFields(parsed: any, roomType: unknown) {
     items: items.map((item: any) => {
       const confidence = normaliseConfidence(item?.confidence);
       const atypical = isAtypicalForRoom(roomType, item?.name);
-      const explicitLow = item?.lowConfidence === true || item?.low_confidence === true || item?.low_confidence === "true";
+      const explicitLow = item?.lowConfidence === true
+        || item?.lowConfidence === "true"
+        || item?.low_confidence === true
+        || item?.low_confidence === "true";
       const effectiveConfidence = confidence ?? 0.5;
       return {
         ...item,
