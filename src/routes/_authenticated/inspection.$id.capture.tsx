@@ -465,10 +465,14 @@ function CapturePage() {
       });
       const { data, error } = (await Promise.race([call, timeout])) as any;
       if (error) throw error;
+      // Debug: surface raw AI response so we can verify confidence/lowConfidence fields.
+      // eslint-disable-next-line no-console
+      console.log("[analyze-photo] raw response:", data);
       const aiItems: Array<{
         name: string; condition: Condition; description?: string;
         maintenance_required?: boolean; maintenance_notes?: string;
         confidence?: number;
+        lowConfidence?: boolean;
       }> = Array.isArray(data?.items) ? data.items : [];
       if (aiItems.length === 0) { setAnalyzing(false); return; }
 
@@ -494,9 +498,12 @@ function CapturePage() {
           continue;
         }
         const conf = typeof ai.confidence === "number" ? ai.confidence : null;
-        // Low-confidence detections go to Suggested items for user review,
-        // instead of being auto-inserted.
-        if (conf !== null && conf < 0.7) {
+        // Treat any of these as "low confidence" and route to Suggested items:
+        //   - explicit lowConfidence: true from the model
+        //   - numeric confidence < 0.7
+        //   - missing confidence field entirely (model didn't score it)
+        const isLowConf = ai.lowConfidence === true || conf === null || (conf !== null && conf < 0.7);
+        if (isLowConf) {
           toSuggest.push({
             key: `${roomId}-${canonicalName}-${crypto.randomUUID()}`,
             name: canonicalName,
