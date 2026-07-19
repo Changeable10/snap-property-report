@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft, Bed, Bath, Home as HomeIcon, Building2, Plus, Pencil, Trash2,
-  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown,
+  Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
@@ -371,6 +371,24 @@ function PropertyDetail() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rooms", id] }),
+  });
+
+  const reorderRooms = useMutation({
+    mutationFn: async ({ roomId, direction }: { roomId: string; direction: "up" | "down" }) => {
+      const list = rooms ?? [];
+      const idx = list.findIndex((r) => r.id === roomId);
+      if (idx < 0) return;
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= list.length) return;
+      const a = list[idx];
+      const b = list[swapIdx];
+      const { error: e1 } = await supabase.from("rooms").update({ sort_order: b.sort_order }).eq("id", a.id);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from("rooms").update({ sort_order: a.sort_order }).eq("id", b.id);
+      if (e2) throw e2;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rooms", id] }),
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Failed to reorder"),
   });
 
   const addContact = useMutation({
@@ -845,7 +863,7 @@ function PropertyDetail() {
         <section className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-foreground">Rooms</h2>
           <ul className="flex flex-col gap-2">
-            {rooms?.map((room) => (
+            {rooms?.map((room, idx) => (
               <li
                 key={room.id}
                 className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3"
@@ -880,6 +898,24 @@ function PropertyDetail() {
                     <span className="flex-1 truncate text-sm font-medium text-foreground">
                       {room.name}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => reorderRooms.mutate({ roomId: room.id, direction: "up" })}
+                      disabled={idx === 0 || reorderRooms.isPending}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:invisible"
+                      aria-label="Move room up"
+                    >
+                      <ChevronUp className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderRooms.mutate({ roomId: room.id, direction: "down" })}
+                      disabled={idx === (rooms?.length ?? 0) - 1 || reorderRooms.isPending}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:invisible"
+                      aria-label="Move room down"
+                    >
+                      <ChevronDown className="size-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
