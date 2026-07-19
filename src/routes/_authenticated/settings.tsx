@@ -125,8 +125,8 @@ function SettingsPage() {
             archive properties or listings before the switch completes.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(["free", "professional", "portfolio"] as const)
-              .filter((p) => p !== current)
+            {(["free", "portfolio", "professional", "agency"] as const)
+              .filter((p) => RANK[p] < RANK[current])
               .map((p) => (
                 <Link
                   key={p}
