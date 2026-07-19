@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
 import { Onboarding, ONBOARDED_KEY } from "@/components/Onboarding";
 import { UpgradeModal } from "@/components/UpgradeModal";
-import { usePlan, PLAN_LIMITS } from "@/lib/use-plan";
+import { usePlan, usePropertyCount, PLAN_LIMITS } from "@/lib/use-plan";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: Index,
@@ -136,6 +136,7 @@ function Index() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const { data: plan } = usePlan(user.id);
+  const { data: ownPropertyCount } = usePropertyCount(user.id);
   const displayName =
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.name ??
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.full_name ??
@@ -480,7 +481,8 @@ function Index() {
               type="button"
               onClick={() => {
                 const limit = PLAN_LIMITS[plan ?? "free"];
-                if ((properties?.length ?? 0) >= limit) {
+                const count = ownPropertyCount ?? properties?.length ?? 0;
+                if (count >= limit) {
                   setUpgradeOpen(true);
                 } else {
                   navigate({ to: "/property/new" });
