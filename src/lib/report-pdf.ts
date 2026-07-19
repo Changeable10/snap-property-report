@@ -18,6 +18,7 @@ export interface PdfItem {
   id: string; room_id: string; item_name: string; condition: Condition;
   description: string | null; maintenance_required: boolean;
   maintenance_notes: string | null; sort_order: number;
+  maintenance_priority?: "low" | "medium" | "high" | null;
 }
 export interface PdfPhoto { id: string; room_id: string; photo_url: string; enhanced_url?: string | null; captured_at: string }
 // Extended optional fields used to build the per-room photo gallery.
