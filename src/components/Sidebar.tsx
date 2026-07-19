@@ -109,7 +109,7 @@ export function Sidebar({ user }: SidebarProps) {
     { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
   const agencyItems: NavItem[] =
-    plan === "agency" || !!team
+    plan === "portfolio" || plan === "agency" || !!team
       ? [{ to: "/team", label: "Team", icon: Users, match: "/team" }]
       : [];
 
