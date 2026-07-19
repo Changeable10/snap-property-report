@@ -492,7 +492,7 @@ export async function generateReportPdf({
             doc.setFont("helvetica", "bold");
             doc.setFontSize(8);
             doc.setTextColor(40);
-            const headerLines = doc.splitTextToSize(title, cellW - 22);
+            const headerLines = doc.splitTextToSize(label, cellW - 22);
             doc.text(headerLines, x, capY);
 
             // Source marker aligned right on the first line
@@ -504,19 +504,22 @@ export async function generateReportPdf({
             let lineY = capY + headerLines.length * 3.2;
 
             // Line 2: coloured condition badge
-            if (condition && COND_RGB[condition]) {
-              const [r, g, b] = COND_RGB[condition];
-              const label = COND_LABEL[condition];
+            const condKey = condition && typeof condition === "string" && (["good","fair","poor","damaged"] as const).includes(condition as Condition)
+              ? (condition as Condition)
+              : null;
+            if (condKey && COND_RGB[condKey]) {
+              const [r, g, b] = COND_RGB[condKey];
+              const condLabel = COND_LABEL[condKey];
               doc.setFont("helvetica", "bold");
               doc.setFontSize(7);
-              const textW = doc.getTextWidth(label);
+              const textW = doc.getTextWidth(condLabel);
               const padX = 2;
               const padY = 1.2;
               const badgeH = 3.6;
               doc.setFillColor(r, g, b);
               doc.roundedRect(x, lineY, textW + padX * 2, badgeH + padY, 0.6, 0.6, "F");
               doc.setTextColor(255);
-              doc.text(label, x + padX, lineY + badgeH);
+              doc.text(condLabel, x + padX, lineY + badgeH);
               lineY += badgeH + padY + 1.5;
             }
 
