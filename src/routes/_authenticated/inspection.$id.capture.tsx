@@ -353,8 +353,9 @@ function CapturePage() {
   const doneRoomIds = useMemo(() => {
     const set = new Set<string>();
     for (const it of items ?? []) set.add(it.room_id);
+    for (const p of photos ?? []) set.add(p.room_id);
     return set;
-  }, [items]);
+  }, [items, photos]);
 
   const progressPct = total > 0 ? (visited.size / total) * 100 : 0;
 
