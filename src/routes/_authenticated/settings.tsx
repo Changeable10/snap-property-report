@@ -100,7 +100,9 @@ function SettingsPage() {
         <div>
           <p className="text-xs font-medium text-muted-foreground">Current plan</p>
           <p className="text-sm font-semibold text-foreground">{PLAN_LABEL[current]}</p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">User ID: {user.id}</p>
+          {import.meta.env.DEV ? (
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground">User ID: {user.id}</p>
+          ) : null}
         </div>
         {current === "free" ? (
           <a
@@ -134,7 +136,7 @@ function SettingsPage() {
           </div>
         </div>
       ) : null}
-      {isAdmin ? (
+      {isAdmin && import.meta.env.DEV ? (
         <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4">
           <p className="text-sm font-semibold text-slate-900">Debug: properties</p>
           <div className="mt-2 space-y-1 font-mono text-[11px] text-slate-700">
