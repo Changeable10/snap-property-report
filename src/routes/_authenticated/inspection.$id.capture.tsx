@@ -50,6 +50,7 @@ function CapturePage() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -897,9 +898,13 @@ function CapturePage() {
     <div className="min-h-screen bg-background pb-32">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
-          <Link to="/" className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal">
+          <button
+            type="button"
+            onClick={() => setShowExitConfirm(true)}
+            className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal"
+          >
             <ArrowLeft className="size-4" /> Exit
-          </Link>
+          </button>
           {total > 0 && current ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
@@ -1246,6 +1251,44 @@ function CapturePage() {
           </button>
         </div>
       </nav>
+
+      {showExitConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
+          onClick={() => setShowExitConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-foreground">Save and exit?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your progress will be saved and you can resume later.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="min-h-11 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground"
+              >
+                Keep inspecting
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  navigate({ to: "/" });
+                }}
+                className="min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
+              >
+                Save and exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, RefreshCw, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
@@ -110,17 +110,8 @@ function ReviewPage() {
     return m;
   }, [acceptedChanges]);
 
-  // Mark inspection completed once when review is opened
-  useEffect(() => {
-    if (!inspection) return;
-    if (inspection.status === "completed" || inspection.status === "signed") return;
-    (async () => {
-      const { error } = await supabase.from("inspections")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
-        .eq("id", id);
-      if (!error) qc.invalidateQueries({ queryKey: ["inspection", id] });
-    })();
-  }, [inspection?.status, id]);
+  // Note: inspection status is only marked "completed" when the user explicitly
+  // taps "Generate report" — not merely by opening the review screen.
 
   const counts = useMemo(() => {
     const c: Record<Condition, number> = { good: 0, fair: 0, poor: 0, damaged: 0 };
@@ -173,7 +164,17 @@ function ReviewPage() {
   const totalRooms = rooms?.length ?? 0;
   const emptyRoomCount = Math.max(0, totalRooms - roomsWithItems.size);
 
-  function handleGenerate() {
+  async function markCompletedIfNeeded() {
+    if (!inspection) return;
+    if (inspection.status === "completed" || inspection.status === "signed") return;
+    const { error } = await supabase.from("inspections")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["inspection", id] });
+  }
+
+  async function handleGenerate() {
     if (totalItems === 0) {
       setGate("empty");
       return;
@@ -182,6 +183,7 @@ function ReviewPage() {
       setGate("partial");
       return;
     }
+    await markCompletedIfNeeded();
     navigate({ to: "/inspection/$id/report", params: { id } });
   }
 
@@ -388,8 +390,9 @@ function ReviewPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setGate(null);
+                      await markCompletedIfNeeded();
                       navigate({ to: "/inspection/$id/report", params: { id } });
                     }}
                     className="min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"

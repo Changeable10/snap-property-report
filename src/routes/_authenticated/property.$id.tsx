@@ -588,7 +588,7 @@ function PropertyDetail() {
                           className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-teal px-3 text-xs font-semibold text-teal-foreground hover:bg-teal-dark"
                         >
                           <Play className="size-3.5" />
-                          Continue
+                          Resume
                         </Link>
                       ) : (
                         <>
