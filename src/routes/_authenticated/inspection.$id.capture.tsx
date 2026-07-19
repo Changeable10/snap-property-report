@@ -50,6 +50,7 @@ function CapturePage() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -897,9 +898,13 @@ function CapturePage() {
     <div className="min-h-screen bg-background pb-32">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
-          <Link to="/" className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal">
+          <button
+            type="button"
+            onClick={() => setShowExitConfirm(true)}
+            className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal"
+          >
             <ArrowLeft className="size-4" /> Exit
-          </Link>
+          </button>
           {total > 0 && current ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
