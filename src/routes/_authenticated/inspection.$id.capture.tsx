@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
-import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, type Condition } from "@/lib/parse-transcript";
+import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
