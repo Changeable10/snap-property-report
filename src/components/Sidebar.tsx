@@ -31,7 +31,8 @@ function useCounts() {
     queryFn: async () => {
       const { count } = await supabase
         .from("properties")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null);
       return count ?? 0;
     },
     staleTime: 60_000,
