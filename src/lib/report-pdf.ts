@@ -458,37 +458,35 @@ export async function generateReportPdf({
 
             // Caption data — prefer linked inspection item, else fall back
             // to the photo's own ai_classification + voice_transcript.
-            const ai = (p.ai_classification && typeof p.ai_classification === "object")
-              ? p.ai_classification as Record<string, unknown>
-              : null;
-            const titleCase = (s: string) =>
-              s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-            const aiItemType = ai && typeof ai.item_type === "string" ? String(ai.item_type) : "";
-            const aiCondRaw = ai && typeof ai.condition === "string" ? String(ai.condition).toLowerCase() : "";
-            const aiCondition = (["good","fair","poor","damaged"] as const).includes(aiCondRaw as Condition)
-              ? (aiCondRaw as Condition) : null;
+            let label = "Room detail";
+            let condition: Condition | string | null = null;
+            let description = "";
 
-            let title: string;
-            let condition: Condition | null;
-            let description: string;
-            if (linked) {
-              title = linked.item_name;
-              condition = linked.condition as Condition;
-              description = (linked.description ?? "").slice(0, 80);
-            } else if (ai) {
-              title = aiItemType ? titleCase(aiItemType) : "Room detail";
-              condition = aiCondition;
-              description = (p.voice_transcript ?? "").slice(0, 80);
-            } else {
-              title = "Room detail";
-              condition = null;
-              description = "";
+            if (p.inspection_item_id && linked) {
+              label = linked.item_name;
+              condition = linked.condition;
+              description = (linked.description || "").substring(0, 80);
+            } else if (p.ai_classification && typeof p.ai_classification === "object") {
+              if (p.ai_classification.item_type && typeof p.ai_classification.item_type === "string") {
+                label = p.ai_classification.item_type;
+              }
+              if (p.ai_classification.condition && typeof p.ai_classification.condition === "string") {
+                condition = p.ai_classification.condition;
+              }
             }
-            console.log(
-              `PDF grid photo: item_id=${p.inspection_item_id ?? null}, ` +
-              `ai_class=${JSON.stringify(p.ai_classification ?? null)}, ` +
-              `label=${title}, condition=${condition ?? null}`,
-            );
+
+            if (!label) label = "Room detail";
+
+            if (!description && p.voice_transcript && typeof p.voice_transcript === "string") {
+              description = p.voice_transcript.substring(0, 80);
+            }
+
+            console.log("PDF grid photo:", {
+              item_id: p.inspection_item_id ?? null,
+              ai_class: p.ai_classification ?? null,
+              label,
+              condition,
+            });
 
             // Line 1: item name — condition  [source]
             doc.setFont("helvetica", "bold");
