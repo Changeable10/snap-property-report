@@ -11,6 +11,16 @@ import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   buildInspectionCsv,
   downloadCsv,
   todayStamp,
@@ -245,6 +255,22 @@ function PropertyDetail() {
   const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
   const { data: plan } = usePlan(user.id);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+
+  const deleteProperty = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("properties").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Property deleted");
+      qc.invalidateQueries({ queryKey: ["properties"] });
+      navigate({ to: "/" });
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Failed to delete property");
+    },
+  });
 
   if (propertyLoading) {
     return (
@@ -439,6 +465,14 @@ function PropertyDetail() {
                 >
                   <Pencil className="size-3.5" />
                   {editingProperty ? "Cancel" : "Edit property"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDelete(true)}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-destructive/40 bg-card px-3 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
                 </button>
                 <button
                   type="button"
