@@ -290,6 +290,7 @@ export type Database = {
           ai_classification: Json | null
           captured_at: string
           created_at: string
+          enhanced_url: string | null
           id: string
           inspection_id: string
           inspection_item_id: string | null
@@ -302,6 +303,7 @@ export type Database = {
           ai_classification?: Json | null
           captured_at?: string
           created_at?: string
+          enhanced_url?: string | null
           id?: string
           inspection_id: string
           inspection_item_id?: string | null
@@ -314,6 +316,7 @@ export type Database = {
           ai_classification?: Json | null
           captured_at?: string
           created_at?: string
+          enhanced_url?: string | null
           id?: string
           inspection_id?: string
           inspection_item_id?: string | null

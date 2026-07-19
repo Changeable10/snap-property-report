@@ -1,0 +1,1 @@
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS enhanced_url TEXT;
