@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 interface UpgradeModalProps {
   open: boolean;
   onClose: () => void;
+  title?: string;
+  description?: string;
 }
 
 const PLANS = [
@@ -38,7 +40,7 @@ const PLANS = [
   },
 ] as const;
 
-export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
+export function UpgradeModal({ open, onClose, title, description }: UpgradeModalProps) {
   const { openCheckout, loading } = usePaddleCheckout();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   useEffect(() => {
@@ -82,11 +84,11 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         </button>
 
         <h2 className="pr-10 text-xl font-semibold text-foreground sm:text-2xl">
-          Upgrade to add more properties
+          {title ?? "Upgrade to add more properties"}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The free plan includes one property with unlimited inspections. Upgrade to
-          Professional to manage up to 10 properties, or Portfolio for unlimited.
+          {description ??
+            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 10 properties, or Portfolio for unlimited."}
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">

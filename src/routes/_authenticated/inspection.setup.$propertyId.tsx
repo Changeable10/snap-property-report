@@ -60,6 +60,7 @@ function InspectionSetup() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeCopy, setUpgradeCopy] = useState<{ title: string; description: string } | null>(null);
 
   // Listing state
   const [listingType, setListingType] = useState<ListingType>("for_sale");
@@ -108,8 +109,39 @@ function InspectionSetup() {
     }
   }
 
+  function openListingMode() {
+    if (plan === "free") {
+      setUpgradeCopy({
+        title: "Listings are a paid feature",
+        description:
+          "Listings are available on the Professional plan and above. Upgrade to start creating listings.",
+      });
+      setShowUpgrade(true);
+      return;
+    }
+    setMode("listing");
+  }
+
   async function startListing() {
+    if (plan === "free") {
+      setUpgradeCopy({
+        title: "Listings are a paid feature",
+        description:
+          "Listings are available on the Professional plan and above. Upgrade to start creating listings.",
+      });
+      setShowUpgrade(true);
+      return;
+    }
     if (listingLimitReached) {
+      if (plan === "professional") {
+        setUpgradeCopy({
+          title: "Monthly listing limit reached",
+          description:
+            "You've used all 5 listings this month. Upgrade to Portfolio for unlimited listings.",
+        });
+      } else {
+        setUpgradeCopy(null);
+      }
       setShowUpgrade(true);
       return;
     }
@@ -174,7 +206,7 @@ function InspectionSetup() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setMode(value)}
+                  onClick={() => (value === "listing" ? openListingMode() : setMode(value))}
                   className={`flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-colors ${
                     active
                       ? "border-teal bg-teal-light"
@@ -357,13 +389,18 @@ function InspectionSetup() {
               </label>
             </section>
 
-            {listingLimitReached ? (
+            {listingLimit === Infinity ? (
+              <p className="mt-4 text-xs text-muted-foreground">Unlimited listings on the {plan} plan.</p>
+            ) : listingLimitReached ? (
               <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                You've used {listingsThisMonth} of {listingLimit === Infinity ? "∞" : listingLimit} listings this month on the {plan} plan. Upgrade to create more.
+                You've used all {listingLimit} listings this month.{" "}
+                {plan === "professional"
+                  ? "Upgrade to Portfolio for unlimited listings."
+                  : "Upgrade to create more."}
               </div>
             ) : (
-              <p className="mt-4 text-xs text-muted-foreground">
-                {listingsThisMonth} of {listingLimit === Infinity ? "unlimited" : listingLimit} listings used this month.
+              <p className="mt-4 text-xs font-medium text-muted-foreground">
+                Listing {Math.min(listingsThisMonth + 1, listingLimit)} of {listingLimit} this month
               </p>
             )}
 
@@ -380,7 +417,12 @@ function InspectionSetup() {
           </>
         )}
       </main>
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        title={upgradeCopy?.title}
+        description={upgradeCopy?.description}
+      />
     </div>
   );
 }
