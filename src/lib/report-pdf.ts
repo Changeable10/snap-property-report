@@ -704,7 +704,7 @@ export async function generateReportPdf({
       doc.text(formatDMY(inspection.inspection_date), pageW - margin, pageH - 7, { align: "right" });
       doc.setFontSize(6.5);
       doc.setTextColor(180);
-      doc.text("Powered by Snapsure", pageW / 2, pageH - 4, { align: "center" });
+      doc.text(TAGLINE, pageW / 2, pageH - 4, { align: "center" });
     } else {
       doc.setFontSize(8);
       doc.setTextColor(120);
