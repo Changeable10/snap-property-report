@@ -952,6 +952,7 @@ function CapturePage() {
     const existing = (items ?? []).filter((i) => i.room_id === roomId);
     const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
     const toInsert: any[] = [];
+    const toSuggestVideo: SuggestedItem[] = [];
     const nowSort = existing.length * 10;
     let insIdx = 0;
     for (const m of merged.values()) {
@@ -968,6 +969,20 @@ function CapturePage() {
           description: existingItem.description ? existingItem.description : description,
           confidence: m.confidence || existingItem.confidence,
         }).eq("id", existingItem.id);
+        continue;
+      }
+      // Low-confidence video items → Suggested for review instead of auto-insert.
+      if (m.confidence > 0 && m.confidence < 0.7) {
+        toSuggestVideo.push({
+          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
+          name: m.name,
+          condition: m.condition,
+          description,
+          maintenance_required: m.maintenance_required,
+          maintenance_notes: notes,
+          confidence: m.confidence,
+          source: "video",
+        });
         continue;
       }
       toInsert.push({
@@ -988,6 +1003,12 @@ function CapturePage() {
     if (toInsert.length > 0) {
       const { error } = await supabase.from("inspection_items").insert(toInsert);
       if (error) toast.error(error.message);
+    }
+    if (toSuggestVideo.length > 0) {
+      setSuggestedItems((prev) => ({
+        ...prev,
+        [roomId]: [...(prev[roomId] ?? []), ...toSuggestVideo],
+      }));
     }
     qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
