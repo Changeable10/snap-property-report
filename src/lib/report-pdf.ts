@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import type { Condition } from "@/lib/parse-transcript";
 import type { PdfBranding } from "@/lib/branding";
+import { loadSnapsureLogo } from "@/lib/snapsure-logo";
 
 export interface PdfProperty {
   id: string; address: string; suburb: string; city: string; postcode: string;
@@ -151,6 +152,19 @@ export async function generateReportPdf({
       if (h > maxH) { h = maxH; w = h * ratio; }
       doc.addImage(branding.logo.dataUrl, "PNG", pageW - margin - w, y, w, h);
     } catch { /* skip */ }
+  } else {
+    const snap = await loadSnapsureLogo();
+    if (snap) {
+      try {
+        const maxW = 28; // ~80px @ ~72dpi
+        const maxH = 16;
+        const ratio = snap.w / snap.h;
+        let w = maxW;
+        let h = w / ratio;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        doc.addImage(snap.dataUrl, "PNG", pageW - margin - w, y, w, h);
+      } catch { /* skip */ }
+    }
   }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
