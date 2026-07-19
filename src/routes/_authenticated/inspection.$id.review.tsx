@@ -390,8 +390,9 @@ function ReviewPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setGate(null);
+                      await markCompletedIfNeeded();
                       navigate({ to: "/inspection/$id/report", params: { id } });
                     }}
                     className="min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
