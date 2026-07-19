@@ -404,7 +404,7 @@ export async function generateReportPdf({
         doc.setFont("helvetica", "italic");
         doc.setFontSize(8);
         doc.setTextColor(110);
-        doc.text(`[${sourceLabel(inferSource(first))}] Overview`, margin, y);
+        doc.text(`Overview  ${sourceMark(inferSource(first))}`, margin, y);
         y += 6;
       }
 
@@ -454,24 +454,41 @@ export async function generateReportPdf({
             const capY = y + rowH + 3;
             const linked = p.inspection_item_id ? itemsById.get(p.inspection_item_id) : undefined;
             const src = inferSource(p);
+            const title = linked?.item_name ?? "Additional photo";
 
+            // Line 1: item name — condition  [source]
             doc.setFont("helvetica", "bold");
             doc.setFontSize(8);
-            doc.setTextColor(60);
-            const header = linked ? `[${sourceLabel(src)}] ${linked.item_name}` : `[${sourceLabel(src)}]`;
-            const headerLines = doc.splitTextToSize(header, cellW);
+            doc.setTextColor(40);
+            const headerLines = doc.splitTextToSize(title, cellW - 22);
             doc.text(headerLines, x, capY);
+
+            // Source marker aligned right on the first line
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(130);
+            doc.text(sourceMark(src), x + cellW, capY, { align: "right" });
+
             let lineY = capY + headerLines.length * 3.2;
 
+            // Line 2: coloured condition badge
             if (linked) {
               const [r, g, b] = COND_RGB[linked.condition] ?? [90, 90, 90];
+              const label = COND_LABEL[linked.condition] ?? String(linked.condition ?? "");
               doc.setFont("helvetica", "bold");
-              doc.setFontSize(7.5);
-              doc.setTextColor(r, g, b);
-              doc.text(COND_LABEL[linked.condition] ?? String(linked.condition ?? ""), x, lineY + 2);
-              lineY += 3.6;
+              doc.setFontSize(7);
+              const textW = doc.getTextWidth(label);
+              const padX = 2;
+              const padY = 1.2;
+              const badgeH = 3.6;
+              doc.setFillColor(r, g, b);
+              doc.roundedRect(x, lineY, textW + padX * 2, badgeH + padY, 0.6, 0.6, "F");
+              doc.setTextColor(255);
+              doc.text(label, x + padX, lineY + badgeH);
+              lineY += badgeH + padY + 1.5;
             }
 
+            // Line 3+: 80-char description snippet
             const snippet = (linked?.description ?? "").slice(0, 80);
             if (snippet) {
               doc.setFont("helvetica", "normal");
