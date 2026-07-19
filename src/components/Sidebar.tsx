@@ -101,7 +101,7 @@ export function Sidebar({ user }: SidebarProps) {
   const properties: NavItem[] = [
     { to: "/", label: "All properties", icon: HomeIcon, match: "/properties", badge: counts.properties },
     { to: "/inspections", label: "Inspections", icon: ClipboardList, match: "/inspections", badge: counts.inspections },
-    { to: "/inspections", label: "Compliance", icon: ShieldCheck, match: "/compliance" },
+    { to: "/compliance", label: "Compliance", icon: ShieldCheck, match: "/compliance" },
     { to: "/listings", label: "Listings", icon: Tag, match: "/listings" },
   ];
   const records: NavItem[] = [
