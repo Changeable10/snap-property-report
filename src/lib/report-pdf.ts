@@ -646,7 +646,8 @@ export async function generateReportPdf({
     if (sig) {
       doc.setTextColor(20);
       const d = new Date(sig.signed_at);
-      doc.text(d.toLocaleString(), margin + 25, yy);
+      const stamp = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      doc.text(stamp, margin + 25, yy);
       doc.setTextColor(60);
     }
     doc.line(margin + 25, yy + 1, pageW - margin, yy + 1);
