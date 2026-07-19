@@ -10,7 +10,7 @@ const ALIAS_TABLE: AliasEntry[] = [
   { canonical: "Curtains / Blinds", aliases: ["curtains / blinds", "curtains", "curtain", "blinds", "blind"] },
   { canonical: "Windows", aliases: ["windows", "window"] },
   { canonical: "Door", aliases: ["doors", "door"] },
-  { canonical: "Light fittings", aliases: ["light fittings", "light fitting", "lights", "light"] },
+  { canonical: "Light Fittings", aliases: ["light fittings", "light fitting", "light fixtures", "light fixture", "lights", "light"] },
   { canonical: "Power points", aliases: ["power points", "power point", "sockets", "socket", "plugs", "plug"] },
   { canonical: "Wardrobe", aliases: ["wardrobe", "closet"] },
   { canonical: "Smoke alarm", aliases: ["smoke alarm", "smoke detector"] },
@@ -107,15 +107,15 @@ export function detectGeneralCondition(transcript: string): Condition | null {
 }
 
 const STANDARD_ITEMS: Record<string, string[]> = {
-  bedroom: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light fittings","Power points","Door","Wardrobe","Smoke alarm"],
+  bedroom: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light Fittings","Power points","Door","Wardrobe","Smoke alarm"],
   bathroom: ["Walls","Ceiling","Floor","Shower","Toilet","Vanity / Basin","Mirror","Tapware","Towel rail","Exhaust fan","Door"],
   kitchen: ["Walls","Ceiling","Floor","Benchtop","Sink","Tapware","Oven / Cooktop","Rangehood","Cupboards","Splashback"],
-  living: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light fittings","Power points","Door"],
-  dining: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light fittings","Power points","Door"],
+  living: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light Fittings","Power points","Door"],
+  dining: ["Walls","Ceiling","Floor / Carpet","Curtains / Blinds","Windows","Light Fittings","Power points","Door"],
   laundry: ["Walls","Ceiling","Floor","Tub / Sink","Tapware","Power points","Door"],
-  garage: ["Walls","Floor","Garage door","Light fitting","Power points"],
+  garage: ["Walls","Floor","Garage door","Light Fittings","Power points"],
   outdoor: ["Fencing","Letterbox","Driveway","Garden / Lawn","Clothesline","Deck / Patio","External lighting","Guttering"],
-  hallway: ["Walls","Ceiling","Floor","Light fitting","Smoke alarm","Door"],
+  hallway: ["Walls","Ceiling","Floor","Light Fittings","Smoke alarm","Door"],
 };
 
 export function getStandardItemsForRoom(roomName: string): string[] {
