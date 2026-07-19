@@ -286,7 +286,9 @@ function SignPage() {
 }
 
 function SignedConfirmation({ sig }: { sig: SigRow }) {
-  const when = new Date(sig.signed_at).toLocaleString();
+  const d = new Date(sig.signed_at);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const when = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return (
     <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
       <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
