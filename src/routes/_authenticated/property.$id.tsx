@@ -256,6 +256,7 @@ function PropertyDetail() {
   const { data: plan } = usePlan(user.id);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [inspectionToDelete, setInspectionToDelete] = useState<InspectionRow | null>(null);
 
   const deleteProperty = useMutation({
     mutationFn: async () => {
@@ -269,6 +270,22 @@ function PropertyDetail() {
     },
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Failed to delete property");
+    },
+  });
+
+  const deleteInspection = useMutation({
+    mutationFn: async (inspectionId: string) => {
+      const { error } = await supabase.from("inspections").delete().eq("id", inspectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Inspection deleted");
+      qc.invalidateQueries({ queryKey: ["inspections", id] });
+      qc.invalidateQueries({ queryKey: ["property-items", id] });
+      setInspectionToDelete(null);
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Failed to delete inspection");
     },
   });
 
@@ -620,9 +637,19 @@ function PropertyDetail() {
                             : <>{total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span></>}
                         </p>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
-                        {STATUS_LABEL[ins.status]}
-                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
+                          {STATUS_LABEL[ins.status]}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionToDelete(ins)}
+                          aria-label="Delete inspection"
+                          className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
                     </div>
                     {ins.inspection_type !== "healthy_homes" && total > 0 ? (
                       <>
@@ -914,6 +941,44 @@ function PropertyDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteProperty.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={!!inspectionToDelete}
+        onOpenChange={(v) => {
+          if (deleteInspection.isPending) return;
+          if (!v) setInspectionToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this inspection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {inspectionToDelete ? (
+                <>
+                  Delete this {TYPE_LABEL[inspectionToDelete.inspection_type]} inspection from {formatDMY(inspectionToDelete.inspection_date)}? All photos, items, and any generated reports will be permanently deleted.
+                  {inspectionToDelete.status === "signed" ? (
+                    <span className="mt-2 block font-semibold text-destructive">
+                      This inspection has been signed and finalised. Deleting it will remove the compliance record.
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteInspection.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (inspectionToDelete) deleteInspection.mutate(inspectionToDelete.id);
+              }}
+              disabled={deleteInspection.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteInspection.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
