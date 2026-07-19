@@ -637,9 +637,19 @@ function PropertyDetail() {
                             : <>{total} items · <span className={maintCount > 0 ? "text-condition-poor font-medium" : ""}>{maintCount} maintenance</span></>}
                         </p>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
-                        {STATUS_LABEL[ins.status]}
-                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${STATUS_STYLE[ins.status]}`}>
+                          {STATUS_LABEL[ins.status]}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionToDelete(ins)}
+                          aria-label="Delete inspection"
+                          className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
                     </div>
                     {ins.inspection_type !== "healthy_homes" && total > 0 ? (
                       <>
