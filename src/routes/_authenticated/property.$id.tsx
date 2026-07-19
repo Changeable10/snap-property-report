@@ -998,6 +998,47 @@ function PropertyDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog
+        open={!!roomToDelete}
+        onOpenChange={(v) => {
+          if (deleteRoom.isPending) return;
+          if (!v) setRoomToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {roomToDelete?.name ?? "room"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                if (!roomToDelete) return null;
+                const itemCount = (items ?? []).filter((i) => i.room_id === roomToDelete.id).length;
+                const photoCount = (roomPhotos ?? []).filter((p) => p.room_id === roomToDelete.id).length;
+                const hasItems = itemCount > 0;
+                const hasPhotos = photoCount > 0;
+                if (!hasItems && !hasPhotos) return "This cannot be undone.";
+                const parts: string[] = [];
+                if (hasItems) parts.push(`${itemCount} inspection ${itemCount === 1 ? "item" : "items"}`);
+                if (hasPhotos) parts.push(`${photoCount} ${photoCount === 1 ? "photo" : "photos"}`);
+                return `This room has ${parts.join(" and ")} that will also be removed. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteRoom.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (roomToDelete) deleteRoom.mutate(roomToDelete.id);
+                setRoomToDelete(null);
+              }}
+              disabled={deleteRoom.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteRoom.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
