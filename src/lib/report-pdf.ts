@@ -19,6 +19,11 @@ export interface PdfItem {
   maintenance_notes: string | null; sort_order: number;
 }
 export interface PdfPhoto { id: string; room_id: string; photo_url: string; enhanced_url?: string | null; captured_at: string }
+// Extended optional fields used to build the per-room photo gallery.
+export interface PdfPhotoExt extends PdfPhoto {
+  inspection_item_id?: string | null;
+  voice_transcript?: string | null;
+}
 export interface PdfComparisonChange {
   id: string; room_id: string; item_name: string;
   description: string | null;
