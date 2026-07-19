@@ -33,14 +33,14 @@ function TeamPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: plan, isLoading: planLoading } = usePlan(user.id);
-  const isAgency = plan === "agency";
+  const hasTeamAccess = plan === "portfolio" || plan === "agency";
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   useEffect(() => {
-    if (!planLoading && !isAgency) setUpgradeOpen(true);
-  }, [planLoading, isAgency]);
+    if (!planLoading && !hasTeamAccess) setUpgradeOpen(true);
+  }, [planLoading, hasTeamAccess]);
 
-  const { data, isLoading, refetch } = useMyTeam(isAgency);
+  const { data, isLoading, refetch } = useMyTeam(hasTeamAccess);
   const createTeam = useServerFn(createMyTeam);
 
   const [creating, setCreating] = useState(false);
@@ -57,12 +57,12 @@ function TeamPage() {
   const invokeRemove = useServerFn(removeMember);
   const invokeRename = useServerFn(updateTeamName);
 
-  if (!isAgency) {
+  if (!hasTeamAccess) {
     return (
       <PageShell title="Team" subtitle="Manage your agency team">
         <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Team management is available on the Agency plan.
+            Team management is available on the Portfolio and Agency plans.
           </p>
         </div>
         <UpgradeModal open={upgradeOpen} onClose={() => { setUpgradeOpen(false); navigate({ to: "/settings" }); }} />
