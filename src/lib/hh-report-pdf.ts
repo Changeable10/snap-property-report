@@ -303,6 +303,17 @@ export async function generateHhReportPdf({
       if (h > maxH) { h = maxH; w = h * ratio; }
       doc.addImage(branding.logo.dataUrl, "PNG", pageW - margin - w, y, w, h);
     } catch { /* skip */ }
+  } else {
+    const snap = await loadSnapsureLogo();
+    if (snap) {
+      try {
+        const maxW = 28, maxH = 16;
+        const ratio = snap.w / snap.h;
+        let w = maxW, h = w / ratio;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        doc.addImage(snap.dataUrl, "PNG", pageW - margin - w, y, w, h);
+      } catch { /* skip */ }
+    }
   }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
