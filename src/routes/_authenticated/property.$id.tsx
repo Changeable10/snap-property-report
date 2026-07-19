@@ -226,6 +226,18 @@ function PropertyDetail() {
     },
   });
 
+  const { data: roomPhotos } = useQuery({
+    queryKey: ["property-photos", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inspection_photos")
+        .select("id,room_id")
+        .eq("property_id", id);
+      if (error) throw error;
+      return (data ?? []) as { id: string; room_id: string }[];
+    },
+  });
+
   const { data: contacts } = useQuery({
     queryKey: ["contacts", id],
     queryFn: async () => {
