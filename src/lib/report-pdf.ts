@@ -579,12 +579,17 @@ export async function generateReportPdf({
     autoTable(doc, {
       startY: y,
       head: [["Room", "Item", "Issue", "Priority"]],
-      body: maintenance.map((m) => [
-        roomsById.get(m.room_id)?.name ?? "",
-        m.item_name,
-        m.maintenance_notes || m.description || "—",
-        COND_PRIORITY[m.condition] ?? "Low",
-      ]),
+      body: maintenance.map((m) => {
+        const p = m.maintenance_priority
+          ? m.maintenance_priority.charAt(0).toUpperCase() + m.maintenance_priority.slice(1)
+          : (COND_PRIORITY[m.condition] ?? "Low");
+        return [
+          roomsById.get(m.room_id)?.name ?? "",
+          m.item_name,
+          m.maintenance_notes || m.description || "—",
+          p,
+        ];
+      }),
       margin: { left: margin, right: margin },
       styles: { font: "helvetica", fontSize: 10, cellPadding: 2.5, textColor: 30, valign: "top" },
       headStyles: { fillColor: accent, textColor: 255 },
