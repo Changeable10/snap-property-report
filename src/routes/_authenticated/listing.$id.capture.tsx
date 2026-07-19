@@ -833,7 +833,7 @@ function ListingCapture() {
         <div className="mx-auto flex max-w-md items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            onClick={() => tryNavigate("prev")}
             disabled={index === 0}
             className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-foreground disabled:opacity-40"
           >
@@ -842,10 +842,7 @@ function ListingCapture() {
           {index < total - 1 ? (
             <button
               type="button"
-              onClick={async () => {
-                if (transcript || manualNotes) await saveNotes(transcript, manualNotes);
-                setIndex((i) => Math.min(total - 1, i + 1));
-              }}
+              onClick={() => tryNavigate("next")}
               className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground"
             >
               Next <ChevronRight className="size-4" />
@@ -853,7 +850,7 @@ function ListingCapture() {
           ) : (
             <button
               type="button"
-              onClick={finish}
+              onClick={() => tryNavigate("finish")}
               className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground"
             >
               Finish <Check className="size-4" />
@@ -866,6 +863,43 @@ function ListingCapture() {
         <StyleModal onClose={() => setStyleModalFor(null)} onChoose={handleStyleChosen} />
       ) : null}
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+
+      {pendingNavDir ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl">
+            <h2 className="text-base font-semibold text-foreground">
+              Save {selectedFrames.size || extractedFrames.length} photos to {frameRoomName} before moving on?
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You have unsaved video frames from {frameRoomName}. They'll be discarded if you continue without saving.
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={confirmSaveThenNavigate}
+                disabled={saving || selectedFrames.size === 0}
+                className="flex min-h-11 items-center justify-center rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-60"
+              >
+                {saving ? "Saving…" : `Save to ${frameRoomName}`}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDiscardThenNavigate}
+                className="flex min-h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground"
+              >
+                Discard frames
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingNavDir(null)}
+                className="flex min-h-9 items-center justify-center px-4 text-xs font-medium text-muted-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
