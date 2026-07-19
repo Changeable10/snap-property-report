@@ -893,7 +893,7 @@ function PropertyDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteRoom.mutate(room.id)}
+                      onClick={() => setRoomToDelete(room)}
                       className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
                       aria-label="Delete room"
                     >
