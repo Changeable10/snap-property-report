@@ -268,9 +268,11 @@ function MobileSummary({
     ? inspection.inspection_type.charAt(0).toUpperCase() + inspection.inspection_type.slice(1)
     : "—";
   const date = inspection?.inspection_date
-    ? new Date(inspection.inspection_date).toLocaleDateString("en-NZ", {
-        day: "numeric", month: "short", year: "numeric",
-      })
+    ? (() => {
+        const d = new Date(inspection.inspection_date);
+        const p = (n: number) => String(n).padStart(2, "0");
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+      })()
     : "—";
 
   const bars: Array<[string, string, number]> = [

@@ -142,7 +142,7 @@ function PublicSignPage() {
           <CardContent className="text-sm text-slate-700 space-y-1">
             <div><span className="text-slate-500">Property:</span> {propAddr || "—"}</div>
             <div><span className="text-slate-500">Type:</span> {data?.inspection.inspection_type}</div>
-            <div><span className="text-slate-500">Date:</span> {new Date(data!.inspection.inspection_date).toLocaleDateString()}</div>
+            <div><span className="text-slate-500">Date:</span> {(() => { const d = new Date(data!.inspection.inspection_date); const p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`; })()}</div>
             <div><span className="text-slate-500">Inspector:</span> {data?.inspection.inspector_name ?? "—"}</div>
             <div><span className="text-slate-500">Items recorded:</span> {data?.itemCount}</div>
             <div><span className="text-slate-500">Maintenance flagged:</span> {data?.maintenanceCount}</div>
