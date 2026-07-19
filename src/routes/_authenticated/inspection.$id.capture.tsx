@@ -1113,7 +1113,8 @@ function CapturePage() {
                 <PhotoThumb
                   key={p.id}
                   photoId={p.id}
-                  path={p.enhanced_url ?? p.photo_url}
+                  displayPath={p.enhanced_url ?? p.photo_url}
+                  originalPath={p.photo_url}
                   isEnhanced={!!p.enhanced_url}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                 />
