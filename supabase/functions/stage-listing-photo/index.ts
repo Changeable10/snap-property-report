@@ -212,9 +212,9 @@ Deno.serve(async (req) => {
   }
   const stagingLimits: Record<string, number> = {
     free: 0,
-    professional: 10,
-    portfolio: 50,
-    agency: Infinity,
+    professional: 5,
+    portfolio: 15,
+    agency: 50,
   };
   const overLimit = await requireMonthlyLimit(auth.userId, "staging_usage", stagingLimits[plan] ?? 0, corsHeaders);
   if (overLimit) {

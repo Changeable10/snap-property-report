@@ -7,9 +7,9 @@ export type Plan = "free" | "professional" | "portfolio" | "agency";
 
 export const PLAN_LIMITS: Record<Plan, number> = {
   free: 1,
-  professional: 5,
-  portfolio: 20,
-  agency: Infinity,
+  professional: 10,
+  portfolio: 25,
+  agency: 100,
 };
 
 export const PLAN_LABEL: Record<Plan, string> = {

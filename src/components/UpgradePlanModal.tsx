@@ -4,20 +4,42 @@ import type { Plan } from "@/lib/use-plan";
 type UpgradePlan = Exclude<Plan, "free">;
 
 const PLAN_INFO: Record<UpgradePlan, { name: string; price: string; features: string[] }> = {
-  portfolio: {
-    name: "Portfolio",
-    price: "NZ$29/mo",
-    features: ["Up to 3 properties", "Unlimited inspections", "AI photo analysis"],
-  },
   professional: {
     name: "Professional",
-    price: "NZ$99/mo",
-    features: ["Up to 5 properties", "Unlimited inspections", "Priority support"],
+    price: "NZ$39.95/mo (NZ$399/yr)",
+    features: [
+      "Up to 10 properties",
+      "5 listings/month",
+      "5 staged photos/month",
+      "20 photo enhancements/month",
+      "AI photo analysis + voice-to-report",
+      "Email support",
+    ],
+  },
+  portfolio: {
+    name: "Portfolio",
+    price: "NZ$59.95/mo (NZ$599/yr)",
+    features: [
+      "Up to 25 properties",
+      "Unlimited listings",
+      "15 staged photos/month",
+      "50 photo enhancements/month",
+      "3 team members + report branding",
+      "Priority support",
+    ],
   },
   agency: {
     name: "Agency",
-    price: "NZ$199/mo",
-    features: ["Up to 20 properties", "Team access", "White-label reports"],
+    price: "NZ$99.95/mo (NZ$999/yr)",
+    features: [
+      "Up to 100 properties",
+      "Unlimited listings",
+      "50 staged photos/month",
+      "Unlimited photo enhancements",
+      "10 team members + white-label reports",
+      "Rex CRM integration",
+      "Priority + chat support",
+    ],
   },
 };
 
