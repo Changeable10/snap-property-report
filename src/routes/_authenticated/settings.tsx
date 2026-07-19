@@ -27,8 +27,8 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
-  const UPGRADE_ORDER: Plan[] = ["free", "portfolio", "professional", "agency"];
-  const RANK: Record<Plan, number> = { free: 0, portfolio: 1, professional: 2, agency: 3 };
+  const UPGRADE_ORDER: Plan[] = ["free", "professional", "portfolio", "agency"];
+  const RANK: Record<Plan, number> = { free: 0, professional: 1, portfolio: 2, agency: 3 };
   const upgradeTargets = UPGRADE_ORDER.slice(UPGRADE_ORDER.indexOf(current) + 1) as Exclude<Plan, "free">[];
   const [upgradeTarget, setUpgradeTarget] = useState<Exclude<Plan, "free"> | null>(null);
   const [displayName, setDisplayName] = useState<string>(displayNameFromUser(user) ?? "");
@@ -126,7 +126,7 @@ function SettingsPage() {
             archive properties or listings before the switch completes.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(["free", "portfolio", "professional", "agency"] as const)
+            {(["free", "professional", "portfolio", "agency"] as const)
               .filter((p) => RANK[p] < RANK[current])
               .map((p) => (
                 <Link
@@ -189,7 +189,7 @@ function SettingsPage() {
           ) : null}
         </div>
       ) : null}
-      {current === "agency" ? (
+      {current === "portfolio" || current === "agency" ? (
         <Link
           to="/team"
           className="mb-4 flex items-center justify-between rounded-xl border border-input bg-card px-4 py-3 transition-colors hover:bg-accent"
