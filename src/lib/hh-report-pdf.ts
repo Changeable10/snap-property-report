@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { loadSnapsureLogo } from "@/lib/snapsure-logo";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import type { PdfBranding } from "@/lib/branding";
