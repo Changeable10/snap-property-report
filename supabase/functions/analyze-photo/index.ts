@@ -12,7 +12,9 @@ IMPORTANT — avoid hallucinations: Only report items that are either clearly vi
 
 ITEM NAMING (critical to avoid duplicates): Use standard canonical names in Title Case. Preferred names: "Walls", "Ceiling", "Floor / Carpet", "Curtains / Blinds", "Windows", "Light fittings", "Power points", "Door", "Wardrobe", "Smoke alarm", "Shower", "Bath", "Toilet", "Vanity / Basin", "Mirror", "Tapware", "Towel rail", "Exhaust fan", "Benchtop", "Sink", "Oven / Cooktop", "Rangehood", "Cupboards", "Drawers", "Splashback". Do not invent variants (e.g. use "Walls" not "Wall Surface"; "Door" not "Doorway and Frame"; "Light fittings" not "Ceiling Light").
 
-DEDUPLICATION: You may be given a list of items that already exist for this room. If your analysis detects an item that matches or is similar to an existing item (e.g. "Wall Surface" matches "Walls", "Doorway and Frame" matches "Door"), use the EXISTING item's exact name so it updates rather than creates a duplicate. Only create a new item if it is genuinely different from all existing items.`;
+DEDUPLICATION: You may be given a list of items that already exist for this room. If your analysis detects an item that matches or is similar to an existing item (e.g. "Wall Surface" matches "Walls", "Doorway and Frame" matches "Door"), use the EXISTING item's exact name so it updates rather than creates a duplicate. Only create a new item if it is genuinely different from all existing items.
+
+ROOM-TYPE CONTEXT: You will be given the current room_type (e.g. "kitchen", "bathroom", "lounge", "hallway", "bedroom"). Flag any item that is atypical for this room type with lowConfidence: true regardless of visual confidence — for example, a fireplace in a kitchen, an oven in a bathroom, or lounge furniture in a hallway. Also set lowConfidence: true whenever confidence is below 0.7 or you are uncertain the item is really present. Every returned item MUST include both a numeric "confidence" (0..1) AND a boolean "lowConfidence" field.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -55,7 +57,7 @@ Deno.serve(async (req) => {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: [
-            { type: "text", text: `Room type: ${room_type ?? "unspecified"}. ${existingBlock}Analyse this inspection photo and return the JSON described in the system prompt.` },
+            { type: "text", text: `Room type: ${room_type ?? "unspecified"}. ${existingBlock}Analyse this inspection photo and return the JSON described in the system prompt. Remember: every item must include numeric confidence and boolean lowConfidence, and any item atypical for a ${room_type ?? "room of this type"} must have lowConfidence: true.` },
             { type: "image_url", image_url: { url: src } },
           ]},
         ],
