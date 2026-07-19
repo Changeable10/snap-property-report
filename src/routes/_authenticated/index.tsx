@@ -147,10 +147,10 @@ function Index() {
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.name ??
     (user.user_metadata as { name?: string; full_name?: string } | undefined)?.full_name ??
     (user.email ? user.email.split("@")[0] : "there");
-  const displayName = rawName
+  const displayName = (rawName as string)
     .split(/\s+/)
     .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
   const { data: properties } = useQuery({
