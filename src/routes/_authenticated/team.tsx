@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Copy, UserPlus, X, Check, Pencil, Upload } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { usePlan } from "@/lib/use-plan";
+import { TEAM_MEMBER_LIMIT } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useMyTeam } from "@/lib/use-team";
 import {
