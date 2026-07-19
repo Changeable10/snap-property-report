@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
@@ -9,6 +9,7 @@ import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { getPropertiesDebug } from "@/lib/debug.functions";
+import { displayNameFromUser } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Snapsure" }] }),
@@ -25,6 +26,22 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
+  const [displayName, setDisplayName] = useState<string>(displayNameFromUser(user) ?? "");
+  const [savingName, setSavingName] = useState(false);
+  async function saveDisplayName() {
+    setSavingName(true);
+    const trimmed = displayName.trim();
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: trimmed || null },
+    });
+    setSavingName(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(trimmed ? "Display name saved" : "Display name cleared");
+    queryClient.invalidateQueries({ queryKey: ["resolved-display-name"] });
+  }
   const { data: isAdmin } = useIsAdmin(user.id);
   const testPlan = useAdminTestPlan();
   const runDebug = useServerFn(getPropertiesDebug);
@@ -56,6 +73,29 @@ function SettingsPage() {
   }
   return (
     <PageShell title="Settings" subtitle={user.email ?? undefined}>
+      <div className="mb-4 rounded-xl border border-input bg-card p-4">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          Display name
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="e.g. Steve Anderson"
+            className="min-h-11 rounded-lg border border-input bg-background px-3 text-base text-foreground"
+          />
+        </label>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Shown as the inspector or assessor on reports and signatures.
+        </p>
+        <button
+          type="button"
+          onClick={saveDisplayName}
+          disabled={savingName}
+          className="mt-3 flex min-h-10 items-center justify-center rounded-lg bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark disabled:opacity-60"
+        >
+          {savingName ? "Saving…" : "Save"}
+        </button>
+      </div>
       <div className="mb-4 flex items-center justify-between rounded-xl border border-input bg-card px-4 py-3">
         <div>
           <p className="text-xs font-medium text-muted-foreground">Current plan</p>

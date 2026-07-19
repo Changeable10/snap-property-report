@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePlan } from "@/lib/use-plan";
 import { useListingsThisMonth, LISTING_MONTHLY_LIMIT } from "@/lib/use-listing-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { resolveDisplayName } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/inspection/setup/$propertyId")({
   head: () => ({ meta: [{ title: "Inspection setup — Snapsure" }] }),
@@ -85,6 +86,7 @@ function InspectionSetup() {
     }
     setSubmitting(true);
     setError(null);
+    const inspectorName = await resolveDisplayName({ user, propertyId });
     const { data, error } = await supabase
       .from("inspections")
       .insert({
@@ -92,7 +94,7 @@ function InspectionSetup() {
         user_id: user.id,
         inspection_type: type,
         inspection_date: date,
-        inspector_name: user.email ?? "Unknown",
+        inspector_name: inspectorName,
         tenant_names: tenants.trim() || null,
       })
       .select("id")

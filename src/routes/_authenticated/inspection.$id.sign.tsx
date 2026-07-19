@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { loadPdfBranding } from "@/lib/branding";
 import { sendEmail, newToken, emailWrap } from "@/lib/email-client";
+import { useResolvedInspectorName } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/sign")({
   head: () => ({ meta: [{ title: "Sign — Snapsure" }] }),
@@ -32,6 +33,7 @@ function SignPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = Route.useRouteContext();
 
   const { data: inspection } = useQuery({
     queryKey: ["inspection", id],
@@ -42,6 +44,11 @@ function SignPage() {
       if (error) throw error;
       return data as PdfInspection & { status: string };
     },
+  });
+  const resolvedInspectorName = useResolvedInspectorName({
+    user,
+    inspectorName: inspection?.inspector_name,
+    propertyId: inspection?.property_id,
   });
 
   const { data: signatures } = useQuery({
@@ -172,7 +179,7 @@ function SignPage() {
           <header className="mb-3">
             <h2 className="text-sm font-semibold text-foreground">Landlord / Agent</h2>
             <p className="text-xs text-muted-foreground">
-              {inspection?.inspector_name ?? "—"} · Inspector
+              {inspection ? resolvedInspectorName : "—"} · Inspector
             </p>
           </header>
 
@@ -181,7 +188,7 @@ function SignPage() {
           ) : (
             <SignaturePad
               onAccept={(dataUrl) =>
-                saveSignature("landlord", inspection?.inspector_name ?? "Inspector", dataUrl)
+                saveSignature("landlord", resolvedInspectorName || "Inspector", dataUrl)
               }
             />
           )}
