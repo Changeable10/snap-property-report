@@ -272,8 +272,10 @@ export async function generateReportPdf({
     if (/\/frame-|frame-[0-9a-f]/i.test(p.photo_url)) return "video";
     return "camera";
   };
-  const sourceLabel = (s: "camera" | "video" | "voice") =>
-    s === "camera" ? "Photo" : s === "video" ? "Video frame" : "Voice-tagged";
+  // jsPDF's built-in helvetica cannot render emoji glyphs, so use ASCII markers
+  // that visually stand in for the requested icons (📷 / 🎬 / 🎤).
+  const sourceMark = (s: "camera" | "video" | "voice") =>
+    s === "camera" ? "[Photo]" : s === "video" ? "[Video frame]" : "[Voice]";
 
   const roomsWithItems = rooms.filter((r) => (itemsByRoom.get(r.id)?.length ?? 0) > 0);
   for (const room of roomsWithItems) {
