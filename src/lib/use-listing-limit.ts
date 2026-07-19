@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Plan } from "@/lib/use-plan";
 
 export const LISTING_MONTHLY_LIMIT: Record<Plan, number> = {
-  free: 1,
+  free: 0,
   professional: 5,
   portfolio: Infinity,
   agency: Infinity,
@@ -14,8 +14,8 @@ export function useListingsThisMonth(userId: string | undefined) {
     queryKey: ["listings-this-month", userId],
     enabled: !!userId,
     queryFn: async (): Promise<number> => {
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
+      const now = new Date();
+      const since = new Date(now.getFullYear(), now.getMonth(), 1);
       const { count } = await supabase
         .from("listings")
         .select("id", { count: "exact", head: true })
