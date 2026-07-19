@@ -550,6 +550,8 @@ function CapturePage() {
         byName.set(key, { id: "__pending__" } as any);
         idx++;
       }
+      // eslint-disable-next-line no-console
+      console.log("AI item split:", { autoItems: toInsert, suggestedItems: toSuggest });
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
         if (insErr) throw insErr;
@@ -1374,59 +1376,6 @@ function CapturePage() {
           </div>
         )}
 
-        {current && currentSuggested.length > 0 && (
-          <section className="mt-6 space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                Suggested items
-              </p>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                {currentSuggested.length} to review
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Low-confidence AI detections — please review before adding to the inspection.
-            </p>
-            {currentSuggested.map((s) => (
-              <div key={s.key} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
-                      {s.source === "photo"
-                        ? <Camera className="size-3.5 text-amber-700" aria-label="From photo" />
-                        : <Video className="size-3.5 text-amber-700" aria-label="From video" />}
-                    </div>
-                    <p className="mt-0.5 text-[11px] font-medium text-amber-700">
-                      Low confidence{typeof s.confidence === "number" ? ` (${Math.round(s.confidence * 100)}%)` : ""} — please review
-                    </p>
-                  </div>
-                  <ConditionBadge condition={s.condition} />
-                </div>
-                {s.description && (
-                  <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
-                )}
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => dismissSuggested(s, current.id)}
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => acceptSuggested(s, current.id)}
-                    className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
-                  >
-                    Accept
-                  </button>
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-foreground">
@@ -1455,6 +1404,61 @@ function CapturePage() {
                 <ItemCard key={it.id} item={it} onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
               ))}
             </ul>
+          )}
+
+          {current && currentSuggested.length > 0 && (
+            <section className="mt-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                  Suggested items
+                </p>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  {currentSuggested.length} to review
+                </span>
+              </div>
+              {currentSuggested.map((s) => (
+                <div key={s.key} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-2 inline-block size-2.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                            {s.source === "photo"
+                              ? <Camera className="size-3.5 text-amber-700" aria-label="From photo" />
+                              : <Video className="size-3.5 text-amber-700" aria-label="From video" />}
+                          </div>
+                          <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            Low confidence — review{typeof s.confidence === "number" ? ` · ${Math.round(s.confidence * 100)}%` : ""}
+                          </span>
+                        </div>
+                        <ConditionBadge condition={s.condition} />
+                      </div>
+                      {s.description && (
+                        <p className="mt-2 text-xs text-muted-foreground">{s.description}</p>
+                      )}
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => dismissSuggested(s, current.id)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => acceptSuggested(s, current.id)}
+                          className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </section>
           )}
 
           {current && (
