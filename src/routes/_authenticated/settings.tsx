@@ -10,6 +10,7 @@ import { Users } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { getPropertiesDebug } from "@/lib/debug.functions";
 import { displayNameFromUser } from "@/lib/display-name";
+import { UpgradePlanModal } from "@/components/UpgradePlanModal";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Snapsure" }] }),
@@ -26,6 +27,9 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
+  const UPGRADE_ORDER: Plan[] = ["free", "portfolio", "professional", "agency"];
+  const upgradeTargets = UPGRADE_ORDER.slice(UPGRADE_ORDER.indexOf(current) + 1) as Exclude<Plan, "free">[];
+  const [upgradeTarget, setUpgradeTarget] = useState<Exclude<Plan, "free"> | null>(null);
   const [displayName, setDisplayName] = useState<string>(displayNameFromUser(user) ?? "");
   const [savingName, setSavingName] = useState(false);
   async function saveDisplayName() {
@@ -136,6 +140,31 @@ function SettingsPage() {
           </div>
         </div>
       ) : null}
+      {upgradeTargets.length > 0 ? (
+        <div className="mb-4 rounded-xl border border-input bg-card p-4">
+          <p className="text-sm font-semibold text-foreground">Upgrade your plan</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Unlock more properties and features.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {upgradeTargets.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setUpgradeTarget(p)}
+                className="rounded-lg border border-teal bg-teal/10 px-3 py-1.5 text-xs font-semibold text-teal hover:bg-teal/20"
+              >
+                Upgrade to {PLAN_LABEL[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <UpgradePlanModal
+        open={!!upgradeTarget}
+        plan={upgradeTarget}
+        onClose={() => setUpgradeTarget(null)}
+      />
       {isAdmin && import.meta.env.DEV ? (
         <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4">
           <p className="text-sm font-semibold text-slate-900">Debug: properties</p>
