@@ -226,6 +226,20 @@ function PropertyDetail() {
     },
   });
 
+  const roomIds = (rooms ?? []).map((r) => r.id);
+  const { data: roomPhotos } = useQuery({
+    queryKey: ["property-photos", id, roomIds.join(",")],
+    enabled: roomIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inspection_photos")
+        .select("id,room_id")
+        .in("room_id", roomIds);
+      if (error) throw error;
+      return (data ?? []) as { id: string; room_id: string }[];
+    },
+  });
+
   const { data: contacts } = useQuery({
     queryKey: ["contacts", id],
     queryFn: async () => {
@@ -257,6 +271,7 @@ function PropertyDetail() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [inspectionToDelete, setInspectionToDelete] = useState<InspectionRow | null>(null);
+  const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
 
   const deleteProperty = useMutation({
     mutationFn: async () => {
@@ -878,7 +893,7 @@ function PropertyDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteRoom.mutate(room.id)}
+                      onClick={() => setRoomToDelete(room)}
                       className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
                       aria-label="Delete room"
                     >
@@ -979,6 +994,47 @@ function PropertyDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteInspection.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={!!roomToDelete}
+        onOpenChange={(v) => {
+          if (deleteRoom.isPending) return;
+          if (!v) setRoomToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {roomToDelete?.name ?? "room"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                if (!roomToDelete) return null;
+                const itemCount = (items ?? []).filter((i) => i.room_id === roomToDelete.id).length;
+                const photoCount = (roomPhotos ?? []).filter((p) => p.room_id === roomToDelete.id).length;
+                const hasItems = itemCount > 0;
+                const hasPhotos = photoCount > 0;
+                if (!hasItems && !hasPhotos) return "This cannot be undone.";
+                const parts: string[] = [];
+                if (hasItems) parts.push(`${itemCount} inspection ${itemCount === 1 ? "item" : "items"}`);
+                if (hasPhotos) parts.push(`${photoCount} ${photoCount === 1 ? "photo" : "photos"}`);
+                return `This room has ${parts.join(" and ")} that will also be removed. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteRoom.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (roomToDelete) deleteRoom.mutate(roomToDelete.id);
+                setRoomToDelete(null);
+              }}
+              disabled={deleteRoom.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteRoom.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
