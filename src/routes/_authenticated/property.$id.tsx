@@ -863,7 +863,7 @@ function PropertyDetail() {
         <section className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-foreground">Rooms</h2>
           <ul className="flex flex-col gap-2">
-            {rooms?.map((room) => (
+            {rooms?.map((room, idx) => (
               <li
                 key={room.id}
                 className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3"
@@ -898,6 +898,24 @@ function PropertyDetail() {
                     <span className="flex-1 truncate text-sm font-medium text-foreground">
                       {room.name}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => reorderRooms.mutate({ roomId: room.id, direction: "up" })}
+                      disabled={idx === 0 || reorderRooms.isPending}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:invisible"
+                      aria-label="Move room up"
+                    >
+                      <ChevronUp className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderRooms.mutate({ roomId: room.id, direction: "down" })}
+                      disabled={idx === (rooms?.length ?? 0) - 1 || reorderRooms.isPending}
+                      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:invisible"
+                      aria-label="Move room down"
+                    >
+                      <ChevronDown className="size-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
