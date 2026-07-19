@@ -256,10 +256,29 @@ export async function generateReportPdf({
   // ---------- Room sections ----------
   // Max photo height 200 points = ~70.56 mm
   const MAX_PHOTO_MM = 200 * 0.352778;
+  const CONDITION_RANK: Record<Condition, number> = { damaged: 4, poor: 3, fair: 2, good: 1 };
+  const itemsById = new Map(items.map((i) => [i.id, i]));
+
+  // Ensure remaining vertical space; add a page if needed.
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageH - 25) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const inferSource = (p: PdfPhotoExt): "camera" | "video" | "voice" => {
+    if (p.voice_transcript && p.voice_transcript.trim().length > 0) return "voice";
+    if (/\/frame-|frame-[0-9a-f]/i.test(p.photo_url)) return "video";
+    return "camera";
+  };
+  const sourceLabel = (s: "camera" | "video" | "voice") =>
+    s === "camera" ? "Photo" : s === "video" ? "Video frame" : "Voice-tagged";
+
   const roomsWithItems = rooms.filter((r) => (itemsByRoom.get(r.id)?.length ?? 0) > 0);
   for (const room of roomsWithItems) {
     const rItems = itemsByRoom.get(room.id) ?? [];
-    const rPhotos = photosByRoom.get(room.id) ?? [];
+    const rPhotosAll = (photosByRoom.get(room.id) ?? []) as PdfPhotoExt[];
 
     doc.addPage();
     y = margin;
@@ -270,8 +289,8 @@ export async function generateReportPdf({
     y += 8;
 
     // First photo at top of room, scaled to page width, max 200pt height
-    if (rPhotos.length > 0) {
-      const img = await fetchPhotoDataUrl(rPhotos[0].enhanced_url ?? rPhotos[0].photo_url);
+    if (rPhotosAll.length > 0) {
+      const img = await fetchPhotoDataUrl(rPhotosAll[0].enhanced_url ?? rPhotosAll[0].photo_url);
       if (img) {
         const ratio = img.w / img.h;
         let w = contentW;
@@ -356,6 +375,134 @@ export async function generateReportPdf({
       });
       // @ts-expect-error autoTable augments doc
       y = doc.lastAutoTable.finalY + 6;
+    }
+
+    // ---------- Photos gallery ----------
+    if (rPhotosAll.length > 0) {
+      // Cap at 6: first (overview) + up to 5 additional ranked by worst-condition of linked item.
+      const first = rPhotosAll[0];
+      const rest = rPhotosAll.slice(1);
+      const ranked = rest
+        .map((p) => {
+          const it = p.inspection_item_id ? itemsById.get(p.inspection_item_id) : undefined;
+          const rank = it ? (CONDITION_RANK[it.condition] ?? 0) : 0;
+          return { p, rank };
+        })
+        .sort((a, b) => b.rank - a.rank)
+        .slice(0, 5)
+        .map((x) => x.p);
+      const gallery = [first, ...ranked];
+
+      ensureSpace(14);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...accent);
+      doc.text("Photos", margin, y);
+      y += 5;
+
+      // Overview (first photo) — full width
+      const overviewImg = await fetchPhotoDataUrl(first.enhanced_url ?? first.photo_url);
+      if (overviewImg) {
+        const ratio = overviewImg.w / overviewImg.h;
+        let w = contentW;
+        let h = w / ratio;
+        if (h > MAX_PHOTO_MM) { h = MAX_PHOTO_MM; w = h * ratio; }
+        ensureSpace(h + 10);
+        try {
+          doc.addImage(overviewImg.dataUrl, "JPEG", margin, y, w, h, undefined, "FAST");
+        } catch {
+          try { doc.addImage(overviewImg.dataUrl, "PNG", margin, y, w, h); } catch { /* skip */ }
+        }
+        y += h + 2;
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(110);
+        doc.text(`[${sourceLabel(inferSource(first))}] Overview`, margin, y);
+        y += 6;
+      }
+
+      // Additional photos — 2 column grid
+      const additional = gallery.slice(1);
+      if (additional.length > 0) {
+        const gap = 6;
+        const cellW = (contentW - gap) / 2; // ~45% page width each
+        const maxImgH = 45; // mm
+        for (let i = 0; i < additional.length; i += 2) {
+          const rowPhotos = additional.slice(i, i + 2);
+          // Preload images and compute row height
+          const imgs = await Promise.all(
+            rowPhotos.map((p) => fetchPhotoDataUrl(p.enhanced_url ?? p.photo_url)),
+          );
+          let rowH = 0;
+          const dims = imgs.map((im) => {
+            if (!im) return { w: 0, h: 0 };
+            const ratio = im.w / im.h;
+            let w = cellW;
+            let h = w / ratio;
+            if (h > maxImgH) { h = maxImgH; w = h * ratio; }
+            if (h > rowH) rowH = h;
+            return { w, h };
+          });
+          const captionH = 14; // room for up to ~3 lines of caption
+          ensureSpace(rowH + captionH + 6);
+
+          rowPhotos.forEach((p, idx) => {
+            const im = imgs[idx];
+            const d = dims[idx];
+            const x = margin + idx * (cellW + gap);
+            if (im && d.w > 0) {
+              const cx = x + (cellW - d.w) / 2;
+              try {
+                doc.addImage(im.dataUrl, "JPEG", cx, y, d.w, d.h, undefined, "FAST");
+              } catch {
+                try { doc.addImage(im.dataUrl, "PNG", cx, y, d.w, d.h); } catch { /* skip */ }
+              }
+            }
+          });
+
+          // Captions below each cell
+          let capMaxH = 0;
+          rowPhotos.forEach((p, idx) => {
+            const x = margin + idx * (cellW + gap);
+            const capY = y + rowH + 3;
+            const linked = p.inspection_item_id ? itemsById.get(p.inspection_item_id) : undefined;
+            const src = inferSource(p);
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(60);
+            const header = linked ? `[${sourceLabel(src)}] ${linked.item_name}` : `[${sourceLabel(src)}]`;
+            const headerLines = doc.splitTextToSize(header, cellW);
+            doc.text(headerLines, x, capY);
+            let lineY = capY + headerLines.length * 3.2;
+
+            if (linked) {
+              const [r, g, b] = COND_RGB[linked.condition] ?? [90, 90, 90];
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7.5);
+              doc.setTextColor(r, g, b);
+              doc.text(COND_LABEL[linked.condition] ?? String(linked.condition ?? ""), x, lineY + 2);
+              lineY += 3.6;
+            }
+
+            const snippet = (linked?.description ?? "").slice(0, 80);
+            if (snippet) {
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(7.5);
+              doc.setTextColor(110);
+              const snipLines = doc.splitTextToSize(snippet, cellW);
+              doc.text(snipLines, x, lineY + 2);
+              lineY += snipLines.length * 3.2;
+            }
+
+            const total = lineY - capY;
+            if (total > capMaxH) capMaxH = total;
+          });
+
+          y += rowH + 3 + capMaxH + 5;
+        }
+      }
+      y += 2;
     }
   }
 
