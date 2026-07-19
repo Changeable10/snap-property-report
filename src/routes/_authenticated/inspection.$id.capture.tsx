@@ -1109,7 +1109,15 @@ function CapturePage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              {roomPhotos.map((p) => <PhotoThumb key={p.id} path={p.photo_url} />)}
+              {roomPhotos.map((p) => (
+                <PhotoThumb
+                  key={p.id}
+                  photoId={p.id}
+                  path={p.enhanced_url ?? p.photo_url}
+                  isEnhanced={!!p.enhanced_url}
+                  onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
+                />
+              ))}
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
