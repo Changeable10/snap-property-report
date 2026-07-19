@@ -294,7 +294,11 @@ function CapturePage() {
 
   function shouldSuggestAiItem(ai: { confidence?: unknown; lowConfidence?: unknown; low_confidence?: unknown }) {
     const conf = normaliseAiConfidence(ai.confidence);
-    return ai.lowConfidence === true || ai.low_confidence === true || conf === null || conf < 0.7;
+    const explicitLow = ai.lowConfidence === true
+      || ai.lowConfidence === "true"
+      || ai.low_confidence === true
+      || ai.low_confidence === "true";
+    return explicitLow || conf === null || conf < 0.7;
   }
 
   async function acceptSuggested(s: SuggestedItem, roomId: string) {
