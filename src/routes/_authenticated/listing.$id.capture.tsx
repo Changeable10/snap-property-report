@@ -940,16 +940,14 @@ function StagedPhotoCard({
       : hasStaged ? "Try another style" : "Virtual staging";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background">
-      <div className="relative">
-        <DeletePhotoButton
-          photoId={photo.id}
-          table="listing_photos"
-          storagePaths={[photo.photo_url, photo.enhanced_url, photo.staged_url]}
-          onDeleted={onDeleted}
-          className="absolute left-1 top-1 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 text-white shadow backdrop-blur-sm hover:bg-black/75"
-        />
-      </div>
+    <div className="relative overflow-hidden rounded-lg border border-border bg-background">
+      <DeletePhotoButton
+        photoId={photo.id}
+        table="listing_photos"
+        storagePaths={[photo.photo_url, photo.enhanced_url, photo.staged_url]}
+        onDeleted={onDeleted}
+        className="absolute right-1 top-1 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 text-white shadow backdrop-blur-sm hover:bg-black/75"
+      />
       {hasStaged ? (
         <div className="grid grid-cols-2 gap-px bg-border">
           <div className="relative aspect-square overflow-hidden bg-muted">
