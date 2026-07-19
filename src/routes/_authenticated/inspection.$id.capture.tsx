@@ -1563,14 +1563,18 @@ function PhotoThumb({
   photoId,
   displayPath,
   originalPath,
+  enhancedPath,
   isEnhanced,
   onEnhanced,
+  onDeleted,
 }: {
   photoId: string;
   displayPath: string;
   originalPath: string;
+  enhancedPath: string | null;
   isEnhanced: boolean;
   onEnhanced?: () => void;
+  onDeleted?: () => void;
 }) {
   const url = useSignedUrl(displayPath);
   const [open, setOpen] = useState(false);
@@ -1580,6 +1584,12 @@ function PhotoThumb({
       <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-condition-good text-white shadow ring-2 ring-white">
         <Check className="size-3.5" strokeWidth={3} />
       </span>
+      <DeletePhotoButton
+        photoId={photoId}
+        table="inspection_photos"
+        storagePaths={[originalPath, enhancedPath]}
+        onDeleted={onDeleted}
+      />
       <button
         type="button"
         onClick={() => setOpen(true)}
