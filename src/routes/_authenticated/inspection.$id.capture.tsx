@@ -2,12 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video,
+  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Pencil, Plus, Loader2, AlertTriangle, Video, Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConditionBadge } from "@/components/ConditionBadge";
 import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
+import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -18,6 +19,7 @@ interface Room { id: string; name: string; sort_order: number }
 interface PhotoRow {
   id: string; room_id: string; photo_url: string; captured_at: string;
   voice_transcript: string | null;
+  enhanced_url?: string | null;
 }
 interface ItemRow {
   id: string; room_id: string; item_name: string;
