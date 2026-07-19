@@ -393,8 +393,16 @@ function CapturePage() {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 15000),
       );
+      const existingForRoom = (items ?? [])
+        .filter((i) => i.room_id === roomId)
+        .map((i) => ({ name: i.item_name, condition: i.condition, description: i.description }));
       const call = supabase.functions.invoke("analyze-photo", {
-        body: { image_base64: base64, mime_type: file.type, room_type: roomName },
+        body: {
+          image_base64: base64,
+          mime_type: file.type,
+          room_type: roomName,
+          existing_items: existingForRoom,
+        },
       });
       const { data, error } = (await Promise.race([call, timeout])) as any;
       if (error) throw error;
@@ -405,15 +413,16 @@ function CapturePage() {
       }> = Array.isArray(data?.items) ? data.items : [];
       if (aiItems.length === 0) { setAnalyzing(false); return; }
 
-      // Merge with existing items in this room (case-insensitive name match).
+      // Merge with existing items in this room (canonical name match).
       const existing = (items ?? []).filter((i) => i.room_id === roomId);
-      const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+      const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
       const toInsert: any[] = [];
       const nowSort = existing.length * 10;
       let idx = 0;
       for (const ai of aiItems) {
         if (!ai?.name) continue;
-        const key = ai.name.toLowerCase();
+        const canonicalName = canonicalizeItemName(ai.name);
+        const key = canonicalName.toLowerCase();
         const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
         const existingItem = byName.get(key);
         if (existingItem) {
@@ -428,7 +437,7 @@ function CapturePage() {
           user_id: inspection.user_id,
           inspection_id: id,
           room_id: roomId,
-          item_name: ai.name,
+          item_name: canonicalName,
           condition: cond,
           description: ai.description || null,
           maintenance_required: !!ai.maintenance_required,
