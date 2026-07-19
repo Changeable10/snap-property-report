@@ -745,7 +745,7 @@ export async function generateHhReportPdf({
   doc.text("Date & time", margin, y);
   doc.setTextColor(20);
   const stampDate = sig ? new Date(sig.signed_at) : new Date();
-  const stamp = `${String(stampDate.getDate()).padStart(2, "0")}/${String(stampDate.getMonth() + 1).padStart(2, "0")}/${stampDate.getFullYear()}, ${String(stampDate.getHours()).padStart(2, "0")}:${String(stampDate.getMinutes()).padStart(2, "0")}`;
+  const stamp = `${String(stampDate.getDate()).padStart(2, "0")}/${String(stampDate.getMonth() + 1).padStart(2, "0")}/${stampDate.getFullYear()}, ${String(stampDate.getHours()).padStart(2, "0")}:${String(stampDate.getMinutes()).padStart(2, "0")}:${String(stampDate.getSeconds()).padStart(2, "0")}`;
   doc.text(stamp, margin + 25, y);
   doc.setTextColor(60);
   doc.line(margin + 25, y + 1, pageW - margin, y + 1);
