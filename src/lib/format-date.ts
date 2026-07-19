@@ -19,3 +19,11 @@ export function formatNzDateTime(value: Date | string | number | null | undefine
   if (isNaN(d.getTime())) return "";
   return `${formatNzDate(d)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** DD/MM/YYYY, HH:MM:SS (24h) */
+export function formatNzDateTimeSeconds(value: Date | string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return `${formatNzDate(d)}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
