@@ -231,6 +231,9 @@ function HealthyHomesPage() {
         .maybeSingle();
       return data;
     },
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: Infinity,
   });
 
   const [stepIdx, setStepIdx] = useState(0);
@@ -245,16 +248,18 @@ function HealthyHomesPage() {
   const hydrated = useRef(false);
 
   useEffect(() => {
-    if (hydrated.current || !existing) return;
+    if (hydrated.current || existing === undefined) return;
     hydrated.current = true;
-    if (existing.heating_data) setHeating(existing.heating_data as HeatingData);
-    if (existing.insulation_data) setInsulation(existing.insulation_data as InsulationData);
-    if (existing.ventilation_data) setVentilation(existing.ventilation_data as VentilationData);
-    if (existing.moisture_data) setMoisture(existing.moisture_data as MoistureData);
-    if (existing.draught_data) setDraught(existing.draught_data as DraughtData);
-    if ((existing as { smoke_alarms_data?: unknown }).smoke_alarms_data) {
-      setSmoke((existing as { smoke_alarms_data: SmokeAlarmsData }).smoke_alarms_data);
-    }
+    if (!existing) return;
+    const hasKeys = (v: unknown): v is Record<string, unknown> =>
+      !!v && typeof v === "object" && Object.keys(v as object).length > 0;
+    if (hasKeys(existing.heating_data)) setHeating(existing.heating_data as HeatingData);
+    if (hasKeys(existing.insulation_data)) setInsulation(existing.insulation_data as InsulationData);
+    if (hasKeys(existing.ventilation_data)) setVentilation(existing.ventilation_data as VentilationData);
+    if (hasKeys(existing.moisture_data)) setMoisture(existing.moisture_data as MoistureData);
+    if (hasKeys(existing.draught_data)) setDraught(existing.draught_data as DraughtData);
+    const sa = (existing as { smoke_alarms_data?: unknown }).smoke_alarms_data;
+    if (hasKeys(sa)) setSmoke(sa as SmokeAlarmsData);
   }, [existing]);
 
   const statuses = useMemo<Status[]>(
@@ -294,7 +299,10 @@ function HealthyHomesPage() {
     const { error } = await supabase
       .from("healthy_homes_assessments")
       .upsert(body, { onConflict: "inspection_id" });
-    if (error) toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      throw error;
+    }
   }
 
   async function uploadPhoto(file: File, slot: string): Promise<string | null> {
@@ -311,7 +319,11 @@ function HealthyHomesPage() {
   }
 
   async function next() {
-    await persist({});
+    try {
+      await persist({});
+    } catch {
+      return;
+    }
     if (stepIdx < STEPS.length - 1) setStepIdx(stepIdx + 1);
     else setShowSummary(true);
   }
