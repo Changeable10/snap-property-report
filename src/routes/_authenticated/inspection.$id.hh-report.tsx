@@ -11,6 +11,7 @@ import {
   type HhAssessment, type HhPdfInspection, type HhPdfProperty, type HhPdfSignature, type HhStatus,
 } from "@/lib/hh-report-pdf";
 import { loadPdfBranding } from "@/lib/branding";
+import { useResolvedInspectorName } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/hh-report")({
   head: () => ({ meta: [{ title: "Healthy Homes report — Snapsure" }] }),
@@ -22,6 +23,7 @@ const STEP_LABELS = ["Heating", "Insulation", "Ventilation", "Moisture & Drainag
 function HhReportPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = Route.useRouteContext();
   const isMobile = useIsMobile();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -37,6 +39,11 @@ function HhReportPage() {
       if (error) throw error;
       return data as HhPdfInspection;
     },
+  });
+  const resolvedInspectorName = useResolvedInspectorName({
+    user,
+    inspectorName: inspection?.inspector_name,
+    propertyId: inspection?.property_id,
   });
 
   const { data: property } = useQuery({
@@ -86,8 +93,12 @@ function HhReportPage() {
         overall_status: null,
       };
       const branding = await loadPdfBranding();
+      const inspectionForPdf: HhPdfInspection = {
+        ...inspection,
+        inspector_name: resolvedInspectorName || inspection.inspector_name,
+      };
       const blob = await generateHhReportPdf({
-        property, inspection, assessment: a, signatures, branding,
+        property, inspection: inspectionForPdf, assessment: a, signatures, branding,
       });
       url = URL.createObjectURL(blob);
       if (!cancelled) {
@@ -108,7 +119,7 @@ function HhReportPage() {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [inspection, property, assessment, signatures]);
+  }, [inspection, property, assessment, signatures, resolvedInspectorName]);
 
   function download() {
     if (!pdfBlob) return;
