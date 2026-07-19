@@ -444,8 +444,21 @@ export async function generateHhReportPdf({
         const rows: [string, string][] = [];
         const roomEntries = Object.entries(d.rooms ?? {});
         if (roomEntries.length > 0) {
+          const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const uuidIds = roomEntries.map(([rid]) => rid).filter((rid) => uuidRe.test(rid));
+          const nameMap = new Map<string, string>();
+          if (uuidIds.length > 0) {
+            const { data: roomRows } = await supabase
+              .from("rooms")
+              .select("id,name")
+              .in("id", uuidIds);
+            for (const r of roomRows ?? []) {
+              if (r?.id && r?.name) nameMap.set(r.id as string, r.name as string);
+            }
+          }
           for (const [rid, v] of roomEntries) {
-            rows.push([`Room window openable (${rid.slice(0, 8)}…)`, labelYN(v as YesNo)]);
+            const label = nameMap.get(rid) ?? (uuidRe.test(rid) ? "Unknown room" : rid);
+            rows.push([`Window openable — ${label}`, labelYN(v as YesNo)]);
           }
         }
         rows.push(
