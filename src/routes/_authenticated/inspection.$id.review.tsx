@@ -164,7 +164,17 @@ function ReviewPage() {
   const totalRooms = rooms?.length ?? 0;
   const emptyRoomCount = Math.max(0, totalRooms - roomsWithItems.size);
 
-  function handleGenerate() {
+  async function markCompletedIfNeeded() {
+    if (!inspection) return;
+    if (inspection.status === "completed" || inspection.status === "signed") return;
+    const { error } = await supabase.from("inspections")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["inspection", id] });
+  }
+
+  async function handleGenerate() {
     if (totalItems === 0) {
       setGate("empty");
       return;
@@ -173,6 +183,7 @@ function ReviewPage() {
       setGate("partial");
       return;
     }
+    await markCompletedIfNeeded();
     navigate({ to: "/inspection/$id/report", params: { id } });
   }
 
