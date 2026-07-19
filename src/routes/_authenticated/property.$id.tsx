@@ -257,6 +257,7 @@ function PropertyDetail() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [inspectionToDelete, setInspectionToDelete] = useState<InspectionRow | null>(null);
+  const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
 
   const deleteProperty = useMutation({
     mutationFn: async () => {
