@@ -299,7 +299,10 @@ function HealthyHomesPage() {
     const { error } = await supabase
       .from("healthy_homes_assessments")
       .upsert(body, { onConflict: "inspection_id" });
-    if (error) toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      throw error;
+    }
   }
 
   async function uploadPhoto(file: File, slot: string): Promise<string | null> {
@@ -316,7 +319,11 @@ function HealthyHomesPage() {
   }
 
   async function next() {
-    await persist({});
+    try {
+      await persist({});
+    } catch {
+      return;
+    }
     if (stepIdx < STEPS.length - 1) setStepIdx(stepIdx + 1);
     else setShowSummary(true);
   }
