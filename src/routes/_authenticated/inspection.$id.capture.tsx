@@ -785,8 +785,21 @@ function CapturePage() {
     for (let i = 0; i < frames.length; i++) {
       setVideoProgress({ current: i + 1, total: frames.length });
       try {
+        // Pass items detected so far (from existing rows + prior frames in
+        // this run) so the model reuses canonical names across frames.
+        const existingForRoom = (items ?? [])
+          .filter((i2) => i2.room_id === roomId)
+          .map((i2) => ({ name: i2.item_name, condition: i2.condition, description: i2.description }));
+        const fromFrames = Array.from(merged.values()).map((m) => ({
+          name: m.name, condition: m.condition, description: m.description,
+        }));
         const call = supabase.functions.invoke("analyze-photo", {
-          body: { image_base64: frames[i].base64, mime_type: "image/jpeg", room_type: roomName },
+          body: {
+            image_base64: frames[i].base64,
+            mime_type: "image/jpeg",
+            room_type: roomName,
+            existing_items: [...existingForRoom, ...fromFrames],
+          },
         });
         const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
         const { data, error } = (await Promise.race([call, timeout])) as any;
@@ -796,11 +809,12 @@ function CapturePage() {
           if (!ai?.name) continue;
           const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
           const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
-          const key = ai.name.toLowerCase().trim();
+          const canonicalName = canonicalizeItemName(ai.name);
+          const key = canonicalName.toLowerCase().trim();
           const prev = merged.get(key);
           if (!prev) {
             merged.set(key, {
-              name: ai.name,
+              name: canonicalName,
               condition: cond,
               confidence: conf,
               description: ai.description?.trim() || null,
@@ -808,19 +822,27 @@ function CapturePage() {
               maintenance_notes: ai.maintenance_notes?.trim() || null,
               bestFrameIdx: i,
             });
-          } else if (rank[cond] > rank[prev.condition]) {
-            // Worse condition — replace the record entirely.
+          } else {
+            // Merge duplicates across frames: keep the WORST condition and
+            // the MOST DETAILED description.
+            const nextCond = rank[cond] > rank[prev.condition] ? cond : prev.condition;
+            const aiDesc = ai.description?.trim() || "";
+            const prevDesc = prev.description ?? "";
+            const nextDesc = aiDesc.length > prevDesc.length ? aiDesc : prevDesc;
+            const nextNotes = (ai.maintenance_notes?.trim() || "").length > (prev.maintenance_notes ?? "").length
+              ? (ai.maintenance_notes?.trim() || null)
+              : prev.maintenance_notes;
+            const worseWon = rank[cond] > rank[prev.condition];
             merged.set(key, {
-              name: ai.name,
-              condition: cond,
-              confidence: conf,
-              description: ai.description?.trim() || null,
-              maintenance_required: !!ai.maintenance_required,
-              maintenance_notes: ai.maintenance_notes?.trim() || null,
-              bestFrameIdx: i,
+              name: canonicalName,
+              condition: nextCond,
+              confidence: Math.max(conf, prev.confidence),
+              description: nextDesc || null,
+              maintenance_required: prev.maintenance_required || !!ai.maintenance_required,
+              maintenance_notes: nextNotes,
+              bestFrameIdx: worseWon ? i : prev.bestFrameIdx,
             });
           }
-          // else: same or better condition → keep the first (highest-confidence) instance.
         }
       } catch {
         // continue on error
@@ -847,7 +869,7 @@ function CapturePage() {
 
     // Merge into inspection_items (matching by name, video source).
     const existing = (items ?? []).filter((i) => i.room_id === roomId);
-    const byName = new Map(existing.map((it) => [it.item_name.toLowerCase(), it]));
+    const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
     const toInsert: any[] = [];
     const nowSort = existing.length * 10;
     let insIdx = 0;
