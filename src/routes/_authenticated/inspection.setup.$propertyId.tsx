@@ -263,7 +263,7 @@ function InspectionSetup() {
           </label>
         </section>
 
-        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+        {error && tenants.trim() ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
 
         <button
           type="button"
