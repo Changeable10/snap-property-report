@@ -1402,17 +1402,17 @@ function CapturePage() {
             )}
           </div>
 
-          {roomItems.length === 0 ? (
+          {roomItems.length === 0 && currentSuggested.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               Detected items will appear here after you capture a photo and voice note.
             </div>
-          ) : (
+          ) : roomItems.length > 0 ? (
             <ul className="space-y-2">
               {roomItems.map((it) => (
                 <ItemCard key={it.id} item={it} onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
               ))}
             </ul>
-          )}
+          ) : null}
 
           {current && currentSuggested.length > 0 && (
             <section className="mt-4 space-y-2">
