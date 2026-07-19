@@ -88,7 +88,7 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {description ??
-            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 10 properties, or Portfolio for unlimited."}
+            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 5 properties, or Portfolio for up to 20."}
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
