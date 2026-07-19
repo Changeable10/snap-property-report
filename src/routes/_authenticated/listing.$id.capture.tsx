@@ -11,6 +11,7 @@ import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
@@ -766,6 +767,7 @@ function ListingCapture() {
                   freePlan={plan === "free"}
                   onStage={() => requestStage(p)}
                   onKeepOriginal={() => keepOriginal(p)}
+                  onDeleted={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
                 />
               ))}
             </div>
@@ -911,6 +913,7 @@ function StagedPhotoCard({
   freePlan,
   onStage,
   onKeepOriginal,
+  onDeleted,
 }: {
   photo: ListingPhoto;
   staging: boolean;
@@ -918,6 +921,7 @@ function StagedPhotoCard({
   freePlan: boolean;
   onStage: () => void;
   onKeepOriginal: () => void;
+  onDeleted?: () => void;
 }) {
   const origUrl = useSignedUrl(photo.photo_url);
   const enhancedUrl = useSignedUrl(photo.enhanced_url ?? undefined);
@@ -936,7 +940,14 @@ function StagedPhotoCard({
       : hasStaged ? "Try another style" : "Virtual staging";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-background">
+      <DeletePhotoButton
+        photoId={photo.id}
+        table="listing_photos"
+        storagePaths={[photo.photo_url, photo.enhanced_url, photo.staged_url]}
+        onDeleted={onDeleted}
+        className="absolute right-1 top-1 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 text-white shadow backdrop-blur-sm hover:bg-black/75"
+      />
       {hasStaged ? (
         <div className="grid grid-cols-2 gap-px bg-border">
           <div className="relative aspect-square overflow-hidden bg-muted">

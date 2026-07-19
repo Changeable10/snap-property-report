@@ -9,6 +9,7 @@ import { ConditionBadge } from "@/components/ConditionBadge";
 import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
@@ -1176,8 +1177,10 @@ function CapturePage() {
                   photoId={p.id}
                   displayPath={p.enhanced_url ?? p.photo_url}
                   originalPath={p.photo_url}
+                  enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
+                  onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                 />
               ))}
               <button
@@ -1560,14 +1563,18 @@ function PhotoThumb({
   photoId,
   displayPath,
   originalPath,
+  enhancedPath,
   isEnhanced,
   onEnhanced,
+  onDeleted,
 }: {
   photoId: string;
   displayPath: string;
   originalPath: string;
+  enhancedPath: string | null;
   isEnhanced: boolean;
   onEnhanced?: () => void;
+  onDeleted?: () => void;
 }) {
   const url = useSignedUrl(displayPath);
   const [open, setOpen] = useState(false);
@@ -1577,6 +1584,12 @@ function PhotoThumb({
       <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-condition-good text-white shadow ring-2 ring-white">
         <Check className="size-3.5" strokeWidth={3} />
       </span>
+      <DeletePhotoButton
+        photoId={photoId}
+        table="inspection_photos"
+        storagePaths={[originalPath, enhancedPath]}
+        onDeleted={onDeleted}
+      />
       <button
         type="button"
         onClick={() => setOpen(true)}
