@@ -283,6 +283,20 @@ function CapturePage() {
   const [suggestedItems, setSuggestedItems] = useState<Record<string, SuggestedItem[]>>({});
   const currentSuggested = current ? (suggestedItems[current.id] ?? []) : [];
 
+  function normaliseAiConfidence(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(1, value));
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) return Math.max(0, Math.min(1, parsed));
+    }
+    return null;
+  }
+
+  function shouldSuggestAiItem(ai: { confidence?: unknown; lowConfidence?: unknown; low_confidence?: unknown }) {
+    const conf = normaliseAiConfidence(ai.confidence);
+    return ai.lowConfidence === true || ai.low_confidence === true || conf === null || conf < 0.7;
+  }
+
   async function acceptSuggested(s: SuggestedItem, roomId: string) {
     if (!inspection) return;
     // Merge with existing item of the same canonical name if present.
@@ -471,9 +485,13 @@ function CapturePage() {
       const aiItems: Array<{
         name: string; condition: Condition; description?: string;
         maintenance_required?: boolean; maintenance_notes?: string;
-        confidence?: number;
+        confidence?: number | string;
         lowConfidence?: boolean;
+        low_confidence?: boolean;
       }> = Array.isArray(data?.items) ? data.items : [];
+      // Debug: verify exactly what reaches the capture component after the edge function returns.
+      // eslint-disable-next-line no-console
+      console.log("AI items:", aiItems);
       if (aiItems.length === 0) { setAnalyzing(false); return; }
 
       // Merge with existing items in this room (canonical name match).
@@ -489,20 +507,8 @@ function CapturePage() {
         const key = canonicalName.toLowerCase();
         const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
         const existingItem = byName.get(key);
-        if (existingItem) {
-          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
-          await supabase.from("inspection_items").update({
-            sources,
-            confidence: ai.confidence ?? existingItem.confidence,
-          }).eq("id", existingItem.id);
-          continue;
-        }
-        const conf = typeof ai.confidence === "number" ? ai.confidence : null;
-        // Treat any of these as "low confidence" and route to Suggested items:
-        //   - explicit lowConfidence: true from the model
-        //   - numeric confidence < 0.7
-        //   - missing confidence field entirely (model didn't score it)
-        const isLowConf = ai.lowConfidence === true || conf === null || (conf !== null && conf < 0.7);
+        const conf = normaliseAiConfidence(ai.confidence);
+        const isLowConf = shouldSuggestAiItem(ai);
         if (isLowConf) {
           toSuggest.push({
             key: `${roomId}-${canonicalName}-${crypto.randomUUID()}`,
@@ -515,6 +521,15 @@ function CapturePage() {
             source: "photo",
           });
           byName.set(key, { id: "__pending__" } as any);
+          continue;
+        }
+        if (existingItem) {
+          if (existingItem.id === "__pending__") continue;
+          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
+          await supabase.from("inspection_items").update({
+            sources,
+            confidence: conf ?? existingItem.confidence,
+          }).eq("id", existingItem.id);
           continue;
         }
         toInsert.push({
@@ -860,7 +875,8 @@ function CapturePage() {
 
     type AiItem = {
       name: string; condition: Condition; description?: string;
-      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
+      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number | string;
+      lowConfidence?: boolean; low_confidence?: boolean;
     };
     const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
     // Dedup by item name. For same name + same condition, keep only the
@@ -868,6 +884,7 @@ function CapturePage() {
     // different condition, worst-condition wins.
     const merged = new Map<string, {
       name: string; condition: Condition; confidence: number;
+      lowConfidence: boolean;
       description: string | null; maintenance_required: boolean;
       maintenance_notes: string | null; bestFrameIdx: number;
     }>();
@@ -894,11 +911,16 @@ function CapturePage() {
         const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
         const { data, error } = (await Promise.race([call, timeout])) as any;
         if (error) continue;
+        // eslint-disable-next-line no-console
+        console.log("[analyze-photo] raw video frame response:", data);
         const aiItems: AiItem[] = Array.isArray(data?.items) ? data.items : [];
+        // eslint-disable-next-line no-console
+        console.log("AI items:", aiItems);
         for (const ai of aiItems) {
           if (!ai?.name) continue;
           const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
-          const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
+          const conf = normaliseAiConfidence(ai.confidence) ?? 0;
+          const isLowConf = shouldSuggestAiItem(ai);
           const canonicalName = canonicalizeItemName(ai.name);
           const key = canonicalName.toLowerCase().trim();
           const prev = merged.get(key);
@@ -907,6 +929,7 @@ function CapturePage() {
               name: canonicalName,
               condition: cond,
               confidence: conf,
+              lowConfidence: isLowConf,
               description: ai.description?.trim() || null,
               maintenance_required: !!ai.maintenance_required,
               maintenance_notes: ai.maintenance_notes?.trim() || null,
@@ -927,6 +950,7 @@ function CapturePage() {
               name: canonicalName,
               condition: nextCond,
               confidence: Math.max(conf, prev.confidence),
+              lowConfidence: prev.lowConfidence || isLowConf,
               description: nextDesc || null,
               maintenance_required: prev.maintenance_required || !!ai.maintenance_required,
               maintenance_notes: nextNotes,
@@ -969,7 +993,23 @@ function CapturePage() {
       const existingItem = byName.get(key);
       const description = m.description;
       const notes = m.maintenance_notes;
+      // Low-confidence/context-mismatch video items → Suggested for review instead of auto-updating existing rows.
+      if (m.lowConfidence || !m.confidence || m.confidence < 0.7) {
+        toSuggestVideo.push({
+          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
+          name: m.name,
+          condition: m.condition,
+          description,
+          maintenance_required: m.maintenance_required,
+          maintenance_notes: notes,
+          confidence: m.confidence || null,
+          source: "video",
+        });
+        byName.set(key, { id: "__pending__" } as any);
+        continue;
+      }
       if (existingItem) {
+        if (existingItem.id === "__pending__") continue;
         const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
         const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
         await supabase.from("inspection_items").update({
@@ -978,20 +1018,6 @@ function CapturePage() {
           description: existingItem.description ? existingItem.description : description,
           confidence: m.confidence || existingItem.confidence,
         }).eq("id", existingItem.id);
-        continue;
-      }
-      // Low-confidence (or unscored) video items → Suggested for review instead of auto-insert.
-      if (!m.confidence || m.confidence < 0.7) {
-        toSuggestVideo.push({
-          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
-          name: m.name,
-          condition: m.condition,
-          description,
-          maintenance_required: m.maintenance_required,
-          maintenance_notes: notes,
-          confidence: m.confidence,
-          source: "video",
-        });
         continue;
       }
       toInsert.push({
