@@ -266,3 +266,25 @@ function SettingsPage() {
     </PageShell>
   );
 }
+
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const unlimited = !Number.isFinite(limit);
+  const pct = unlimited ? 0 : limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const color = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-teal";
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="text-muted-foreground">
+          {unlimited ? `${used} · Unlimited` : `${used} of ${limit}`}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full ${unlimited ? "bg-teal/40" : color}`}
+          style={{ width: unlimited ? "100%" : `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
