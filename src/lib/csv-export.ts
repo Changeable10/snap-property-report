@@ -36,6 +36,28 @@ export function todayStamp(): string {
 
 // ---------- Inspection export ----------
 
+const INSPECTION_TYPE_LABEL: Record<string, string> = {
+  entry: "Entry",
+  routine: "Routine",
+  exit: "Exit",
+  healthy_homes: "Healthy Homes",
+};
+
+function labelInspectionType(t: string): string {
+  return INSPECTION_TYPE_LABEL[t] ?? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  in_progress: "In Progress",
+  completed: "Completed",
+  signed: "Signed",
+  draft: "Draft",
+};
+
+function labelStatus(s: string): string {
+  return STATUS_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export interface InspectionExportRow {
   id: string;
   inspection_type: string;
@@ -90,9 +112,9 @@ export function buildInspectionCsv(
       ins.property?.address ?? "",
       ins.property?.suburb ?? "",
       ins.property?.city ?? "",
-      ins.inspection_type,
+      labelInspectionType(ins.inspection_type),
       ins.inspection_date,
-      ins.status,
+      labelStatus(ins.status),
       c.total,
       c.good,
       c.fair,
@@ -144,7 +166,7 @@ export function buildMaintenanceCsv(rows: MaintenanceExportRow[]): string {
       r.status,
       r.date_flagged,
       r.date_resolved,
-      r.inspection_type,
+      labelInspectionType(r.inspection_type),
     ]),
   );
 }
