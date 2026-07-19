@@ -363,6 +363,7 @@ export async function generateReportPdf({
 
     // ---------- Photos gallery ----------
     if (rPhotosAll.length > 0) {
+      console.log(`PDF: Rendering Photos section for "${room.name}" (${rPhotosAll.length} photos)`);
       // Cap at 6: first (overview) + up to 5 additional ranked by worst-condition of linked item.
       const first = rPhotosAll[0];
       const rest = rPhotosAll.slice(1);
