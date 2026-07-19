@@ -1251,6 +1251,44 @@ function CapturePage() {
           </button>
         </div>
       </nav>
+
+      {showExitConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
+          onClick={() => setShowExitConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-foreground">Save and exit?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your progress will be saved and you can resume later.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="min-h-11 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground"
+              >
+                Keep inspecting
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  navigate({ to: "/" });
+                }}
+                className="min-h-11 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground hover:bg-teal-dark"
+              >
+                Save and exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
