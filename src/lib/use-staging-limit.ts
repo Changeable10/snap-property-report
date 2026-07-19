@@ -4,9 +4,9 @@ import type { Plan } from "@/lib/use-plan";
 
 export const STAGING_MONTHLY_LIMIT: Record<Plan, number> = {
   free: 0,
-  professional: 10,
-  portfolio: 50,
-  agency: Infinity,
+  professional: 5,
+  portfolio: 15,
+  agency: 50,
 };
 
 export function useStagingThisMonth(userId: string | undefined) {
