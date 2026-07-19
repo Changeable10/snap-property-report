@@ -97,7 +97,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
