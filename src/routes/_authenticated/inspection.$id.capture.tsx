@@ -474,6 +474,7 @@ function CapturePage() {
       const existing = (items ?? []).filter((i) => i.room_id === roomId);
       const byName = new Map(existing.map((it) => [canonicalizeItemName(it.item_name).toLowerCase(), it]));
       const toInsert: any[] = [];
+      const toSuggest: SuggestedItem[] = [];
       const nowSort = existing.length * 10;
       let idx = 0;
       for (const ai of aiItems) {
@@ -490,6 +491,23 @@ function CapturePage() {
           }).eq("id", existingItem.id);
           continue;
         }
+        const conf = typeof ai.confidence === "number" ? ai.confidence : null;
+        // Low-confidence detections go to Suggested items for user review,
+        // instead of being auto-inserted.
+        if (conf !== null && conf < 0.7) {
+          toSuggest.push({
+            key: `${roomId}-${canonicalName}-${crypto.randomUUID()}`,
+            name: canonicalName,
+            condition: cond,
+            description: ai.description || null,
+            maintenance_required: !!ai.maintenance_required,
+            maintenance_notes: ai.maintenance_notes || null,
+            confidence: conf,
+            source: "photo",
+          });
+          byName.set(key, { id: "__pending__" } as any);
+          continue;
+        }
         toInsert.push({
           user_id: inspection.user_id,
           inspection_id: id,
@@ -500,7 +518,7 @@ function CapturePage() {
           maintenance_required: !!ai.maintenance_required,
           maintenance_notes: ai.maintenance_notes || null,
           sources: ["photo"],
-          confidence: typeof ai.confidence === "number" ? ai.confidence : null,
+          confidence: conf,
           sort_order: nowSort + idx * 10,
         });
         // Reserve the key so a second AI item with the same canonical name
@@ -511,6 +529,12 @@ function CapturePage() {
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
         if (insErr) throw insErr;
+      }
+      if (toSuggest.length > 0) {
+        setSuggestedItems((prev) => ({
+          ...prev,
+          [roomId]: [...(prev[roomId] ?? []), ...toSuggest],
+        }));
       }
       qc.invalidateQueries({ queryKey: ["inspection-items", id] });
     } catch (err: any) {
