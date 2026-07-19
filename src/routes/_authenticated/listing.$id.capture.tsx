@@ -414,6 +414,10 @@ function ListingCapture() {
   const [selectedFrames, setSelectedFrames] = useState<Set<number>>(new Set());
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Room the video was recorded in — frames must save against this room,
+  // not whichever room is currently displayed if the user navigates away.
+  const [frameRoomId, setFrameRoomId] = useState<string | null>(null);
+  const [pendingNavDir, setPendingNavDir] = useState<null | "prev" | "next" | "finish">(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const videoRecRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
@@ -438,6 +442,10 @@ function ListingCapture() {
 
   async function startVideo() {
     try {
+      if (!current) return;
+      // Lock the recording to the current room so saves land here even
+      // if the user navigates before saving.
+      setFrameRoomId(current.id);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } }, audio: true,
       });
@@ -501,7 +509,8 @@ function ListingCapture() {
   }
 
   async function saveSelectedFrames() {
-    if (!current || !listing || extractedFrames.length === 0) return;
+    const targetRoomId = frameRoomId ?? current?.id ?? null;
+    if (!targetRoomId || !listing || extractedFrames.length === 0) return;
     setSaving(true);
     try {
       const toSave = extractedFrames.filter((_, i) => selectedFrames.has(i));
@@ -509,14 +518,14 @@ function ListingCapture() {
         const bin = atob(f.base64.split(",")[1]);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const path = `${listing.user_id}/listing-${id}/${current.id}/frame-${crypto.randomUUID()}.jpg`;
+        const path = `${listing.user_id}/listing-${id}/${targetRoomId}/frame-${crypto.randomUUID()}.jpg`;
         const { error: upErr } = await supabase.storage.from("inspection-photos")
           .upload(path, new Blob([bytes], { type: "image/jpeg" }), { contentType: "image/jpeg" });
         if (upErr) throw upErr;
         const { error: insErr } = await supabase.from("listing_photos").insert({
           user_id: listing.user_id,
           listing_id: id,
-          room_id: current.id,
+          room_id: targetRoomId,
           photo_url: path,
           source: "video_frame",
         });
@@ -525,12 +534,55 @@ function ListingCapture() {
       qc.invalidateQueries({ queryKey: ["listing-photos", id] });
       setExtractedFrames([]);
       setSelectedFrames(new Set());
+      setFrameRoomId(null);
       toast.success(`Saved ${toSave.length} frames`);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to save frames");
     } finally {
       setSaving(false);
     }
+  }
+
+  function discardFrames() {
+    setExtractedFrames([]);
+    setSelectedFrames(new Set());
+    setFrameRoomId(null);
+  }
+
+  const frameRoomName = useMemo(
+    () => (rooms ?? []).find((r) => r.id === frameRoomId)?.name ?? "this room",
+    [rooms, frameRoomId],
+  );
+
+  function tryNavigate(dir: "prev" | "next" | "finish") {
+    if (extractedFrames.length > 0) {
+      setPendingNavDir(dir);
+      return;
+    }
+    performNavigate(dir);
+  }
+
+  async function performNavigate(dir: "prev" | "next" | "finish") {
+    if (dir === "finish") { await finish(); return; }
+    if (transcript || manualNotes) await saveNotes(transcript, manualNotes);
+    if (dir === "prev") setIndex((i) => Math.max(0, i - 1));
+    else setIndex((i) => Math.min(total - 1, i + 1));
+  }
+
+  async function confirmSaveThenNavigate() {
+    const dir = pendingNavDir;
+    if (!dir) return;
+    await saveSelectedFrames();
+    setPendingNavDir(null);
+    await performNavigate(dir);
+  }
+
+  async function confirmDiscardThenNavigate() {
+    const dir = pendingNavDir;
+    if (!dir) return;
+    discardFrames();
+    setPendingNavDir(null);
+    await performNavigate(dir);
   }
 
   async function finish() {
