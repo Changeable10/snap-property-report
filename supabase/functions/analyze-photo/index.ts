@@ -23,13 +23,19 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { image_base64, image_url, room_type, mime_type } = await req.json();
+    const { image_base64, image_url, room_type, mime_type, existing_items } = await req.json();
     const src = image_url ?? (image_base64 ? `data:${mime_type ?? "image/jpeg"};base64,${image_base64}` : null);
     if (!src) {
       return new Response(JSON.stringify({ error: "image_base64 or image_url required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const existingBlock = Array.isArray(existing_items) && existing_items.length > 0
+      ? `Items already recorded for this room (match these names exactly when the item is the same):\n${existing_items
+          .map((it: any) => `- ${it?.name ?? ""}${it?.condition ? ` (${it.condition})` : ""}${it?.description ? `: ${String(it.description).slice(0, 120)}` : ""}`)
+          .join("\n")}\n\n`
+      : "";
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 14000);
@@ -47,7 +53,7 @@ Deno.serve(async (req) => {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: [
-            { type: "text", text: `Room type: ${room_type ?? "unspecified"}. Analyse this inspection photo and return the JSON described in the system prompt.` },
+            { type: "text", text: `Room type: ${room_type ?? "unspecified"}. ${existingBlock}Analyse this inspection photo and return the JSON described in the system prompt.` },
             { type: "image_url", image_url: { url: src } },
           ]},
         ],
