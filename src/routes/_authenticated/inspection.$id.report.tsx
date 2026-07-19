@@ -72,7 +72,7 @@ function ReportPage() {
     queryKey: ["inspection-items", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_items")
-        .select("id,room_id,item_name,condition,description,maintenance_required,maintenance_notes,sort_order")
+        .select("id,room_id,item_name,condition,description,maintenance_required,maintenance_notes,maintenance_priority,sort_order")
         .eq("inspection_id", id)
         .order("sort_order", { ascending: true });
       if (error) throw error;

@@ -16,7 +16,7 @@ const PLANS = [
     name: "Professional",
     price: "NZ$29",
     priceId: "professional_monthly",
-    features: ["Up to 10 properties", "Unlimited inspections", "AI photo analysis"],
+    features: ["Up to 5 properties", "Unlimited inspections", "AI photo analysis"],
     cta: "Upgrade",
     highlight: true,
   },
@@ -25,7 +25,7 @@ const PLANS = [
     name: "Portfolio",
     price: "NZ$99",
     priceId: "portfolio_monthly",
-    features: ["Unlimited properties", "Unlimited inspections", "Priority support"],
+    features: ["Up to 20 properties", "Unlimited inspections", "Priority support"],
     cta: "Upgrade",
     highlight: false,
   },
@@ -88,7 +88,7 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {description ??
-            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 10 properties, or Portfolio for unlimited."}
+            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 5 properties, or Portfolio for up to 20."}
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">

@@ -29,6 +29,10 @@ const STATUS_STYLE: Record<ListingStatus, string> = {
 };
 
 export const LISTING_TYPE_LABEL: Record<string, string> = {
+  for_rent: "For Rent",
+  for_sale: "For Sale",
+  holiday: "Holiday",
+  development: "Development",
   rent: "For Rent",
   sale: "For Sale",
   short_stay: "Short Stay",

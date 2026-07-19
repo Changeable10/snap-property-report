@@ -18,6 +18,7 @@ export interface PdfItem {
   id: string; room_id: string; item_name: string; condition: Condition;
   description: string | null; maintenance_required: boolean;
   maintenance_notes: string | null; sort_order: number;
+  maintenance_priority?: "low" | "medium" | "high" | null;
 }
 export interface PdfPhoto { id: string; room_id: string; photo_url: string; enhanced_url?: string | null; captured_at: string }
 // Extended optional fields used to build the per-room photo gallery.
@@ -578,12 +579,17 @@ export async function generateReportPdf({
     autoTable(doc, {
       startY: y,
       head: [["Room", "Item", "Issue", "Priority"]],
-      body: maintenance.map((m) => [
-        roomsById.get(m.room_id)?.name ?? "",
-        m.item_name,
-        m.maintenance_notes || m.description || "—",
-        COND_PRIORITY[m.condition] ?? "Low",
-      ]),
+      body: maintenance.map((m) => {
+        const p = m.maintenance_priority
+          ? m.maintenance_priority.charAt(0).toUpperCase() + m.maintenance_priority.slice(1)
+          : (COND_PRIORITY[m.condition] ?? "Low");
+        return [
+          roomsById.get(m.room_id)?.name ?? "",
+          m.item_name,
+          m.maintenance_notes || m.description || "—",
+          p,
+        ];
+      }),
       margin: { left: margin, right: margin },
       styles: { font: "helvetica", fontSize: 10, cellPadding: 2.5, textColor: 30, valign: "top" },
       headStyles: { fillColor: accent, textColor: 255 },
@@ -704,7 +710,7 @@ export async function generateReportPdf({
       doc.text(formatDMY(inspection.inspection_date), pageW - margin, pageH - 7, { align: "right" });
       doc.setFontSize(6.5);
       doc.setTextColor(180);
-      doc.text("Powered by Snapsure", pageW / 2, pageH - 4, { align: "center" });
+      doc.text(TAGLINE, pageW / 2, pageH - 4, { align: "center" });
     } else {
       doc.setFontSize(8);
       doc.setTextColor(120);
