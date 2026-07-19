@@ -980,8 +980,8 @@ function CapturePage() {
         }).eq("id", existingItem.id);
         continue;
       }
-      // Low-confidence video items → Suggested for review instead of auto-insert.
-      if (m.confidence > 0 && m.confidence < 0.7) {
+      // Low-confidence (or unscored) video items → Suggested for review instead of auto-insert.
+      if (!m.confidence || m.confidence < 0.7) {
         toSuggestVideo.push({
           key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
           name: m.name,
