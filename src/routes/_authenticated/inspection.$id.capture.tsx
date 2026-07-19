@@ -885,6 +885,26 @@ function CapturePage() {
       void supabase.storage.from("inspection-photos").upload(videoPath, blob, { contentType: blob.type || "video/webm" });
     }
 
+    // Persist every selected frame as an inspection_photos row up-front so
+    // they survive navigation away and back to this room, even if the AI
+    // returns no items for a given frame.
+    const frameIdxToPath = new Map<number, string>();
+    for (let i = 0; i < frames.length; i++) {
+      const bin = Uint8Array.from(atob(frames[i].base64), (c) => c.charCodeAt(0));
+      const path = `${inspection.user_id}/${id}/${roomId}/frame-${crypto.randomUUID()}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos").upload(path, bin, { contentType: "image/jpeg" });
+      if (upErr) continue;
+      frameIdxToPath.set(i, path);
+      await supabase.from("inspection_photos").insert({
+        user_id: inspection.user_id,
+        inspection_id: id,
+        room_id: roomId,
+        photo_url: path,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+
     type AiItem = {
       name: string; condition: Condition; description?: string;
       maintenance_required?: boolean; maintenance_notes?: string; confidence?: number | string;
@@ -975,23 +995,7 @@ function CapturePage() {
       }
     }
 
-    // Upload best frames per item (deduped by frame index) and record photo rows.
-    const frameIdxToPath = new Map<number, string>();
-    for (const m of merged.values()) {
-      if (frameIdxToPath.has(m.bestFrameIdx)) continue;
-      const bin = Uint8Array.from(atob(frames[m.bestFrameIdx].base64), (c) => c.charCodeAt(0));
-      const path = `${inspection.user_id}/${id}/${roomId}/frame-${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from("inspection-photos").upload(path, bin, { contentType: "image/jpeg" });
-      if (upErr) continue;
-      frameIdxToPath.set(m.bestFrameIdx, path);
-      await supabase.from("inspection_photos").insert({
-        user_id: inspection.user_id,
-        inspection_id: id,
-        room_id: roomId,
-        photo_url: path,
-      });
-    }
+    // (Frames already uploaded above — each selected frame has a photo row.)
 
     // Merge into inspection_items (matching by name, video source).
     const existing = (items ?? []).filter((i) => i.room_id === roomId);
