@@ -28,6 +28,7 @@ function SettingsPage() {
   const { data: plan } = usePlan(user.id);
   const current = plan ?? "free";
   const UPGRADE_ORDER: Plan[] = ["free", "portfolio", "professional", "agency"];
+  const RANK: Record<Plan, number> = { free: 0, portfolio: 1, professional: 2, agency: 3 };
   const upgradeTargets = UPGRADE_ORDER.slice(UPGRADE_ORDER.indexOf(current) + 1) as Exclude<Plan, "free">[];
   const [upgradeTarget, setUpgradeTarget] = useState<Exclude<Plan, "free"> | null>(null);
   const [displayName, setDisplayName] = useState<string>(displayNameFromUser(user) ?? "");
