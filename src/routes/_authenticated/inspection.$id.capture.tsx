@@ -1495,16 +1495,18 @@ function CapturePage() {
 
 function PhotoThumb({
   photoId,
-  path,
+  displayPath,
+  originalPath,
   isEnhanced,
   onEnhanced,
 }: {
   photoId: string;
-  path: string;
+  displayPath: string;
+  originalPath: string;
   isEnhanced: boolean;
   onEnhanced?: () => void;
 }) {
-  const url = useSignedUrl(path);
+  const url = useSignedUrl(displayPath);
   const [open, setOpen] = useState(false);
   return (
     <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
@@ -1525,7 +1527,7 @@ function PhotoThumb({
         open={open}
         onClose={() => setOpen(false)}
         photoId={photoId}
-        photoPath={path}
+        photoPath={originalPath}
         table="inspection_photos"
         onApplied={() => onEnhanced?.()}
         onDiscarded={() => onEnhanced?.()}
