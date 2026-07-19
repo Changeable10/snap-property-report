@@ -14,28 +14,44 @@ const PLANS = [
   {
     id: "professional",
     name: "Professional",
-    price: "NZ$29",
+    price: "NZ$39.95",
     priceId: "professional_monthly",
-    features: ["Up to 5 properties", "Unlimited inspections", "AI photo analysis"],
+    features: [
+      "Up to 10 properties",
+      "5 listings/month",
+      "AI photo analysis",
+      "Voice-to-report",
+    ],
     cta: "Upgrade",
     highlight: true,
   },
   {
     id: "portfolio",
     name: "Portfolio",
-    price: "NZ$99",
+    price: "NZ$59.95",
     priceId: "portfolio_monthly",
-    features: ["Up to 20 properties", "Unlimited inspections", "Priority support"],
+    features: [
+      "Up to 25 properties",
+      "Unlimited listings",
+      "3 team members",
+      "Report branding",
+    ],
     cta: "Upgrade",
     highlight: false,
   },
   {
     id: "agency",
     name: "Agency",
-    price: "NZ$199",
+    price: "NZ$99.95",
     priceId: "agency_monthly",
-    features: ["Unlimited properties", "Team access", "Dedicated success manager"],
-    cta: "Contact us",
+    features: [
+      "Up to 100 properties",
+      "Unlimited listings",
+      "10 team members",
+      "White-label reports",
+      "Rex CRM integration",
+    ],
+    cta: "Upgrade",
     highlight: false,
   },
 ] as const;
@@ -51,10 +67,6 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
   if (!open) return null;
 
   async function handleUpgrade(plan: (typeof PLANS)[number]) {
-    if (plan.id === "agency") {
-      window.location.href = "mailto:hello@snapsure.app?subject=Agency plan enquiry";
-      return;
-    }
     if (!user) return;
     await openCheckout({
       priceId: plan.priceId,
@@ -88,7 +100,7 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {description ??
-            "The free plan includes one property with unlimited inspections. Upgrade to Professional to manage up to 5 properties, or Portfolio for up to 20."}
+            "The free plan includes one property with unlimited inspections. Upgrade to Professional for up to 10 properties, Portfolio for 25, or Agency for 100."}
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -115,7 +127,7 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
               <button
                 type="button"
                 onClick={() => handleUpgrade(plan)}
-                disabled={loading || (plan.id !== "agency" && !user)}
+                disabled={loading || !user}
                 className={`mt-4 flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition-colors disabled:opacity-60 ${
                   plan.highlight
                     ? "bg-teal text-teal-foreground hover:bg-teal-dark"
