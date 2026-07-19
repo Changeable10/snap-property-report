@@ -5,6 +5,7 @@ import { ArrowLeft, LogIn, RefreshCw, LogOut, HeartPulse, ClipboardList, Megapho
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan } from "@/lib/use-plan";
 import { useListingsThisMonth, LISTING_MONTHLY_LIMIT } from "@/lib/use-listing-limit";
+import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { resolveDisplayName } from "@/lib/display-name";
 
@@ -169,6 +170,8 @@ function InspectionSetup() {
       setSubmitting(false);
       return;
     }
+    // Track listing creation for monthly usage limits.
+    void incrementUsage("listing");
     navigate({ to: "/listing/$id/capture", params: { id: data.id } });
   }
 
