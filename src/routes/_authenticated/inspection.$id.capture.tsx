@@ -1492,14 +1492,43 @@ function CapturePage() {
   );
 }
 
-function PhotoThumb({ path }: { path: string }) {
+function PhotoThumb({
+  photoId,
+  path,
+  isEnhanced,
+  onEnhanced,
+}: {
+  photoId: string;
+  path: string;
+  isEnhanced: boolean;
+  onEnhanced?: () => void;
+}) {
   const url = useSignedUrl(path);
+  const [open, setOpen] = useState(false);
   return (
     <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
       {url && <img src={url} alt="Captured" className="h-full w-full object-cover" />}
       <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-condition-good text-white shadow ring-2 ring-white">
         <Check className="size-3.5" strokeWidth={3} />
       </span>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+        aria-label="Enhance photo"
+      >
+        <Sparkles className="size-3" />
+        {isEnhanced ? "Enhanced" : "Enhance"}
+      </button>
+      <EnhancePhotoModal
+        open={open}
+        onClose={() => setOpen(false)}
+        photoId={photoId}
+        photoPath={path}
+        table="inspection_photos"
+        onApplied={() => onEnhanced?.()}
+        onDiscarded={() => onEnhanced?.()}
+      />
     </div>
   );
 }
