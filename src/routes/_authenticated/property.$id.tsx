@@ -272,18 +272,6 @@ function PropertyDetail() {
     },
   });
 
-  if (propertyLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!property) {
-    return null;
-  }
-
   function handleExportInspections() {
     if (!plan || plan === "free") {
       setShowUpgrade(true);
@@ -401,6 +389,18 @@ function PropertyDetail() {
       qc.invalidateQueries({ queryKey: ["properties"] });
     },
   });
+
+  if (propertyLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!property) {
+    return null;
+  }
 
   const Icon = property?.property_type === "apartment" || property?.property_type === "unit" ? Building2 : HomeIcon;
 
