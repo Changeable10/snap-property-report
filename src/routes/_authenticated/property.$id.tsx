@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft, Bed, Bath, Home as HomeIcon, Building2, Plus, Pencil, Trash2,
   Check, X, ClipboardList, Phone, Mail, Download, FileText, Play, ChevronDown,
@@ -145,7 +145,12 @@ function PropertyDetail() {
   const qc = useQueryClient();
   const navigate = useNavigate();
 
-  const { data: property } = useQuery({
+  const {
+    data: property,
+    isLoading: propertyLoading,
+    isError: propertyError,
+    isFetched: propertyFetched,
+  } = useQuery({
     queryKey: ["property", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -224,6 +229,13 @@ function PropertyDetail() {
     },
   });
 
+  useEffect(() => {
+    if (!propertyLoading && (propertyError || (propertyFetched && !property))) {
+      toast.error("Property not found.");
+      navigate({ to: "/" });
+    }
+  }, [propertyLoading, propertyError, propertyFetched, property, navigate]);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [newRoom, setNewRoom] = useState("");
@@ -233,6 +245,18 @@ function PropertyDetail() {
   const [maintFilter, setMaintFilter] = useState<"all" | "open" | "resolved">("all");
   const { data: plan } = usePlan(user.id);
   const [showUpgrade, setShowUpgrade] = useState(false);
+
+  if (propertyLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!property) {
+    return null;
+  }
 
   function handleExportInspections() {
     if (!plan || plan === "free") {
