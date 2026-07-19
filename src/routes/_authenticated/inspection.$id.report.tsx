@@ -11,6 +11,7 @@ import {
 } from "@/lib/report-pdf";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { loadPdfBranding } from "@/lib/branding";
+import { useResolvedInspectorName } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/report")({
   head: () => ({ meta: [{ title: "Report — Snapsure" }] }),
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/inspection/$id/report")({
 
 function ReportPage() {
   const { id } = Route.useParams();
+  const { user } = Route.useRouteContext();
   const isMobile = useIsMobile();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [filename, setFilename] = useState<string>("inspection-report.pdf");
@@ -34,6 +36,11 @@ function ReportPage() {
       if (error) throw error;
       return data as PdfInspection;
     },
+  });
+  const resolvedInspectorName = useResolvedInspectorName({
+    user,
+    inspectorName: inspection?.inspector_name,
+    propertyId: inspection?.property_id,
   });
 
   const { data: property } = useQuery({
@@ -118,8 +125,12 @@ function ReportPage() {
       setGenerating(true);
       setFilename(reportFilename(property, inspection));
       const branding = await loadPdfBranding();
+      const inspectionForPdf: PdfInspection = {
+        ...inspection,
+        inspector_name: resolvedInspectorName || inspection.inspector_name,
+      };
       const blob = await generateReportPdf({
-        inspection, property, rooms, items, photos, changes, signatures, branding,
+        inspection: inspectionForPdf, property, rooms, items, photos, changes, signatures, branding,
       });
       createdUrl = URL.createObjectURL(blob);
       if (!cancelled) {
@@ -141,7 +152,7 @@ function ReportPage() {
       cancelled = true;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [inspection, property, rooms, items, photos, signatures, changes]);
+  }, [inspection, property, rooms, items, photos, signatures, changes, resolvedInspectorName]);
 
   function download() {
     if (!pdfBlob) return;
