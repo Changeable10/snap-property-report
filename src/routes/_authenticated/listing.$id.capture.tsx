@@ -11,6 +11,7 @@ import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -287,6 +288,7 @@ function ListingCapture() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !current || !listing) return;
+    if (!isAcceptedImage(file)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
     const path = `${listing.user_id}/listing-${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
@@ -613,7 +615,7 @@ function ListingCapture() {
           >
             <Camera className="size-5" /> Capture photo
           </button>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+          <input ref={fileRef} type="file" accept={ACCEPTED_IMAGE_ACCEPT_ATTR} capture="environment" className="hidden" onChange={onFile} />
 
           {videoSupported ? (
             !videoRecording ? (
