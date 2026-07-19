@@ -9,6 +9,7 @@ import { ConditionBadge } from "@/components/ConditionBadge";
 import { parseTranscript, detectGeneralCondition, getStandardItemsForRoom, canonicalizeItemName, type Condition } from "@/lib/parse-transcript";
 import { toast } from "sonner";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
@@ -1176,8 +1177,10 @@ function CapturePage() {
                   photoId={p.id}
                   displayPath={p.enhanced_url ?? p.photo_url}
                   originalPath={p.photo_url}
+                  enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
+                  onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                 />
               ))}
               <button
