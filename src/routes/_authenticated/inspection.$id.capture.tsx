@@ -283,6 +283,24 @@ function CapturePage() {
   const [suggestedItems, setSuggestedItems] = useState<Record<string, SuggestedItem[]>>({});
   const currentSuggested = current ? (suggestedItems[current.id] ?? []) : [];
 
+  function normaliseAiConfidence(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(1, value));
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) return Math.max(0, Math.min(1, parsed));
+    }
+    return null;
+  }
+
+  function shouldSuggestAiItem(ai: { confidence?: unknown; lowConfidence?: unknown; low_confidence?: unknown }) {
+    const conf = normaliseAiConfidence(ai.confidence);
+    const explicitLow = ai.lowConfidence === true
+      || ai.lowConfidence === "true"
+      || ai.low_confidence === true
+      || ai.low_confidence === "true";
+    return explicitLow || conf === null || conf < 0.7;
+  }
+
   async function acceptSuggested(s: SuggestedItem, roomId: string) {
     if (!inspection) return;
     // Merge with existing item of the same canonical name if present.
@@ -293,6 +311,10 @@ function CapturePage() {
       const sources = Array.from(new Set([...(match.sources ?? []), s.source]));
       const { error } = await supabase.from("inspection_items").update({
         sources,
+        condition: s.condition,
+        description: s.description,
+        maintenance_required: s.maintenance_required,
+        maintenance_notes: s.maintenance_notes,
         confidence: s.confidence ?? match.confidence,
       }).eq("id", match.id);
       if (error) { toast.error(error.message); return; }
@@ -471,9 +493,13 @@ function CapturePage() {
       const aiItems: Array<{
         name: string; condition: Condition; description?: string;
         maintenance_required?: boolean; maintenance_notes?: string;
-        confidence?: number;
+        confidence?: number | string;
         lowConfidence?: boolean;
+        low_confidence?: boolean;
       }> = Array.isArray(data?.items) ? data.items : [];
+      // Debug: verify exactly what reaches the capture component after the edge function returns.
+      // eslint-disable-next-line no-console
+      console.log("AI items:", aiItems);
       if (aiItems.length === 0) { setAnalyzing(false); return; }
 
       // Merge with existing items in this room (canonical name match).
@@ -489,20 +515,9 @@ function CapturePage() {
         const key = canonicalName.toLowerCase();
         const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
         const existingItem = byName.get(key);
-        if (existingItem) {
-          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
-          await supabase.from("inspection_items").update({
-            sources,
-            confidence: ai.confidence ?? existingItem.confidence,
-          }).eq("id", existingItem.id);
-          continue;
-        }
-        const conf = typeof ai.confidence === "number" ? ai.confidence : null;
-        // Treat any of these as "low confidence" and route to Suggested items:
-        //   - explicit lowConfidence: true from the model
-        //   - numeric confidence < 0.7
-        //   - missing confidence field entirely (model didn't score it)
-        const isLowConf = ai.lowConfidence === true || conf === null || (conf !== null && conf < 0.7);
+        if (existingItem?.id === "__pending__") continue;
+        const conf = normaliseAiConfidence(ai.confidence);
+        const isLowConf = shouldSuggestAiItem(ai);
         if (isLowConf) {
           toSuggest.push({
             key: `${roomId}-${canonicalName}-${crypto.randomUUID()}`,
@@ -515,6 +530,14 @@ function CapturePage() {
             source: "photo",
           });
           byName.set(key, { id: "__pending__" } as any);
+          continue;
+        }
+        if (existingItem) {
+          const sources = Array.from(new Set([...(existingItem.sources ?? []), "photo"]));
+          await supabase.from("inspection_items").update({
+            sources,
+            confidence: conf ?? existingItem.confidence,
+          }).eq("id", existingItem.id);
           continue;
         }
         toInsert.push({
@@ -535,6 +558,8 @@ function CapturePage() {
         byName.set(key, { id: "__pending__" } as any);
         idx++;
       }
+      // eslint-disable-next-line no-console
+      console.log("AI item split:", { autoItems: toInsert, suggestedItems: toSuggest });
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase.from("inspection_items").insert(toInsert);
         if (insErr) throw insErr;
@@ -860,7 +885,8 @@ function CapturePage() {
 
     type AiItem = {
       name: string; condition: Condition; description?: string;
-      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number;
+      maintenance_required?: boolean; maintenance_notes?: string; confidence?: number | string;
+      lowConfidence?: boolean; low_confidence?: boolean;
     };
     const rank: Record<Condition, number> = { good: 0, fair: 1, poor: 2, damaged: 3 };
     // Dedup by item name. For same name + same condition, keep only the
@@ -868,6 +894,7 @@ function CapturePage() {
     // different condition, worst-condition wins.
     const merged = new Map<string, {
       name: string; condition: Condition; confidence: number;
+      lowConfidence: boolean;
       description: string | null; maintenance_required: boolean;
       maintenance_notes: string | null; bestFrameIdx: number;
     }>();
@@ -894,11 +921,16 @@ function CapturePage() {
         const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20000));
         const { data, error } = (await Promise.race([call, timeout])) as any;
         if (error) continue;
+        // eslint-disable-next-line no-console
+        console.log("[analyze-photo] raw video frame response:", data);
         const aiItems: AiItem[] = Array.isArray(data?.items) ? data.items : [];
+        // eslint-disable-next-line no-console
+        console.log("AI items:", aiItems);
         for (const ai of aiItems) {
           if (!ai?.name) continue;
           const cond = (["good","fair","poor","damaged"].includes(ai.condition) ? ai.condition : "good") as Condition;
-          const conf = typeof ai.confidence === "number" ? ai.confidence : 0;
+          const conf = normaliseAiConfidence(ai.confidence) ?? 0;
+          const isLowConf = shouldSuggestAiItem(ai);
           const canonicalName = canonicalizeItemName(ai.name);
           const key = canonicalName.toLowerCase().trim();
           const prev = merged.get(key);
@@ -907,6 +939,7 @@ function CapturePage() {
               name: canonicalName,
               condition: cond,
               confidence: conf,
+              lowConfidence: isLowConf,
               description: ai.description?.trim() || null,
               maintenance_required: !!ai.maintenance_required,
               maintenance_notes: ai.maintenance_notes?.trim() || null,
@@ -927,6 +960,7 @@ function CapturePage() {
               name: canonicalName,
               condition: nextCond,
               confidence: Math.max(conf, prev.confidence),
+              lowConfidence: prev.lowConfidence || isLowConf,
               description: nextDesc || null,
               maintenance_required: prev.maintenance_required || !!ai.maintenance_required,
               maintenance_notes: nextNotes,
@@ -969,7 +1003,23 @@ function CapturePage() {
       const existingItem = byName.get(key);
       const description = m.description;
       const notes = m.maintenance_notes;
+      // Low-confidence/context-mismatch video items → Suggested for review instead of auto-updating existing rows.
+      if (m.lowConfidence || !m.confidence || m.confidence < 0.7) {
+        toSuggestVideo.push({
+          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
+          name: m.name,
+          condition: m.condition,
+          description,
+          maintenance_required: m.maintenance_required,
+          maintenance_notes: notes,
+          confidence: m.confidence || null,
+          source: "video",
+        });
+        byName.set(key, { id: "__pending__" } as any);
+        continue;
+      }
       if (existingItem) {
+        if (existingItem.id === "__pending__") continue;
         const sources = Array.from(new Set([...(existingItem.sources ?? []), "video"]));
         const nextCond = rank[m.condition] > rank[existingItem.condition] ? m.condition : existingItem.condition;
         await supabase.from("inspection_items").update({
@@ -978,20 +1028,6 @@ function CapturePage() {
           description: existingItem.description ? existingItem.description : description,
           confidence: m.confidence || existingItem.confidence,
         }).eq("id", existingItem.id);
-        continue;
-      }
-      // Low-confidence (or unscored) video items → Suggested for review instead of auto-insert.
-      if (!m.confidence || m.confidence < 0.7) {
-        toSuggestVideo.push({
-          key: `${roomId}-${m.name}-${crypto.randomUUID()}`,
-          name: m.name,
-          condition: m.condition,
-          description,
-          maintenance_required: m.maintenance_required,
-          maintenance_notes: notes,
-          confidence: m.confidence,
-          source: "video",
-        });
         continue;
       }
       toInsert.push({
@@ -1348,59 +1384,6 @@ function CapturePage() {
           </div>
         )}
 
-        {current && currentSuggested.length > 0 && (
-          <section className="mt-6 space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                Suggested items
-              </p>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                {currentSuggested.length} to review
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Low-confidence AI detections — please review before adding to the inspection.
-            </p>
-            {currentSuggested.map((s) => (
-              <div key={s.key} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
-                      {s.source === "photo"
-                        ? <Camera className="size-3.5 text-amber-700" aria-label="From photo" />
-                        : <Video className="size-3.5 text-amber-700" aria-label="From video" />}
-                    </div>
-                    <p className="mt-0.5 text-[11px] font-medium text-amber-700">
-                      Low confidence{typeof s.confidence === "number" ? ` (${Math.round(s.confidence * 100)}%)` : ""} — please review
-                    </p>
-                  </div>
-                  <ConditionBadge condition={s.condition} />
-                </div>
-                {s.description && (
-                  <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
-                )}
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => dismissSuggested(s, current.id)}
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => acceptSuggested(s, current.id)}
-                    className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
-                  >
-                    Accept
-                  </button>
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-foreground">
@@ -1419,16 +1402,71 @@ function CapturePage() {
             )}
           </div>
 
-          {roomItems.length === 0 ? (
+          {roomItems.length === 0 && currentSuggested.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               Detected items will appear here after you capture a photo and voice note.
             </div>
-          ) : (
+          ) : roomItems.length > 0 ? (
             <ul className="space-y-2">
               {roomItems.map((it) => (
                 <ItemCard key={it.id} item={it} onEdited={() => qc.invalidateQueries({ queryKey: ["inspection-items", id] })} />
               ))}
             </ul>
+          ) : null}
+
+          {current && currentSuggested.length > 0 && (
+            <section className="mt-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                  Suggested items
+                </p>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  {currentSuggested.length} to review
+                </span>
+              </div>
+              {currentSuggested.map((s) => (
+                <div key={s.key} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-2 inline-block size-2.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-foreground">{s.name}</p>
+                            {s.source === "photo"
+                              ? <Camera className="size-3.5 text-amber-700" aria-label="From photo" />
+                              : <Video className="size-3.5 text-amber-700" aria-label="From video" />}
+                          </div>
+                          <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            Low confidence — review{typeof s.confidence === "number" ? ` · ${Math.round(s.confidence * 100)}%` : ""}
+                          </span>
+                        </div>
+                        <ConditionBadge condition={s.condition} />
+                      </div>
+                      {s.description && (
+                        <p className="mt-2 text-xs text-muted-foreground">{s.description}</p>
+                      )}
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => dismissSuggested(s, current.id)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => acceptSuggested(s, current.id)}
+                          className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground"
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </section>
           )}
 
           {current && (

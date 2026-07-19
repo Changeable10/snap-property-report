@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM_PROMPT = `You are a property inspection assistant for New Zealand residential tenancy inspections. You analyse photos of rooms and items in rental properties to assess their condition. Given a photo taken during a property inspection, identify each visible fixture, fitting, or surface. For each item assess the condition as one of: good (clean, undamaged, functioning, normal wear), fair (minor cosmetic issues, light wear, small marks, still functional), poor (visible damage, significant wear, staining, needs attention), or damaged (broken, non-functional, major damage, requires repair or replacement). Describe any specific issues you can see including stains, cracks, mould, wear patterns, missing or broken components, and safety concerns. Flag any items that need maintenance. Respond in JSON format with an items array where each item has: name (string), condition (good/fair/poor/damaged), description (string), maintenance_required (boolean), maintenance_notes (string if applicable), confidence (0.0 to 1.0). Also include room_suggestion (string) and overall_notes (string). Rules: be factual and objective, this is a legal document. Do not speculate about causes. Do not make recommendations about responsibility. Use NZ English spelling. Describe only what you can see. Set confidence below 0.7 if uncertain.
+const SYSTEM_PROMPT = `You are a property inspection assistant for New Zealand residential tenancy inspections. You analyse photos of rooms and items in rental properties to assess their condition. Given a photo taken during a property inspection, identify each visible fixture, fitting, or surface. For each item assess the condition as one of: good (clean, undamaged, functioning, normal wear), fair (minor cosmetic issues, light wear, small marks, still functional), poor (visible damage, significant wear, staining, needs attention), or damaged (broken, non-functional, major damage, requires repair or replacement). Describe any specific issues you can see including stains, cracks, mould, wear patterns, missing or broken components, and safety concerns. Flag any items that need maintenance. Respond in JSON format with an items array where each item has: name (string), condition (good/fair/poor/damaged), description (string), maintenance_required (boolean), maintenance_notes (string if applicable), confidence (number from 0.0 to 1.0), lowConfidence (boolean). Also include room_suggestion (string) and overall_notes (string). Rules: be factual and objective, this is a legal document. Do not speculate about causes. Do not make recommendations about responsibility. Use NZ English spelling. Describe only what you can see. Set confidence below 0.7 if uncertain.
 
 IMPORTANT — avoid hallucinations: Only report items that are either clearly visible in the photograph OR contextually expected for this room type. Do not add items that would be inappropriate for the room — for example, lounge furniture in a hallway, kitchen appliances in a bathroom, or carpet in a tiled wet area. If the photo shows a close-up of a single item (e.g. a door handle, a crack in a wall, a tap), report only that item and closely related components — do not pad the response with unrelated room-wide items. Prefer returning fewer items with high confidence over many uncertain guesses. Always include a confidence score between 0 and 1 for every item; use values below 0.7 for anything you are not sure about.
 
@@ -15,6 +15,71 @@ ITEM NAMING (critical to avoid duplicates): Use standard canonical names in Titl
 DEDUPLICATION: You may be given a list of items that already exist for this room. If your analysis detects an item that matches or is similar to an existing item (e.g. "Wall Surface" matches "Walls", "Doorway and Frame" matches "Door"), use the EXISTING item's exact name so it updates rather than creates a duplicate. Only create a new item if it is genuinely different from all existing items.
 
 ROOM-TYPE CONTEXT: You will be given the current room_type (e.g. "kitchen", "bathroom", "lounge", "hallway", "bedroom"). Flag any item that is atypical for this room type with lowConfidence: true regardless of visual confidence — for example, a fireplace in a kitchen, an oven in a bathroom, or lounge furniture in a hallway. Also set lowConfidence: true whenever confidence is below 0.7 or you are uncertain the item is really present. Every returned item MUST include both a numeric "confidence" (0..1) AND a boolean "lowConfidence" field.`;
+
+function normaliseRoomType(roomType: unknown): string {
+  const value = String(roomType ?? "").toLowerCase();
+  if (value.includes("kitchen")) return "kitchen";
+  if (value.includes("bathroom") || value.includes("ensuite") || value.includes("toilet")) return "bathroom";
+  if (value.includes("hall") || value.includes("entrance") || value.includes("entry")) return "hallway";
+  if (value.includes("bedroom")) return "bedroom";
+  if (value.includes("living") || value.includes("lounge")) return "lounge";
+  if (value.includes("laundry")) return "laundry";
+  return value.trim();
+}
+
+function isAtypicalForRoom(roomType: unknown, itemName: unknown): boolean {
+  const room = normaliseRoomType(roomType);
+  const item = String(itemName ?? "").toLowerCase();
+  if (!room || !item) return false;
+  const has = (words: string[]) => words.some((word) => item.includes(word));
+
+  if (room === "kitchen") {
+    return has(["fireplace", "sofa", "couch", "lounge", "bed", "wardrobe", "shower", "bath", "toilet", "vanity"]);
+  }
+  if (room === "bathroom") {
+    return has(["oven", "cooktop", "stove", "rangehood", "dishwasher", "fireplace", "sofa", "couch", "bed", "wardrobe"]);
+  }
+  if (room === "hallway") {
+    return has(["sofa", "couch", "lounge", "bed", "oven", "cooktop", "dishwasher", "shower", "bath", "toilet", "vanity"]);
+  }
+  if (room === "bedroom") {
+    return has(["oven", "cooktop", "stove", "rangehood", "dishwasher", "shower", "bath", "toilet", "vanity"]);
+  }
+  if (room === "laundry") {
+    return has(["sofa", "couch", "bed", "oven", "cooktop", "rangehood", "fireplace"]);
+  }
+  return false;
+}
+
+function normaliseConfidence(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(1, value));
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return Math.max(0, Math.min(1, parsed));
+  }
+  return null;
+}
+
+function withRequiredConfidenceFields(parsed: any, roomType: unknown) {
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  return {
+    ...parsed,
+    items: items.map((item: any) => {
+      const confidence = normaliseConfidence(item?.confidence);
+      const atypical = isAtypicalForRoom(roomType, item?.name);
+      const explicitLow = item?.lowConfidence === true
+        || item?.lowConfidence === "true"
+        || item?.low_confidence === true
+        || item?.low_confidence === "true";
+      const effectiveConfidence = confidence ?? 0.5;
+      return {
+        ...item,
+        confidence: effectiveConfidence,
+        lowConfidence: explicitLow || atypical || effectiveConfidence < 0.7,
+      };
+    }),
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -76,7 +141,10 @@ Deno.serve(async (req) => {
     const content = data.choices?.[0]?.message?.content ?? "{}";
     let parsed: any = {};
     try { parsed = JSON.parse(content); } catch { parsed = { items: [], overall_notes: content }; }
-    return new Response(JSON.stringify(parsed), {
+    console.log("analyze-photo raw OpenAI response:", JSON.stringify(parsed));
+    const normalised = withRequiredConfidenceFields(parsed, room_type);
+    console.log("analyze-photo normalised response:", JSON.stringify(normalised));
+    return new Response(JSON.stringify(normalised), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
