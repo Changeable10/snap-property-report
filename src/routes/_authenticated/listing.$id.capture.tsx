@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -25,6 +26,7 @@ interface ListingPhoto {
   captured_at: string;
   staged_url: string | null;
   staging_style: string | null;
+  enhanced_url?: string | null;
 }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
 
