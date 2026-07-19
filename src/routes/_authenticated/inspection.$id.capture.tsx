@@ -889,21 +889,33 @@ function CapturePage() {
     // they survive navigation away and back to this room, even if the AI
     // returns no items for a given frame.
     const frameIdxToPath = new Map<number, string>();
+    let framePersistFailures = 0;
     for (let i = 0; i < frames.length; i++) {
       const bin = Uint8Array.from(atob(frames[i].base64), (c) => c.charCodeAt(0));
       const path = `${inspection.user_id}/${id}/${roomId}/frame-${crypto.randomUUID()}.jpg`;
       const { error: upErr } = await supabase.storage
         .from("inspection-photos").upload(path, bin, { contentType: "image/jpeg" });
-      if (upErr) continue;
+      if (upErr) {
+        framePersistFailures++;
+        console.warn("[frame-upload] failed", upErr);
+        continue;
+      }
       frameIdxToPath.set(i, path);
-      await supabase.from("inspection_photos").insert({
+      const { error: insErr } = await supabase.from("inspection_photos").insert({
         user_id: inspection.user_id,
         inspection_id: id,
         room_id: roomId,
         photo_url: path,
       });
+      if (insErr) {
+        framePersistFailures++;
+        console.warn("[frame-insert] failed", insErr);
+      }
     }
-    qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    await qc.invalidateQueries({ queryKey: ["inspection-photos", id] });
+    if (framePersistFailures > 0) {
+      toast.error(`${framePersistFailures} frame${framePersistFailures === 1 ? "" : "s"} failed to save. They will not appear on return.`);
+    }
 
     type AiItem = {
       name: string; condition: Condition; description?: string;
