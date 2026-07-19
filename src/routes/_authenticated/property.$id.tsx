@@ -256,6 +256,7 @@ function PropertyDetail() {
   const { data: plan } = usePlan(user.id);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [inspectionToDelete, setInspectionToDelete] = useState<InspectionRow | null>(null);
 
   const deleteProperty = useMutation({
     mutationFn: async () => {
@@ -269,6 +270,22 @@ function PropertyDetail() {
     },
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Failed to delete property");
+    },
+  });
+
+  const deleteInspection = useMutation({
+    mutationFn: async (inspectionId: string) => {
+      const { error } = await supabase.from("inspections").delete().eq("id", inspectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Inspection deleted");
+      qc.invalidateQueries({ queryKey: ["inspections", id] });
+      qc.invalidateQueries({ queryKey: ["property-items", id] });
+      setInspectionToDelete(null);
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Failed to delete inspection");
     },
   });
 
