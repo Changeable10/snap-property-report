@@ -1116,6 +1116,36 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_tracking: {
+        Row: {
+          count: number
+          created_at: string
+          id: string
+          month: string
+          updated_at: string
+          usage_type: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          id?: string
+          month: string
+          updated_at?: string
+          usage_type: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          id?: string
+          month?: string
+          updated_at?: string
+          usage_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1131,6 +1161,7 @@ export type Database = {
         Args: { _roles: string[]; _team_id: string; _user_id: string }
         Returns: boolean
       }
+      increment_usage: { Args: { _usage_type: string }; Returns: number }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean

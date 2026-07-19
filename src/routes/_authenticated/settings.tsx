@@ -5,6 +5,16 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { PageShell } from "@/components/PageShell";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlan, PLAN_LABEL, useIsAdmin, useAdminTestPlan, setAdminTestPlan, type Plan } from "@/lib/use-plan";
+import { usePropertyCount, PLAN_LIMITS } from "@/lib/use-plan";
+import {
+  useMonthlyUsage,
+  useTeamMemberCount,
+  LISTING_LIMIT,
+  STAGING_LIMIT,
+  ENHANCEMENT_LIMIT,
+  TEAM_MEMBER_LIMIT,
+  currentMonthLabel,
+} from "@/lib/use-usage";
 import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -31,6 +41,11 @@ function SettingsPage() {
   const RANK: Record<Plan, number> = { free: 0, professional: 1, portfolio: 2, agency: 3 };
   const upgradeTargets = UPGRADE_ORDER.slice(UPGRADE_ORDER.indexOf(current) + 1) as Exclude<Plan, "free">[];
   const [upgradeTarget, setUpgradeTarget] = useState<Exclude<Plan, "free"> | null>(null);
+  const { data: propertyCount = 0 } = usePropertyCount(user.id);
+  const { data: listingUsed = 0 } = useMonthlyUsage(user.id, "listing");
+  const { data: stagingUsed = 0 } = useMonthlyUsage(user.id, "staging");
+  const { data: enhanceUsed = 0 } = useMonthlyUsage(user.id, "enhancement");
+  const { data: teamCount = 1 } = useTeamMemberCount(user.id);
   const [displayName, setDisplayName] = useState<string>(displayNameFromUser(user) ?? "");
   const [savingName, setSavingName] = useState(false);
   async function saveDisplayName() {
@@ -100,6 +115,19 @@ function SettingsPage() {
         >
           {savingName ? "Saving…" : "Save"}
         </button>
+      </div>
+      <div className="mb-4 rounded-xl border border-input bg-card p-4">
+        <div className="mb-3 flex items-baseline justify-between">
+          <p className="text-sm font-semibold text-foreground">Usage</p>
+          <p className="text-xs text-muted-foreground">{currentMonthLabel()}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <UsageBar label="Properties" used={propertyCount} limit={PLAN_LIMITS[current]} />
+          <UsageBar label="Listings this month" used={listingUsed} limit={LISTING_LIMIT[current]} />
+          <UsageBar label="Virtual staging this month" used={stagingUsed} limit={STAGING_LIMIT[current]} />
+          <UsageBar label="Photo enhancements this month" used={enhanceUsed} limit={ENHANCEMENT_LIMIT[current]} />
+          <UsageBar label="Team members" used={teamCount} limit={TEAM_MEMBER_LIMIT[current]} />
+        </div>
       </div>
       <div className="mb-4 flex items-center justify-between rounded-xl border border-input bg-card px-4 py-3">
         <div>
@@ -236,5 +264,27 @@ function SettingsPage() {
         Sign out
       </button>
     </PageShell>
+  );
+}
+
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const unlimited = !Number.isFinite(limit);
+  const pct = unlimited ? 0 : limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const color = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-teal";
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="text-muted-foreground">
+          {unlimited ? `${used} · Unlimited` : `${used} of ${limit}`}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full ${unlimited ? "bg-teal/40" : color}`}
+          style={{ width: unlimited ? "100%" : `${pct}%` }}
+        />
+      </div>
+    </div>
   );
 }

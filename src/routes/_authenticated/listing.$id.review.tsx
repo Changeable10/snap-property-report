@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
+import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { exportListingPackage } from "@/lib/listing-export";
 import { loadPdfBranding, fetchMyBranding } from "@/lib/branding";
@@ -640,6 +641,8 @@ function ListingReview() {
       }
       await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
       await refetchStagingUsage();
+      void incrementUsage("staging");
+      await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
       return true;
     } catch (e: any) {
       toast.error(e?.message ?? "Staging failed");

@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
 import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
+import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
@@ -257,6 +258,8 @@ function ListingCapture() {
       }
       await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
       await refetchStagingUsage();
+      void incrementUsage("staging");
+      await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
       toast.success("Staged version ready");
     } catch (e: any) {
       toast.error(e?.message ?? "Staging failed");

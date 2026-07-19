@@ -4,6 +4,14 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { enhancePhoto, discardEnhancement } from "@/lib/enhance-photo.functions";
+import { usePlan } from "@/lib/use-plan";
+import {
+  useMonthlyUsage,
+  incrementUsage,
+  ENHANCEMENT_LIMIT,
+  currentMonthLabel,
+} from "@/lib/use-usage";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Table = "inspection_photos" | "listing_photos";
 
@@ -34,6 +42,15 @@ export function EnhancePhotoModal({
 }: Props) {
   const enhance = useServerFn(enhancePhoto);
   const discard = useServerFn(discardEnhancement);
+  const qc = useQueryClient();
+  const [userId, setUserId] = useState<string | undefined>();
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
+  }, []);
+  const { data: plan } = usePlan(userId);
+  const { data: used = 0 } = useMonthlyUsage(userId, "enhancement");
+  const limit = plan ? ENHANCEMENT_LIMIT[plan] : 0;
+  const atLimit = Number.isFinite(limit) && used >= limit;
   const [origUrl, setOrigUrl] = useState<string | null>(null);
   const [enhUrl, setEnhUrl] = useState<string | null>(null);
   const [enhancedPath, setEnhancedPath] = useState<string | null>(null);
@@ -43,6 +60,7 @@ export function EnhancePhotoModal({
 
   useEffect(() => {
     if (!open) return;
+    if (atLimit) return;
     let cancelled = false;
     setError(null);
     setEnhUrl(null);
@@ -64,6 +82,9 @@ export function EnhancePhotoModal({
           return;
         }
         setEnhancedPath(res.enhancedPath);
+        void incrementUsage("enhancement").then(() =>
+          qc.invalidateQueries({ queryKey: ["usage-tracking"] }),
+        );
         const { data: signed } = await supabase.storage
           .from("inspection-photos")
           .createSignedUrl(res.enhancedPath, 3600);
@@ -78,7 +99,7 @@ export function EnhancePhotoModal({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, photoId, photoPath, table]);
+  }, [open, photoId, photoPath, table, atLimit]);
 
   if (!open) return null;
 
@@ -119,7 +140,24 @@ export function EnhancePhotoModal({
             <X className="size-4" />
           </button>
         </div>
-
+        {atLimit ? (
+          <div className="p-6 text-center text-sm">
+            <p className="font-semibold text-foreground">
+              You've used all {limit} enhancements this month.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Upgrade your plan for more monthly enhancements.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-4 min-h-11 rounded-lg border border-border px-4 text-sm font-semibold"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="grid grid-cols-2 gap-px bg-border">
           <div className="relative aspect-square overflow-hidden bg-muted">
             {origUrl ? (
@@ -172,6 +210,13 @@ export function EnhancePhotoModal({
             Use enhanced
           </button>
         </div>
+        <p className="border-t border-border px-4 py-2 text-center text-[11px] text-muted-foreground">
+          {Number.isFinite(limit)
+            ? `${used} of ${limit} enhancements used — ${currentMonthLabel()}`
+            : `Unlimited enhancements — ${currentMonthLabel()}`}
+        </p>
+          </>
+        )}
       </div>
     </div>
   );
