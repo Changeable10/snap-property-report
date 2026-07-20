@@ -1030,9 +1030,56 @@ function StagedPhotoCard({
       : hasStaged ? "Try another style" : "Virtual staging";
 
   const hasBeforeAfter = hasStaged;
+  const [lightbox, setLightbox] = useState<"before" | "staged" | "current" | null>(null);
+  const lightboxUrl = lightbox === "before" ? origUrl : lightbox === "staged" ? stagedUrl : lightbox === "current" ? (hasEnhanced ? enhancedUrl : origUrl) : null;
+  const lightboxLabel = lightbox === "before" ? "Original" : lightbox === "staged" ? `Staged · ${photo.staging_style ?? ""}` : lightbox === "current" ? (hasEnhanced ? (hasAdjustments ? "Adjusted" : "Enhanced") : "Original") : "";
 
   return (
     <div className={`relative overflow-hidden rounded-lg border border-border bg-background${hasBeforeAfter ? " col-span-2" : ""}`}>
+      {lightbox && lightboxUrl ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute right-3 top-3 z-10 flex size-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm"
+            aria-label="Close"
+          >
+            <X className="size-6" />
+          </button>
+          <span className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs font-semibold text-white">
+            {lightboxLabel}
+          </span>
+          <img
+            src={lightboxUrl}
+            alt={lightboxLabel}
+            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {hasStaged ? (
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setLightbox("before"); }}
+                className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "before" ? "bg-white text-black" : "bg-white/20 text-white"}`}
+              >
+                Before
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setLightbox("staged"); }}
+                className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "staged" ? "bg-teal text-teal-foreground" : "bg-white/20 text-white"}`}
+              >
+                Staged
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <DeletePhotoButton
         photoId={photo.id}
         table="listing_photos"
@@ -1042,19 +1089,19 @@ function StagedPhotoCard({
       />
       {hasStaged ? (
         <div className="grid grid-cols-2 gap-px bg-border">
-          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+          <button type="button" onClick={() => setLightbox("before")} className="relative aspect-[4/3] overflow-hidden bg-muted text-left">
             {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
             <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">Before</span>
-          </div>
-          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+          </button>
+          <button type="button" onClick={() => setLightbox("staged")} className="relative aspect-[4/3] overflow-hidden bg-muted text-left">
             {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
               Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
             </span>
-          </div>
+          </button>
         </div>
       ) : (
-        <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        <div className="relative aspect-square w-full overflow-hidden bg-muted" onClick={() => setLightbox("current")} role="button" tabIndex={0}>
           {(hasEnhanced ? enhancedUrl : origUrl) ? (
             <img src={hasEnhanced ? enhancedUrl : origUrl} alt="" className="size-full object-cover" />
           ) : null}
@@ -1195,7 +1242,7 @@ function StyleModal({
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-md rounded-t-3xl bg-background p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom)+5.25rem)] shadow-xl sm:rounded-2xl sm:pb-6"
+        className="relative max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom)+5.25rem)] shadow-xl sm:rounded-2xl sm:pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         <button
