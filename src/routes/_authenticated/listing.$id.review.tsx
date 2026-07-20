@@ -1245,7 +1245,7 @@ function ListingReview() {
           }
         />
       ) : null}
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} topUp="staging" />
     </div>
   );
 }

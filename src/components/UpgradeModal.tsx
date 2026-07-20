@@ -3,11 +3,32 @@ import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 
+export type TopUpPack = "staging" | "enhancement" | "listing";
+
+const TOP_UP_PACKS: Record<TopUpPack, { title: string; description: string; price: string }> = {
+  staging: {
+    title: "Staging pack",
+    description: "10 virtual staging images",
+    price: "NZ$5",
+  },
+  enhancement: {
+    title: "Enhancement pack",
+    description: "25 image enhancements",
+    price: "NZ$5",
+  },
+  listing: {
+    title: "Listing pack",
+    description: "5 extra listings",
+    price: "NZ$10",
+  },
+};
+
 interface UpgradeModalProps {
   open: boolean;
   onClose: () => void;
   title?: string;
   description?: string;
+  topUp?: TopUpPack;
 }
 
 const PLANS = [
@@ -56,9 +77,10 @@ const PLANS = [
   },
 ] as const;
 
-export function UpgradeModal({ open, onClose, title, description }: UpgradeModalProps) {
+export function UpgradeModal({ open, onClose, title, description, topUp }: UpgradeModalProps) {
   const { openCheckout, loading } = usePaddleCheckout();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [topUpNotice, setTopUpNotice] = useState(false);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setUser({ id: data.user.id, email: data.user.email ?? undefined });
@@ -103,7 +125,8 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
             "The free plan includes one property with unlimited inspections. Upgrade to Professional for up to 10 properties, Portfolio for 25, or Agency for 100."}
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <p className="mt-6 text-sm font-semibold text-foreground">Upgrade your plan</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
           {PLANS.map((plan) => (
             <div
               key={plan.id}
@@ -139,6 +162,42 @@ export function UpgradeModal({ open, onClose, title, description }: UpgradeModal
             </div>
           ))}
         </div>
+
+        {topUp ? (
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-foreground">Or buy a top-up</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A one-off credit pack — no plan change required.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{TOP_UP_PACKS[topUp].title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {TOP_UP_PACKS[topUp].description} — {TOP_UP_PACKS[topUp].price}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTopUpNotice(true)}
+                className="min-h-10 rounded-xl border border-input bg-background px-4 text-sm font-semibold text-foreground hover:bg-accent"
+              >
+                Buy
+              </button>
+            </div>
+            {topUpNotice ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <p className="font-semibold">Coming soon</p>
+                <p className="mt-1">
+                  Top-up packs aren't available for self-serve purchase yet. Email{" "}
+                  <a href="mailto:hello@snapsure.app" className="font-semibold underline">
+                    hello@snapsure.app
+                  </a>{" "}
+                  and we'll add credits to your account.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <button
           type="button"
