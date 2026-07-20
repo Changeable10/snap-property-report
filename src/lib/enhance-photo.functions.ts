@@ -120,7 +120,7 @@ export const enhancePhoto = createServerFn({ method: "POST" })
 
     const { error: updErr } = await supabaseAdmin
       .from(table)
-      .update({ enhanced_url: enhancedPath })
+      .update({ enhanced_url: enhancedPath, photo_state: "enhanced" })
       .eq("id", photoId);
     if (updErr) throw new Error(updErr.message);
 
@@ -153,7 +153,7 @@ export const discardEnhancement = createServerFn({ method: "POST" })
     }
     const { error: updErr } = await supabaseAdmin
       .from(table)
-      .update({ enhanced_url: null })
+      .update({ enhanced_url: null, photo_state: "raw" })
       .eq("id", photoId);
     if (updErr) throw new Error(updErr.message);
     return { ok: true };
