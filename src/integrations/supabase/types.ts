@@ -1164,24 +1164,7 @@ export type Database = {
     }
     Functions: {
       claim_team_invites: { Args: never; Returns: number }
-      get_user_team_id: { Args: { _user_id: string }; Returns: string }
-      has_active_subscription: {
-        Args: { check_env?: string; user_uuid: string }
-        Returns: boolean
-      }
-      has_team_role: {
-        Args: { _roles: string[]; _team_id: string; _user_id: string }
-        Returns: boolean
-      }
       increment_usage: { Args: { _usage_type: string }; Returns: number }
-      is_team_member: {
-        Args: { _team_id: string; _user_id: string }
-        Returns: boolean
-      }
-      is_team_owner: {
-        Args: { _team_id: string; _user_id: string }
-        Returns: boolean
-      }
     }
     Enums: {
       comparison_change_type:
