@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePlan } from "@/lib/use-plan";
 import { useListingsThisMonth, LISTING_MONTHLY_LIMIT } from "@/lib/use-listing-limit";
 import { incrementUsage } from "@/lib/use-usage";
-import { UpgradeModal } from "@/components/UpgradeModal";
+import { UpgradeModal, type TopUpPack } from "@/components/UpgradeModal";
 import { resolveDisplayName } from "@/lib/display-name";
 
 export const Route = createFileRoute("/_authenticated/inspection/setup/$propertyId")({
@@ -63,6 +63,7 @@ function InspectionSetup() {
   const [error, setError] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeCopy, setUpgradeCopy] = useState<{ title: string; description: string } | null>(null);
+  const [upgradeTopUp, setUpgradeTopUp] = useState<TopUpPack | undefined>(undefined);
 
   // Listing state
   const [listingType, setListingType] = useState<ListingType>("for_sale");
@@ -119,6 +120,7 @@ function InspectionSetup() {
         description:
           "Listings are available on the Professional plan and above. Upgrade to start creating listings.",
       });
+      setUpgradeTopUp(undefined);
       setShowUpgrade(true);
       return;
     }
@@ -132,6 +134,7 @@ function InspectionSetup() {
         description:
           "Listings are available on the Professional plan and above. Upgrade to start creating listings.",
       });
+      setUpgradeTopUp(undefined);
       setShowUpgrade(true);
       return;
     }
@@ -145,6 +148,7 @@ function InspectionSetup() {
       } else {
         setUpgradeCopy(null);
       }
+      setUpgradeTopUp("listing");
       setShowUpgrade(true);
       return;
     }
@@ -451,6 +455,7 @@ function InspectionSetup() {
         onClose={() => setShowUpgrade(false)}
         title={upgradeCopy?.title}
         description={upgradeCopy?.description}
+        topUp={upgradeTopUp}
       />
     </div>
   );
