@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Video, Loader2,
   Lightbulb, X, AlertTriangle, RefreshCw, Wand2, Sparkles,
@@ -1036,9 +1037,9 @@ function StagedPhotoCard({
 
   return (
     <div className={`relative overflow-hidden rounded-lg border border-border bg-background${hasBeforeAfter ? " col-span-2" : ""}`}>
-      {lightbox && lightboxUrl ? (
+      {lightbox && lightboxUrl ? createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
           onClick={() => setLightbox(null)}
           role="dialog"
           aria-modal="true"
@@ -1078,7 +1079,8 @@ function StagedPhotoCard({
               </button>
             </div>
           ) : null}
-        </div>
+        </div>,
+        document.body
       ) : null}
       <DeletePhotoButton
         photoId={photo.id}
@@ -1111,7 +1113,7 @@ function StagedPhotoCard({
             </span>
           ) : null}
           {!staging && state === "raw" ? (
-            <div className="absolute bottom-1 right-1 flex items-center gap-1">
+            <div className="absolute bottom-1 right-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 onClick={() => setAiEnhanceOpen(true)}
@@ -1133,7 +1135,7 @@ function StagedPhotoCard({
               </button>
             </div>
           ) : !staging && state === "enhanced" ? (
-            <div className="absolute bottom-1 right-1 flex items-center gap-1">
+            <div className="absolute bottom-1 right-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 onClick={() => setClientOpen("adjust")}
@@ -1156,7 +1158,7 @@ function StagedPhotoCard({
           {!staging && (state === "staged" || state === "colour_adjusted") ? (
             <button
               type="button"
-              onClick={() => setClientOpen("colour_adjust")}
+              onClick={(e) => { e.stopPropagation(); setClientOpen("colour_adjust"); }}
               className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
             >
               Colour adjust
