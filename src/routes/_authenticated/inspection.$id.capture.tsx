@@ -615,16 +615,14 @@ function CapturePage() {
     try {
       const rec = new SR();
       rec.continuous = true;
-      rec.interimResults = true;
+      rec.interimResults = false;
       rec.lang = "en-NZ";
       rec.onresult = (ev: any) => {
-        let interim = "";
         for (let i = ev.resultIndex; i < ev.results.length; i++) {
           const r = ev.results[i];
           if (r.isFinal) finalTranscriptRef.current += r[0].transcript + " ";
-          else interim += r[0].transcript;
         }
-        setTranscript((finalTranscriptRef.current + interim).trim());
+        setTranscript(finalTranscriptRef.current.trim());
       };
       rec.onerror = (ev: any) => {
         if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
