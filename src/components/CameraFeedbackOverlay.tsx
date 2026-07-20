@@ -8,9 +8,9 @@ interface Props {
   recording?: boolean;
   /** Blur variance cutoff. Below this → "blurry". Default 100. */
   blurThreshold?: number;
-  /** Motion delta threshold for still capture. Default 2.0. */
+  /** Motion magnitude threshold (m/s²) for "hold steady". Default 3.0. */
   stillMotionThreshold?: number;
-  /** Motion delta threshold for video "slow down". Default 3.0. */
+  /** Motion magnitude threshold (m/s²) for video "slow down". Default 4.0. */
   videoMotionThreshold?: number;
 }
 
@@ -22,9 +22,9 @@ interface Props {
 export function CameraFeedbackOverlay({
   videoRef,
   recording = false,
-  blurThreshold = 100,
-  stillMotionThreshold = 2.0,
-  videoMotionThreshold = 3.0,
+  blurThreshold = 60,
+  stillMotionThreshold = 3.0,
+  videoMotionThreshold = 4.0,
 }: Props) {
   const [blurry, setBlurry] = useState(false);
   const [tooDark, setTooDark] = useState(false);
@@ -34,29 +34,54 @@ export function CameraFeedbackOverlay({
   const recordingRef = useRef(recording);
   recordingRef.current = recording;
 
+  // Timestamps of last positive detection — used to auto-clear within ~1s.
+  const lastBlurRef = useRef(0);
+  const lastDarkRef = useRef(0);
+  const lastBrightRef = useRef(0);
+  const lastShakeRef = useRef(0);
+  const lastSlowRef = useRef(0);
+
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
+    const CLEAR_MS = 900;
+    const now = () => performance.now();
+    const sweep = window.setInterval(() => {
+      const t = now();
+      if (t - lastBlurRef.current > CLEAR_MS) setBlurry(false);
+      if (t - lastDarkRef.current > CLEAR_MS) setTooDark(false);
+      if (t - lastBrightRef.current > CLEAR_MS) setTooBright(false);
+      if (t - lastShakeRef.current > CLEAR_MS) setShaky(false);
+      if (t - lastSlowRef.current > CLEAR_MS) setSlowDown(false);
+    }, 300);
     const stopLoop = startFeedbackLoop({
       video: el,
-      intervalMs: 500,
+      intervalMs: 400,
       onUpdate: ({ blurVariance, luminance }) => {
-        setBlurry(blurVariance > 0 && blurVariance < blurThreshold);
-        setTooDark(luminance < 40);
-        setTooBright(luminance > 220);
+        const t = now();
+        if (blurVariance > 0 && blurVariance < blurThreshold) {
+          lastBlurRef.current = t;
+          setBlurry(true);
+        }
+        if (luminance < 40) { lastDarkRef.current = t; setTooDark(true); }
+        if (luminance > 220) { lastBrightRef.current = t; setTooBright(true); }
       },
     });
     const stopMotion = startMotionListener({
-      onUpdate: (delta) => {
-        setShaky(delta > stillMotionThreshold);
-        if (recordingRef.current) {
-          setSlowDown(delta > videoMotionThreshold);
-        } else {
-          setSlowDown(false);
+      onUpdate: (mag) => {
+        const t = now();
+        if (mag > stillMotionThreshold) {
+          lastShakeRef.current = t;
+          setShaky(true);
+        }
+        if (recordingRef.current && mag > videoMotionThreshold) {
+          lastSlowRef.current = t;
+          setSlowDown(true);
         }
       },
     });
     return () => {
+      window.clearInterval(sweep);
       stopLoop();
       stopMotion();
     };
@@ -66,7 +91,7 @@ export function CameraFeedbackOverlay({
     { key: "blur", label: "📷 Image is blurry — hold steady", visible: blurry },
     { key: "dark", label: "💡 Too dark — find more light", visible: tooDark && !tooBright },
     { key: "bright", label: "☀️ Too bright — reduce glare", visible: tooBright && !tooDark },
-    { key: "shake", label: "✋ Hold steady", visible: shaky && !recording },
+    { key: "shake", label: "✋ Hold steady", visible: shaky },
   ];
 
   return (
@@ -80,7 +105,7 @@ export function CameraFeedbackOverlay({
         <div
           key={b.key}
           className={
-            "rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur transition-opacity duration-200 " +
+            "rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur transition-opacity duration-200 " +
             (b.visible ? "opacity-100" : "opacity-0")
           }
           aria-live={b.visible ? "polite" : "off"}
