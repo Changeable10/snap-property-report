@@ -17,6 +17,7 @@ import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } f
 import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
 import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
 import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
+import { PhotoQualityGate } from "@/components/PhotoQualityGate";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -152,6 +153,10 @@ function ListingCapture() {
   const [checking, setChecking] = useState(false);
   const [shotCheck, setShotCheck] = useState<ShotCheck | null>(null);
   useEffect(() => { setShotCheck(null); }, [current?.id]);
+
+  // Post-capture photo quality gate (blur/exposure check, before the AI shot check)
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [showQualityGate, setShowQualityGate] = useState(false);
 
   const roomPhotos = useMemo(
     () => (photos ?? []).filter((p) => p.room_id === current?.id),
@@ -299,6 +304,16 @@ function ListingCapture() {
     e.target.value = "";
     if (!file || !current || !listing) return;
     if (!isAcceptedImage(file)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
+    // Route through the post-capture quality gate first — upload/shot-check
+    // only happens once the user confirms (or the photo auto-passes).
+    setPendingPhotoFile(file);
+    setShowQualityGate(true);
+  }
+
+  async function processAcceptedPhoto(file: File) {
+    setShowQualityGate(false);
+    setPendingPhotoFile(null);
+    if (!current || !listing) return;
     const path = `${listing.user_id}/listing-${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
@@ -315,6 +330,12 @@ function ListingCapture() {
     if (tipsEnabled && inserted?.id) {
       void runShotCheck(inserted.id, path);
     }
+  }
+
+  function retakePendingPhoto() {
+    setShowQualityGate(false);
+    setPendingPhotoFile(null);
+    fileRef.current?.click();
   }
 
   async function runShotCheck(photoId: string, storagePath: string) {
@@ -682,6 +703,12 @@ function ListingCapture() {
             <Camera className="size-5" /> Capture photo
           </button>
           <input ref={fileRef} type="file" accept={ACCEPTED_IMAGE_ACCEPT_ATTR} capture="environment" className="hidden" onChange={onFile} />
+          <PhotoQualityGate
+            open={showQualityGate}
+            imageFile={pendingPhotoFile}
+            onAccept={processAcceptedPhoto}
+            onRetake={retakePendingPhoto}
+          />
 
           {videoSupported ? (
             !videoRecording ? (
@@ -1041,20 +1068,12 @@ function StagedPhotoCard({
             <div className="absolute bottom-1 right-1 flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setClientOpen("enhance")}
-                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
-                aria-label="Enhance photo"
-              >
-                <Sparkles className="size-3.5" />
-              </button>
-              <button
-                type="button"
                 onClick={() => setAiEnhanceOpen(true)}
-                className="rounded-full bg-background/85 px-1.5 text-[9px] font-semibold text-teal shadow backdrop-blur-sm"
-                aria-label="AI enhance"
+                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+                aria-label="Enhance photo (uses monthly credit)"
                 title="AI enhance"
               >
-                AI
+                <Sparkles className="size-3.5" />
               </button>
               <button
                 type="button"

@@ -14,6 +14,7 @@ import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } f
 import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
 import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
 import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
+import { PhotoQualityGate } from "@/components/PhotoQualityGate";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -31,6 +32,7 @@ interface ItemRow {
   id: string; room_id: string; item_name: string;
   condition: Condition; description: string | null;
   sources: string[] | null; confidence: number | null;
+  maintenance_required?: boolean;
 }
 
 const CONDITION_DOT: Record<Condition, string> = {
@@ -113,7 +115,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_items")
-        .select("id,room_id,item_name,condition,description,sources,confidence")
+        .select("id,room_id,item_name,condition,description,sources,confidence,maintenance_required")
         .eq("inspection_id", previousInspectionId!);
       if (error) throw error;
       return (data ?? []) as ItemRow[];
@@ -167,7 +169,7 @@ function CapturePage() {
     queryKey: ["inspection-items", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_items")
-        .select("id,room_id,item_name,condition,description,sources,confidence")
+        .select("id,room_id,item_name,condition,description,sources,confidence,maintenance_required")
         .eq("inspection_id", id)
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -181,6 +183,10 @@ function CapturePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState(false);
   const didInitIndex = useRef(false);
+
+  // ---- Post-capture photo quality gate ----
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [showQualityGate, setShowQualityGate] = useState(false);
 
   // ---- Video walkthrough state ----
   const [videoSupported, setVideoSupported] = useState(true);
@@ -368,6 +374,16 @@ function CapturePage() {
     e.target.value = "";
     if (!file || !current || !inspection) return;
     if (!isAcceptedImage(file)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
+    // Route through the post-capture quality gate first — upload/analysis
+    // only happens once the user confirms (or the photo auto-passes).
+    setPendingPhotoFile(file);
+    setShowQualityGate(true);
+  }
+
+  async function processAcceptedPhoto(file: File) {
+    setShowQualityGate(false);
+    setPendingPhotoFile(null);
+    if (!current || !inspection) return;
     const path = `${inspection.user_id}/${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
     const { error: upErr } = await supabase.storage
       .from("inspection-photos").upload(path, file, { contentType: file.type });
@@ -384,6 +400,12 @@ function CapturePage() {
     if (comparisonEnabled && previousRoomPhotos.length > 0 && inserted?.id) {
       void runComparison(path, inserted.id, current.id, current.name);
     }
+  }
+
+  function retakePendingPhoto() {
+    setShowQualityGate(false);
+    setPendingPhotoFile(null);
+    fileRef.current?.click();
   }
 
   async function signedUrlFor(path: string): Promise<string | null> {
@@ -1146,6 +1168,12 @@ function CapturePage() {
 
       <main className="mx-auto max-w-md px-5 py-6">
         <input ref={fileRef} type="file" accept={ACCEPTED_IMAGE_ACCEPT_ATTR} capture="environment" onChange={onFile} className="hidden" />
+        <PhotoQualityGate
+          open={showQualityGate}
+          imageFile={pendingPhotoFile}
+          onAccept={processAcceptedPhoto}
+          onRetake={retakePendingPhoto}
+        />
 
         {comparisonEnabled && previousInspection && (
           <div className="mb-4 rounded-xl border border-teal/30 bg-teal/5 px-3 py-2 text-xs font-medium text-teal-dark">
@@ -1669,20 +1697,12 @@ function PhotoThumb({
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setClientOpen("enhance")}
-            className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
-            aria-label="Enhance photo"
-          >
-            <Sparkles className="size-3" /> Enhance
-          </button>
-          <button
-            type="button"
             onClick={() => setAiOpen(true)}
-            className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
-            aria-label="AI enhance (uses monthly credit)"
+            className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+            aria-label="Enhance photo (uses monthly credit)"
             title="AI enhance"
           >
-            AI
+            <Sparkles className="size-3" /> Enhance
           </button>
         </div>
       ) : state === "enhanced" ? (
@@ -1758,6 +1778,16 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
     onEdited();
   }
 
+  const sources = item.sources ?? [];
+  const hasPhoto = sources.includes("photo");
+  const hasVoice = sources.includes("voice");
+  const hasVideo = sources.includes("video");
+  const hasConfidence = typeof item.confidence === "number";
+  const lowConfidence =
+    (hasPhoto || hasVideo) && hasConfidence && (item.confidence as number) < 0.7;
+  const damageDetected = item.condition === "damaged" || !!item.maintenance_required;
+  const needsAttention = damageDetected || !!item.maintenance_required;
+
   if (editing) {
     return (
       <li className="rounded-xl border border-border bg-card p-3 space-y-2">
@@ -1772,6 +1802,20 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
         </select>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
           className="w-full rounded-lg border border-border px-3 py-2 text-sm" />
+        {(hasConfidence || needsAttention) && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs">
+            {hasConfidence && (
+              <span className={`font-medium ${lowConfidence ? "text-amber-700" : "text-muted-foreground"}`}>
+                {Math.round((item.confidence as number) * 100)}% confidence
+              </span>
+            )}
+            {needsAttention && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 font-semibold text-destructive">
+                <AlertTriangle className="size-3" /> Needs attention
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground">Cancel</button>
           <button onClick={save} className="rounded-lg bg-teal px-3 py-1.5 text-sm font-semibold text-teal-foreground">Save</button>
@@ -1779,13 +1823,6 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
       </li>
     );
   }
-
-  const sources = item.sources ?? [];
-  const hasPhoto = sources.includes("photo");
-  const hasVoice = sources.includes("voice");
-  const hasVideo = sources.includes("video");
-  const lowConfidence =
-    (hasPhoto || hasVideo) && typeof item.confidence === "number" && item.confidence < 0.7;
 
   return (
     <li className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${lowConfidence ? "border-amber-400 bg-amber-50/40" : "border-border"}`}>
@@ -1800,11 +1837,21 @@ function ItemCard({ item, onEdited }: { item: ItemRow; onEdited: () => void }) {
           </div>
           <ConditionBadge condition={item.condition} />
         </div>
+        {hasConfidence && (
+          <p className={`mt-0.5 text-xs ${lowConfidence ? "text-amber-600" : "text-muted-foreground"}`}>
+            {Math.round((item.confidence as number) * 100)}% confidence
+          </p>
+        )}
         {item.description && (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
         )}
         {lowConfidence && (
           <p className="mt-1 text-[11px] font-medium text-amber-700">Low confidence — please review</p>
+        )}
+        {needsAttention && (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+            <AlertTriangle className="size-3" /> Needs attention
+          </span>
         )}
       </div>
       <button onClick={() => setEditing(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
