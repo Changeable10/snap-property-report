@@ -1237,28 +1237,34 @@ function CapturePage() {
         )}
 
         {videoRecording && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
-            <div className="relative">
+          <div
+            className="fixed inset-0 z-50 flex flex-col bg-black"
+            role="dialog"
+            aria-label="Video walkthrough recording"
+          >
+            <div className="relative flex-1">
               <video
                 ref={videoPreviewRef}
                 autoPlay
                 muted
                 playsInline
-                className="block w-full aspect-video bg-black object-cover"
+                className="absolute inset-0 h-full w-full bg-black object-cover"
               />
               <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
-              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+              <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+12px)] flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
                 REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={stopVideoWalkthrough}
-              className="flex min-h-12 w-full items-center justify-center gap-2 bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700"
-            >
-              <Square className="size-4 fill-white" /> Stop recording
-            </button>
+            <div className="shrink-0 bg-black px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+              <button
+                type="button"
+                onClick={stopVideoWalkthrough}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 text-base font-semibold text-white shadow-lg hover:bg-red-700"
+              >
+                <Square className="size-5 fill-white" /> Stop recording
+              </button>
+            </div>
           </div>
         )}
 
@@ -1268,7 +1274,14 @@ function CapturePage() {
           </div>
         )}
 
-        {!videoProcessing && extractedFrames.length > 0 && (
+        {!videoProcessing && extractedFrames.length > 0 && (() => {
+          const SHARP_CUTOFF = 150;
+          const sharpCount = extractedFrames.filter((f) => f.variance >= SHARP_CUTOFF).length;
+          const blurryCount = extractedFrames.length - sharpCount;
+          const selectedSharp = Array.from(selectedFrameIdx).filter(
+            (i) => extractedFrames[i]?.variance >= SHARP_CUTOFF,
+          ).length;
+          return (
           <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-foreground">
@@ -1286,11 +1299,19 @@ function CapturePage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Uncheck blurry or duplicate frames before analysis.
+              {selectedSharp} sharp frame{selectedSharp === 1 ? "" : "s"} selected
+              {blurryCount > 0 ? `, ${blurryCount} blurry excluded` : ""}. Sorted sharpest
+              first — green dot = sharp, amber = borderline, red = blurry.
             </p>
             <div className="grid grid-cols-3 gap-2">
               {extractedFrames.map((f, i) => {
                 const isSelected = selectedFrameIdx.has(i);
+                const dot =
+                  f.variance >= 250 ? "bg-emerald-500" :
+                  f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
+                const label =
+                  f.variance >= 250 ? "Sharp" :
+                  f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
                 return (
                   <button
                     key={i}
@@ -1311,6 +1332,13 @@ function CapturePage() {
                     />
                     <span className={`absolute right-1 top-1 grid size-5 place-items-center rounded-full text-white shadow ring-2 ring-white ${isSelected ? "bg-teal" : "bg-black/40"}`}>
                       {isSelected ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
+                    <span
+                      className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white"
+                      title={`Sharpness: ${label} (${Math.round(f.variance)})`}
+                    >
+                      <span className={`inline-block size-1.5 rounded-full ${dot}`} />
+                      {label}
                     </span>
                     <span className="absolute left-1 bottom-1 rounded bg-black/60 px-1 py-0.5 text-[10px] font-medium text-white">
                       {Math.round(f.time)}s
@@ -1341,7 +1369,8 @@ function CapturePage() {
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {videoProcessing && (
           <div className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-teal/5 px-4 py-4 text-sm font-medium text-teal">
