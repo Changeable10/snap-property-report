@@ -1029,8 +1029,10 @@ function StagedPhotoCard({
       ? "Upgrade for more credits"
       : hasStaged ? "Try another style" : "Virtual staging";
 
+  const hasBeforeAfter = hasStaged;
+
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-background">
+    <div className={`relative overflow-hidden rounded-lg border border-border bg-background${hasBeforeAfter ? " col-span-2" : ""}`}>
       <DeletePhotoButton
         photoId={photo.id}
         table="listing_photos"
@@ -1040,13 +1042,13 @@ function StagedPhotoCard({
       />
       {hasStaged ? (
         <div className="grid grid-cols-2 gap-px bg-border">
-          <div className="relative aspect-square overflow-hidden bg-muted">
+          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
             {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
-            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">Before</span>
+            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">Before</span>
           </div>
-          <div className="relative aspect-square overflow-hidden bg-muted">
+          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
             {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
-            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
+            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
               Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
             </span>
           </div>
