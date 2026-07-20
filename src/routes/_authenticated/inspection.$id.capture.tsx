@@ -100,7 +100,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state,adjustments")
         .eq("inspection_id", previousInspectionId!)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -155,7 +155,7 @@ function CapturePage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state,adjustments")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
