@@ -142,6 +142,13 @@ function Index() {
   const navigate = useNavigate();
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [openSections, setOpenSections] = useState({
+    actions: false,
+    properties: true,
+    recent: false,
+  });
+  const toggleSection = (key: keyof typeof openSections) => () =>
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
   const { data: plan } = usePlan(user.id);
   const { data: ownPropertyCount } = usePropertyCount(user.id);
   const rawName =
