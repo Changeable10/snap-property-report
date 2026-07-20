@@ -188,7 +188,7 @@ function ReviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="min-h-screen bg-background pb-40">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
           <Link to="/inspection/$id/capture" params={{ id }}
@@ -332,20 +332,24 @@ function ReviewPage() {
             })}
           </ul>
         </section>
-      </main>
 
-      <nav className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center gap-3">
-          <Link to="/inspection/$id/capture" params={{ id }}
-            className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-semibold text-foreground">
-            Edit
-          </Link>
-          <button type="button" onClick={handleGenerate}
-            className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-teal text-sm font-semibold text-teal-foreground hover:bg-teal-dark">
+        <div className="space-y-3 pt-2">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95"
+          >
             Generate report
           </button>
+          <Link
+            to="/inspection/$id/capture"
+            params={{ id }}
+            className="flex min-h-12 w-full items-center justify-center rounded-xl border border-border bg-card text-sm font-semibold text-foreground"
+          >
+            Edit inspection
+          </Link>
         </div>
-      </nav>
+      </main>
 
       {gate !== null && (
         <div
