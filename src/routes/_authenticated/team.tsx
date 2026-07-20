@@ -332,6 +332,30 @@ function TeamPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground">Invite team member</h3>
+            {atSeatLimit ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-foreground">{upgradeCopy}</p>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <p className="font-semibold">Extra members ({extraCost}/mo each) — coming soon</p>
+                  <p className="mt-1">
+                    Email{" "}
+                    <a href="mailto:hello@snapsure.app" className="font-semibold underline">
+                      hello@snapsure.app
+                    </a>{" "}
+                    to add more seats.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setInviteOpen(false)}
+                    className="rounded-xl border border-input px-4 py-2 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <>
             <label className="mt-4 block text-xs font-medium text-muted-foreground">Email</label>
             <input
               type="email"
@@ -364,6 +388,8 @@ function TeamPage() {
                 {busy ? "Sending…" : "Send invite"}
               </button>
             </div>
+            </>
+            )}
           </div>
         </div>
       ) : null}
