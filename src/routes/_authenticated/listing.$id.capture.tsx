@@ -998,15 +998,37 @@ function StagedPhotoCard({
               >
                 AI
               </button>
+              <button
+                type="button"
+                onClick={onStage}
+                disabled={disabled}
+                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Stage photo"
+                title="Stage"
+              >
+                <Wand2 className="size-3.5" />
+              </button>
             </div>
           ) : !staging && state === "enhanced" ? (
-            <button
-              type="button"
-              onClick={() => setClientOpen("adjust")}
-              className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
-            >
-              Adjust
-            </button>
+            <div className="absolute bottom-1 right-1 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setClientOpen("adjust")}
+                className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
+              >
+                Adjust
+              </button>
+              <button
+                type="button"
+                onClick={onStage}
+                disabled={disabled}
+                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Stage photo"
+                title="Stage"
+              >
+                <Wand2 className="size-3.5" />
+              </button>
+            </div>
           ) : null}
           {!staging && (state === "staged" || state === "colour_adjusted") ? (
             <button
