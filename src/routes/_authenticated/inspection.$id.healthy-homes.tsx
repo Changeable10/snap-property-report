@@ -13,6 +13,8 @@ import {
   Droplets,
   DoorClosed,
   BellRing,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -406,25 +408,31 @@ function HealthyHomesPage() {
       </main>
 
       {!showSummary ? (
-        <div className="fixed inset-x-0 bottom-[4rem] z-40 border-t border-border bg-background/95 px-5 py-3 backdrop-blur md:bottom-0 md:py-4">
-          <div className="mx-auto flex max-w-md gap-3">
+        <nav
+          className="fixed inset-x-0 z-40 border-t border-border bg-card/95 px-5 py-3 backdrop-blur bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:bottom-0"
+          aria-label="Standard navigation"
+        >
+          <div className="mx-auto flex max-w-md items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => stepIdx > 0 && setStepIdx(stepIdx - 1)}
               disabled={stepIdx === 0}
-              className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-input bg-card text-sm font-semibold text-foreground disabled:opacity-40"
+              className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40"
             >
-              Previous
+              <ChevronLeft className="size-4" /> Previous
             </button>
+            <span className="text-xs font-medium text-muted-foreground">
+              {STEPS[stepIdx]?.label ?? ""} ({stepIdx + 1} of {STEPS.length})
+            </span>
             <button
               type="button"
               onClick={next}
-              className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-teal text-sm font-semibold text-teal-foreground"
+              className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40"
             >
-              {stepIdx === STEPS.length - 1 ? "Review" : "Next"}
+              {stepIdx === STEPS.length - 1 ? "Review" : "Next"} <ChevronRight className="size-4" />
             </button>
           </div>
-        </div>
+        </nav>
       ) : null}
     </div>
   );
