@@ -7,7 +7,6 @@ import {
   Bath,
   Home as HomeIcon,
   Building2,
-  AlertTriangle,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -461,7 +460,6 @@ function Index() {
           <CollapsibleSection
             title="Actions required"
             count={openMaintenance.length}
-            icon={<AlertTriangle className="size-5 text-condition-damaged" />}
             isOpen={openSections.actions}
             onToggle={toggleSection("actions")}
           >
