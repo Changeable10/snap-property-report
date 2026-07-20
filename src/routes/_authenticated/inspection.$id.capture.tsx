@@ -11,6 +11,9 @@ import { toast } from "sonner";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
+import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
+import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
+import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -22,6 +25,7 @@ interface PhotoRow {
   id: string; room_id: string; photo_url: string; captured_at: string;
   voice_transcript: string | null;
   enhanced_url?: string | null;
+  photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
 }
 interface ItemRow {
   id: string; room_id: string; item_name: string;
@@ -96,7 +100,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
         .eq("inspection_id", previousInspectionId!)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -151,7 +155,7 @@ function CapturePage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -766,7 +770,7 @@ function CapturePage() {
     setPendingVideoBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: HIGH_RES_VIDEO_CONSTRAINTS,
         audio: false,
       });
       if (!stream.active) {
@@ -810,9 +814,19 @@ function CapturePage() {
     setPendingVideoBlob(blob);
     setExtractingFrames(true);
     try {
-      const frames = await extractFrames(blob);
-      setExtractedFrames(frames);
-      setSelectedFrameIdx(new Set(frames.map((_, i) => i)));
+      const scored = await scoreVideoFrames(blob, {
+        intervalSec: 0.5,
+        topN: 10,
+        minVariance: 80,
+        width: 1280,
+        quality: 0.85,
+        fallbackDuration: Math.max(1, videoElapsed),
+      });
+      setExtractedFrames(scored);
+      setSelectedFrameIdx(new Set(scored.map((_, i) => i)));
+      if (scored.length === 0) {
+        toast.message("No sharp frames detected — try recording again with steadier motion.");
+      }
     } catch {
       toast.error("Could not extract frames from the recording");
     } finally {
@@ -1180,6 +1194,8 @@ function CapturePage() {
                   originalPath={p.photo_url}
                   enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
+                  photoState={(p.photo_state ?? (p.enhanced_url ? "enhanced" : "raw")) as any}
+                  userId={inspection?.user_id ?? ""}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                   onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                 />
@@ -1222,6 +1238,7 @@ function CapturePage() {
                 playsInline
                 className="block w-full aspect-video bg-black object-cover"
               />
+              <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
                 REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
@@ -1566,6 +1583,8 @@ function PhotoThumb({
   originalPath,
   enhancedPath,
   isEnhanced,
+  photoState,
+  userId,
   onEnhanced,
   onDeleted,
 }: {
@@ -1574,11 +1593,15 @@ function PhotoThumb({
   originalPath: string;
   enhancedPath: string | null;
   isEnhanced: boolean;
+  photoState?: "raw" | "enhanced" | "staged" | "colour_adjusted";
+  userId?: string;
   onEnhanced?: () => void;
   onDeleted?: () => void;
 }) {
   const url = useSignedUrl(displayPath);
-  const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust">(null);
+  const state = photoState ?? (isEnhanced ? "enhanced" : "raw");
   return (
     <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
       {url && <img src={url} alt="Captured" className="h-full w-full object-cover" />}
@@ -1591,24 +1614,62 @@ function PhotoThumb({
         storagePaths={[originalPath, enhancedPath]}
         onDeleted={onDeleted}
       />
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
-        aria-label="Enhance photo"
-      >
-        <Sparkles className="size-3" />
-        {isEnhanced ? "Enhanced" : "Enhance"}
-      </button>
+      {state === "raw" ? (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setClientOpen("enhance")}
+            className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+            aria-label="Enhance photo"
+          >
+            <Sparkles className="size-3" /> Enhance
+          </button>
+          <button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+            aria-label="AI enhance (uses monthly credit)"
+            title="AI enhance"
+          >
+            AI
+          </button>
+        </div>
+      ) : state === "enhanced" ? (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1">
+          <span className="rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
+            Enhanced
+          </span>
+          <button
+            type="button"
+            onClick={() => setClientOpen("adjust")}
+            className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+          >
+            Adjust
+          </button>
+        </div>
+      ) : null}
       <EnhancePhotoModal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
         photoId={photoId}
         photoPath={originalPath}
         table="inspection_photos"
         onApplied={() => onEnhanced?.()}
         onDiscarded={() => onEnhanced?.()}
       />
+      {clientOpen && userId ? (
+        <PhotoEnhanceClientModal
+          open={!!clientOpen}
+          onClose={() => setClientOpen(null)}
+          mode={clientOpen}
+          photoId={photoId}
+          photoPath={originalPath}
+          photoState={state}
+          table="inspection_photos"
+          userId={userId}
+          queryKey={["inspection-photos"]}
+        />
+      ) : null}
     </div>
   );
 }
