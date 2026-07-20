@@ -100,7 +100,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state,adjustments")
         .eq("inspection_id", previousInspectionId!)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -155,7 +155,7 @@ function CapturePage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state,adjustments")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -1203,6 +1203,7 @@ function CapturePage() {
                   enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
                   photoState={(p.photo_state ?? (p.enhanced_url ? "enhanced" : "raw")) as any}
+                  hasAdjustments={!!(p as any).adjustments}
                   userId={inspection?.user_id ?? ""}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                   onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
@@ -1632,6 +1633,7 @@ function PhotoThumb({
   enhancedPath,
   isEnhanced,
   photoState,
+  hasAdjustments,
   userId,
   onEnhanced,
   onDeleted,
@@ -1642,6 +1644,7 @@ function PhotoThumb({
   enhancedPath: string | null;
   isEnhanced: boolean;
   photoState?: "raw" | "enhanced" | "staged" | "colour_adjusted";
+  hasAdjustments?: boolean;
   userId?: string;
   onEnhanced?: () => void;
   onDeleted?: () => void;
@@ -1684,15 +1687,15 @@ function PhotoThumb({
         </div>
       ) : state === "enhanced" ? (
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
-          <span className="rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
-            Enhanced
+          <span className="flex items-center gap-1 rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
+            <Check className="size-3" strokeWidth={3} /> {hasAdjustments ? "Adjusted" : "Enhanced"}
           </span>
           <button
             type="button"
             onClick={() => setClientOpen("adjust")}
             className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
           >
-            Adjust
+            {hasAdjustments ? "Re-adjust" : "Adjust"}
           </button>
         </div>
       ) : null}

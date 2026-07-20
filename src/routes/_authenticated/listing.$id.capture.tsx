@@ -34,6 +34,7 @@ interface ListingPhoto {
   staging_style: string | null;
   enhanced_url?: string | null;
   photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
+  adjustments?: Record<string, number> | null;
   user_id?: string;
 }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
@@ -105,7 +106,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,user_id")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,adjustments,user_id")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -991,6 +992,7 @@ function StagedPhotoCard({
   const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
   const hasStaged = !!photo.staged_url;
   const hasEnhanced = !!photo.enhanced_url;
+  const hasAdjustments = !!photo.adjustments;
   const [aiEnhanceOpen, setAiEnhanceOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust" | "colour_adjust">(null);
   const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
@@ -1032,7 +1034,7 @@ function StagedPhotoCard({
           ) : null}
           {hasEnhanced ? (
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
-              Enhanced
+              ✓ {hasAdjustments ? "Adjusted" : "Enhanced"}
             </span>
           ) : null}
           {!staging && state === "raw" ? (
@@ -1072,7 +1074,7 @@ function StagedPhotoCard({
                 onClick={() => setClientOpen("adjust")}
                 className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
               >
-                Adjust
+                {hasAdjustments ? "Re-adjust" : "Adjust"}
               </button>
               <button
                 type="button"
