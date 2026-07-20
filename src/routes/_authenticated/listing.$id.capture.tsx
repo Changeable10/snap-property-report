@@ -992,6 +992,7 @@ function StagedPhotoCard({
   const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
   const hasStaged = !!photo.staged_url;
   const hasEnhanced = !!photo.enhanced_url;
+  const hasAdjustments = !!photo.adjustments;
   const [aiEnhanceOpen, setAiEnhanceOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust" | "colour_adjust">(null);
   const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
@@ -1033,7 +1034,7 @@ function StagedPhotoCard({
           ) : null}
           {hasEnhanced ? (
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
-              Enhanced
+              ✓ {hasAdjustments ? "Adjusted" : "Enhanced"}
             </span>
           ) : null}
           {!staging && state === "raw" ? (
@@ -1073,7 +1074,7 @@ function StagedPhotoCard({
                 onClick={() => setClientOpen("adjust")}
                 className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
               >
-                Adjust
+                {hasAdjustments ? "Re-adjust" : "Adjust"}
               </button>
               <button
                 type="button"
