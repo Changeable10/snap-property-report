@@ -13,6 +13,7 @@ import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
 import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
+import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -24,6 +25,7 @@ interface PhotoRow {
   id: string; room_id: string; photo_url: string; captured_at: string;
   voice_transcript: string | null;
   enhanced_url?: string | null;
+  photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
 }
 interface ItemRow {
   id: string; room_id: string; item_name: string;
@@ -98,7 +100,7 @@ function CapturePage() {
     enabled: !!previousInspectionId,
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
         .eq("inspection_id", previousInspectionId!)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -153,7 +155,7 @@ function CapturePage() {
     queryKey: ["inspection-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("inspection_photos")
-        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url")
+        .select("id,room_id,photo_url,captured_at,voice_transcript,enhanced_url,photo_state")
         .eq("inspection_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -1192,6 +1194,8 @@ function CapturePage() {
                   originalPath={p.photo_url}
                   enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
+                  photoState={(p.photo_state ?? (p.enhanced_url ? "enhanced" : "raw")) as any}
+                  userId={inspection?.user_id ?? ""}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                   onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                 />
