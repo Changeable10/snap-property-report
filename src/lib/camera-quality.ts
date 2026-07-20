@@ -85,6 +85,8 @@ export interface FeedbackLoopOptions {
 export function startFeedbackLoop(opts: FeedbackLoopOptions): () => void {
   const canvas = document.createElement("canvas");
   const tick = () => {
+    const v = opts.video;
+    if (!v || v.readyState < 2 || !v.videoWidth) return;
     const img = sampleVideoFrame(opts.video, canvas, opts.sampleWidth ?? 320);
     if (!img) return;
     opts.onUpdate({
@@ -92,7 +94,7 @@ export function startFeedbackLoop(opts: FeedbackLoopOptions): () => void {
       luminance: averageLuminance(img),
     });
   };
-  const timer = window.setInterval(tick, opts.intervalMs ?? 500);
+  const timer = window.setInterval(tick, opts.intervalMs ?? 400);
   // Kick off immediately after a short delay for the first frame.
   window.setTimeout(tick, 250);
   return () => window.clearInterval(timer);
@@ -104,26 +106,42 @@ export interface MotionListenerOptions {
 }
 
 /**
- * Listens to devicemotion, maintains a rolling average, and reports the
- * per-tick acceleration magnitude delta. Returns stop(). Degrades to no-op
- * when unsupported or permission denied.
+ * Listens to devicemotion and reports movement magnitude in m/s². Prefers
+ * linear `acceleration` (gravity removed) when available — this maps directly
+ * to phone movement. Falls back to a high-pass filter over
+ * `accelerationIncludingGravity`. Returns stop(). Degrades to no-op when
+ * unsupported or permission denied.
  */
 export function startMotionListener(opts: MotionListenerOptions): () => void {
   if (typeof window === "undefined" || !("DeviceMotionEvent" in window)) {
     return () => {};
   }
   let cancelled = false;
-  const readings: number[] = [];
-  const size = opts.windowSize ?? 5;
+  // Low-pass gravity estimate (per-axis) for high-pass fallback.
+  let gx = 0, gy = 0, gz = 0;
+  let primed = false;
+  const alpha = 0.85; // gravity smoothing
+  let smoothed = 0;
   const handler = (e: DeviceMotionEvent) => {
-    const a = e.accelerationIncludingGravity;
-    if (!a) return;
-    const mag = Math.sqrt((a.x ?? 0) ** 2 + (a.y ?? 0) ** 2 + (a.z ?? 0) ** 2);
-    readings.push(mag);
-    if (readings.length > size) readings.shift();
-    if (readings.length < 2) return;
-    const avg = readings.reduce((s, v) => s + v, 0) / readings.length;
-    opts.onUpdate(Math.abs(mag - avg));
+    let mag = 0;
+    const lin = e.acceleration;
+    if (lin && (lin.x != null || lin.y != null || lin.z != null)) {
+      // Linear acceleration is already gravity-free on Android when available.
+      mag = Math.sqrt((lin.x ?? 0) ** 2 + (lin.y ?? 0) ** 2 + (lin.z ?? 0) ** 2);
+    } else {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+      const ax = a.x ?? 0, ay = a.y ?? 0, az = a.z ?? 0;
+      if (!primed) { gx = ax; gy = ay; gz = az; primed = true; }
+      gx = alpha * gx + (1 - alpha) * ax;
+      gy = alpha * gy + (1 - alpha) * ay;
+      gz = alpha * gz + (1 - alpha) * az;
+      const hx = ax - gx, hy = ay - gy, hz = az - gz;
+      mag = Math.sqrt(hx * hx + hy * hy + hz * hz);
+    }
+    // Light smoothing so a single spike doesn't flicker the badge.
+    smoothed = smoothed * 0.6 + mag * 0.4;
+    opts.onUpdate(smoothed);
   };
   const attach = () => {
     if (cancelled) return;
