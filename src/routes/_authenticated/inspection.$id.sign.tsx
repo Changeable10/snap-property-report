@@ -238,19 +238,19 @@ function SignPage() {
                   <label className="block text-xs font-medium text-muted-foreground">
                     Send via email
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="email"
                       value={tenantEmail}
                       onChange={(e) => setTenantEmail(e.target.value)}
                       placeholder="tenant@example.com"
-                      className="flex-1 min-h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-teal"
+                      className="min-h-11 w-full min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-teal"
                     />
                     <button
                       type="button"
                       disabled={!tenantEmail.trim() || sendingInvite}
                       onClick={() => sendTenantSignatureEmail(tenantEmail.trim())}
-                      className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-teal px-3 text-sm font-semibold text-teal-foreground disabled:opacity-50 hover:bg-teal-dark"
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-teal px-3 text-sm font-semibold text-teal-foreground disabled:opacity-50 hover:bg-teal-dark sm:w-auto sm:shrink-0"
                     >
                       <Mail className="size-4" /> {sendingInvite ? "Sending…" : "Send"}
                     </button>

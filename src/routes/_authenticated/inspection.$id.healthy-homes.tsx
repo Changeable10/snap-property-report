@@ -406,7 +406,7 @@ function HealthyHomesPage() {
       </main>
 
       {!showSummary ? (
-        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background/95 px-5 py-4 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-[4rem] z-40 border-t border-border bg-background/95 px-5 py-3 backdrop-blur md:bottom-0 md:py-4">
           <div className="mx-auto flex max-w-md gap-3">
             <button
               type="button"
