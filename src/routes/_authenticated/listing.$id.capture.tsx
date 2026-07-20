@@ -14,6 +14,8 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
+import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
+import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -451,7 +453,7 @@ function ListingCapture() {
       // if the user navigates before saving.
       setFrameRoomId(current.id);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } }, audio: true,
+        video: HIGH_RES_VIDEO_CONSTRAINTS, audio: true,
       });
       videoStreamRef.current = stream;
       videoChunksRef.current = [];
@@ -481,30 +483,24 @@ function ListingCapture() {
   async function extractFrames(blob: Blob) {
     setExtracting(true);
     try {
-      const url = URL.createObjectURL(blob);
-      const v = document.createElement("video");
-      v.src = url; v.muted = true; (v as any).playsInline = true;
-      await new Promise<void>((res, rej) => {
-        v.onloadedmetadata = () => res();
-        v.onerror = () => rej(new Error("video load failed"));
+      const scored = await scoreVideoFrames(blob, {
+        intervalSec: 0.5,
+        topN: 10,
+        minVariance: 80,
+        width: 1280,
+        quality: 0.85,
+        fallbackDuration: Math.max(1, videoElapsed),
       });
-      const duration = v.duration || 0;
-      const canvas = document.createElement("canvas");
-      canvas.width = 1280; canvas.height = 720;
-      const ctx = canvas.getContext("2d")!;
-      const frames: Array<{ base64: string; time: number }> = [];
-      for (let t = 1; t < duration; t += 2) {
-        await new Promise<void>((res) => {
-          v.currentTime = t;
-          v.onseeked = () => res();
-        });
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        frames.push({ base64: dataUrl, time: t });
-      }
-      URL.revokeObjectURL(url);
+      // Preserve existing shape: base64 as data URL for downstream consumers.
+      const frames = scored.map((f) => ({
+        base64: `data:image/jpeg;base64,${f.base64}`,
+        time: f.time,
+      }));
       setExtractedFrames(frames);
       setSelectedFrames(new Set(frames.map((_, i) => i)));
+      if (frames.length === 0) {
+        toast.message("No sharp frames detected — try recording again with steadier motion.");
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Frame extraction failed");
     } finally {
@@ -697,7 +693,10 @@ function ListingCapture() {
 
         {videoRecording ? (
           <div className="overflow-hidden rounded-xl border border-border bg-black">
-            <video ref={videoPreviewRef} className="aspect-video w-full" />
+            <div className="relative">
+              <video ref={videoPreviewRef} className="aspect-video w-full" />
+              <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
+            </div>
           </div>
         ) : null}
 

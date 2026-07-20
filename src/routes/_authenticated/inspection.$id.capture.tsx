@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
+import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
+import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
 
 export const Route = createFileRoute("/_authenticated/inspection/$id/capture")({
   head: () => ({ meta: [{ title: "Capture — Snapsure" }] }),
@@ -766,7 +768,7 @@ function CapturePage() {
     setPendingVideoBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: HIGH_RES_VIDEO_CONSTRAINTS,
         audio: false,
       });
       if (!stream.active) {
@@ -810,9 +812,19 @@ function CapturePage() {
     setPendingVideoBlob(blob);
     setExtractingFrames(true);
     try {
-      const frames = await extractFrames(blob);
-      setExtractedFrames(frames);
-      setSelectedFrameIdx(new Set(frames.map((_, i) => i)));
+      const scored = await scoreVideoFrames(blob, {
+        intervalSec: 0.5,
+        topN: 10,
+        minVariance: 80,
+        width: 1280,
+        quality: 0.85,
+        fallbackDuration: Math.max(1, videoElapsed),
+      });
+      setExtractedFrames(scored);
+      setSelectedFrameIdx(new Set(scored.map((_, i) => i)));
+      if (scored.length === 0) {
+        toast.message("No sharp frames detected — try recording again with steadier motion.");
+      }
     } catch {
       toast.error("Could not extract frames from the recording");
     } finally {
@@ -1222,6 +1234,7 @@ function CapturePage() {
                 playsInline
                 className="block w-full aspect-video bg-black object-cover"
               />
+              <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
                 REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
