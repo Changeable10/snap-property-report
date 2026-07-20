@@ -4,6 +4,8 @@
 export interface FrameStats {
   blurVariance: number; // Laplacian variance (higher = sharper)
   luminance: number;    // mean grayscale 0..255
+  /** Fraction (0..1) of pixels that changed more than PIXEL_DIFF_THRESHOLD since the previous sample. NaN on the first frame. */
+  motionFraction: number;
 }
 
 /**
@@ -51,6 +53,34 @@ export function averageLuminance(img: ImageData): number {
   return n === 0 ? 0 : s / n;
 }
 
+/**
+ * Convert an RGBA ImageData to a downsampled grayscale Uint8Array used for
+ * frame-to-frame motion diffing. Sampling every 4th pixel keeps this cheap.
+ */
+export function toGraySamples(img: ImageData): Uint8Array {
+  const { data } = img;
+  const out = new Uint8Array(Math.ceil(data.length / 16));
+  let o = 0;
+  for (let i = 0; i < data.length; i += 16) {
+    out[o++] = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) | 0;
+  }
+  return out;
+}
+
+/**
+ * Fraction of samples that differ by more than `threshold` (0..255) between
+ * two same-length gray arrays. Returns NaN when arrays differ in length.
+ */
+export function grayDiffFraction(a: Uint8Array, b: Uint8Array, threshold = 30): number {
+  if (a.length !== b.length || a.length === 0) return Number.NaN;
+  let changed = 0;
+  for (let i = 0; i < a.length; i++) {
+    const d = a[i] - b[i];
+    if (d > threshold || -d > threshold) changed++;
+  }
+  return changed / a.length;
+}
+
 /** Draw the current video frame onto a shared canvas at `targetWidth` and return ImageData. */
 export function sampleVideoFrame(
   video: HTMLVideoElement,
@@ -84,14 +114,21 @@ export interface FeedbackLoopOptions {
 /** Starts a setInterval loop that samples the video and reports blur/luminance. Returns stop(). */
 export function startFeedbackLoop(opts: FeedbackLoopOptions): () => void {
   const canvas = document.createElement("canvas");
+  let prevGray: Uint8Array | null = null;
   const tick = () => {
     const v = opts.video;
     if (!v || v.readyState < 2 || !v.videoWidth) return;
     const img = sampleVideoFrame(opts.video, canvas, opts.sampleWidth ?? 320);
     if (!img) return;
+    const gray = toGraySamples(img);
+    const motionFraction = prevGray && prevGray.length === gray.length
+      ? grayDiffFraction(prevGray, gray, 30)
+      : Number.NaN;
+    prevGray = gray;
     opts.onUpdate({
       blurVariance: laplacianVariance(img),
       luminance: averageLuminance(img),
+      motionFraction,
     });
   };
   const timer = window.setInterval(tick, opts.intervalMs ?? 400);
