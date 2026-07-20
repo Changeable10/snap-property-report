@@ -938,8 +938,6 @@ function StagedPhotoCard({
   const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
     "raw" | "enhanced" | "staged" | "colour_adjusted";
   const qc = useQueryClient();
-  const [view, setView] = useState<"before" | "after">("after");
-  useEffect(() => { setView(hasStaged ? "after" : "before"); }, [hasStaged]);
   const disabled = staging || (!hasStaged && (freePlan || outOfCredits));
   const label = freePlan
     ? "Upgrade for staging"
