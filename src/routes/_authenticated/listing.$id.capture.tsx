@@ -1193,7 +1193,7 @@ function StyleModal({
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-md rounded-t-3xl bg-background p-6 shadow-xl sm:rounded-2xl"
+        className="relative w-full max-w-md rounded-t-3xl bg-background p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom)+5.25rem)] shadow-xl sm:rounded-2xl sm:pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         <button
