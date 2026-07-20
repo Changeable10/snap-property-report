@@ -1110,7 +1110,7 @@ function CapturePage() {
   }, [roomItems]);
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="min-h-screen bg-background pb-56 md:pb-40">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
           <button
@@ -1520,18 +1520,29 @@ function CapturePage() {
         </section>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
+      <nav
+        className="fixed inset-x-0 z-40 border-t border-border bg-card/95 px-5 py-3 backdrop-blur bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:bottom-0"
+        aria-label="Room navigation"
+      >
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
-          <button type="button" onClick={goPrev} disabled={index === 0}
-            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40">
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={index === 0}
+            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40"
+          >
             <ChevronLeft className="size-4" /> Previous
           </button>
           <span className="text-xs font-medium text-muted-foreground">
-            {doneRoomIds.size} of {total} done
+            {rooms && rooms.length > 0 ? `Room ${index + 1} of ${rooms.length}` : `${doneRoomIds.size} of ${total} done`}
           </span>
-          <button type="button" onClick={goNext} disabled={!rooms}
-            className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40">
-            {rooms && index >= rooms.length - 1 ? "Finish" : "Next"} <ChevronRight className="size-4" />
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={!rooms}
+            className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40"
+          >
+            {rooms && index >= rooms.length - 1 ? "Review" : "Next"} <ChevronRight className="size-4" />
           </button>
         </div>
       </nav>
