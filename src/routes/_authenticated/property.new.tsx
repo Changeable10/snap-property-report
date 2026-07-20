@@ -186,7 +186,7 @@ function NewProperty() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="min-h-screen bg-background pb-40">
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
           <Link
@@ -203,7 +203,7 @@ function NewProperty() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="mx-auto max-w-md px-5 py-6">
+      <form onSubmit={handleSubmit} className="mx-auto max-w-md px-5 py-6 pb-32">
         <div className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-sm font-medium">
             Address
@@ -279,21 +279,16 @@ function NewProperty() {
           <Stepper label="Bathrooms" value={bathrooms} min={1} max={4} onChange={setBathrooms} />
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        </div>
-      </form>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background/95 px-5 py-4 backdrop-blur">
-        <div className="mx-auto max-w-md">
           <button
-            type="button"
-            onClick={handleSubmit}
+            type="submit"
             disabled={saving}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
+            className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal px-5 text-sm font-semibold text-teal-foreground shadow-sm transition-colors hover:bg-teal-dark disabled:opacity-60"
           >
             {saving ? "Creating…" : "Create property"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

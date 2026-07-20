@@ -12,10 +12,10 @@ const tabs = [
 export function BottomNav() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card md:hidden"
       aria-label="Primary"
     >
-      <ul className="flex items-stretch justify-around px-2 pb-[env(safe-area-inset-bottom)]">
+      <ul className="flex items-stretch justify-around px-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
         {tabs.map(({ to, label, icon: Icon, exact }, i) => (
           <li key={`${to}-${i}`} className="flex-1">
             <Link
