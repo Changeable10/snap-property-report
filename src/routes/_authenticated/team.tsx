@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Copy, UserPlus, X, Check, Pencil, Upload } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { usePlan } from "@/lib/use-plan";
+import { TEAM_MEMBER_LIMIT } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useMyTeam } from "@/lib/use-team";
 import {
@@ -117,6 +118,14 @@ function TeamPage() {
   }
 
   const activeCount = members.filter((m) => m.status === "active").length;
+  const usedSeats = members.filter((m) => m.status === "active" || m.status === "invited").length;
+  const seatLimit = TEAM_MEMBER_LIMIT[plan ?? "free"];
+  const atSeatLimit = usedSeats >= seatLimit;
+  const extraCost = plan === "agency" ? "NZ$15" : "NZ$10";
+  const upgradeCopy =
+    plan === "portfolio"
+      ? `Your Portfolio plan includes up to ${seatLimit} team members. You currently have ${usedSeats}. Upgrade to Agency for up to 10 team members, or add extra members for NZ$10/month each.`
+      : `Your Agency plan includes up to ${seatLimit} team members. Add extra members for NZ$15/month each.`;
 
   async function handleInvite() {
     if (!inviteEmail.trim()) return;
@@ -323,6 +332,30 @@ function TeamPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground">Invite team member</h3>
+            {atSeatLimit ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-foreground">{upgradeCopy}</p>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <p className="font-semibold">Extra members ({extraCost}/mo each) — coming soon</p>
+                  <p className="mt-1">
+                    Email{" "}
+                    <a href="mailto:hello@snapsure.app" className="font-semibold underline">
+                      hello@snapsure.app
+                    </a>{" "}
+                    to add more seats.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setInviteOpen(false)}
+                    className="rounded-xl border border-input px-4 py-2 text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <>
             <label className="mt-4 block text-xs font-medium text-muted-foreground">Email</label>
             <input
               type="email"
@@ -355,6 +388,8 @@ function TeamPage() {
                 {busy ? "Sending…" : "Send invite"}
               </button>
             </div>
+            </>
+            )}
           </div>
         </div>
       ) : null}

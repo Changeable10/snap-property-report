@@ -126,7 +126,9 @@ function SettingsPage() {
           <UsageBar label="Listings this month" used={listingUsed} limit={LISTING_LIMIT[current]} />
           <UsageBar label="Virtual staging this month" used={stagingUsed} limit={STAGING_LIMIT[current]} />
           <UsageBar label="Photo enhancements this month" used={enhanceUsed} limit={ENHANCEMENT_LIMIT[current]} />
-          <UsageBar label="Team members" used={teamCount} limit={TEAM_MEMBER_LIMIT[current]} />
+          {current === "portfolio" || current === "agency" ? (
+            <UsageBar label="Team members" used={teamCount} limit={TEAM_MEMBER_LIMIT[current]} />
+          ) : null}
         </div>
       </div>
       <div className="mb-4 flex items-center justify-between rounded-xl border border-input bg-card px-4 py-3">
