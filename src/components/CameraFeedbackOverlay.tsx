@@ -23,8 +23,8 @@ export function CameraFeedbackOverlay({
   videoRef,
   recording = false,
   blurThreshold = 60,
-  stillMotionThreshold = 3.0,
-  videoMotionThreshold = 4.0,
+  stillMotionThreshold = 2.0,
+  videoMotionThreshold = 1.6,
 }: Props) {
   const [blurry, setBlurry] = useState(false);
   const [tooDark, setTooDark] = useState(false);
