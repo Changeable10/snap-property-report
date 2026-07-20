@@ -22,7 +22,7 @@ interface Props {
 export function CameraFeedbackOverlay({
   videoRef,
   recording = false,
-  blurThreshold = 60,
+  blurThreshold = 100,
   stillMotionThreshold = 2.0,
   videoMotionThreshold = 1.6,
 }: Props) {
@@ -40,24 +40,33 @@ export function CameraFeedbackOverlay({
   const lastBrightRef = useRef(0);
   const lastShakeRef = useRef(0);
   const lastSlowRef = useRef(0);
+  // Frame-diff based motion tracker. Held stable when < 5% pixel change for STABLE_MS.
+  const lastMotionActiveRef = useRef(0);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     const CLEAR_MS = 900;
+    const STABLE_MS = 1000; // 1s of low pixel diff before we clear the shake badge
     const now = () => performance.now();
     const sweep = window.setInterval(() => {
       const t = now();
       if (t - lastBlurRef.current > CLEAR_MS) setBlurry(false);
       if (t - lastDarkRef.current > CLEAR_MS) setTooDark(false);
       if (t - lastBrightRef.current > CLEAR_MS) setTooBright(false);
-      if (t - lastShakeRef.current > CLEAR_MS) setShaky(false);
+      // Only clear shake when we've also seen a full second of low motion via frame diff.
+      if (
+        t - lastShakeRef.current > CLEAR_MS &&
+        t - lastMotionActiveRef.current > STABLE_MS
+      ) {
+        setShaky(false);
+      }
       if (t - lastSlowRef.current > CLEAR_MS) setSlowDown(false);
     }, 300);
     const stopLoop = startFeedbackLoop({
       video: el,
       intervalMs: 400,
-      onUpdate: ({ blurVariance, luminance }) => {
+      onUpdate: ({ blurVariance, luminance, motionFraction }) => {
         const t = now();
         if (blurVariance > 0 && blurVariance < blurThreshold) {
           lastBlurRef.current = t;
@@ -65,6 +74,21 @@ export function CameraFeedbackOverlay({
         }
         if (luminance < 40) { lastDarkRef.current = t; setTooDark(true); }
         if (luminance > 220) { lastBrightRef.current = t; setTooBright(true); }
+        if (!Number.isNaN(motionFraction)) {
+          // >15% pixels changed → shaky. 5–15% keeps the "still active" timer
+          // ticking so the badge doesn't clear mid-movement. <5% → stable.
+          if (motionFraction > 0.15) {
+            lastShakeRef.current = t;
+            lastMotionActiveRef.current = t;
+            setShaky(true);
+          } else if (motionFraction >= 0.05) {
+            lastMotionActiveRef.current = t;
+          }
+          if (recordingRef.current && motionFraction > 0.25) {
+            lastSlowRef.current = t;
+            setSlowDown(true);
+          }
+        }
       },
     });
     const stopMotion = startMotionListener({
@@ -72,6 +96,7 @@ export function CameraFeedbackOverlay({
         const t = now();
         if (mag > stillMotionThreshold) {
           lastShakeRef.current = t;
+          lastMotionActiveRef.current = t;
           setShaky(true);
         }
         if (recordingRef.current && mag > videoMotionThreshold) {
@@ -88,9 +113,9 @@ export function CameraFeedbackOverlay({
   }, [videoRef, blurThreshold, stillMotionThreshold, videoMotionThreshold]);
 
   const badges: { key: string; label: string; visible: boolean; amber?: boolean }[] = [
-    { key: "blur", label: "📷 Image is blurry — hold steady", visible: blurry },
-    { key: "dark", label: "💡 Too dark — find more light", visible: tooDark && !tooBright },
-    { key: "bright", label: "☀️ Too bright — reduce glare", visible: tooBright && !tooDark },
+    { key: "blur", label: "📷 Image appears blurry — hold steady", visible: blurry },
+    { key: "dark", label: "🔅 Too dark — try adding more light", visible: tooDark && !tooBright },
+    { key: "bright", label: "🔆 Too bright — reduce exposure", visible: tooBright && !tooDark },
     { key: "shake", label: "✋ Hold steady", visible: shaky },
   ];
 
