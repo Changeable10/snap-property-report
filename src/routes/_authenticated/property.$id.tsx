@@ -486,18 +486,19 @@ function PropertyDetail() {
             Back
           </Link>
           {property ? (
-            <div className="flex items-start gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-teal-light text-teal-dark">
-                <Icon className="size-6" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-2xl font-bold tracking-tight text-foreground">
-                  {property.address}
-                </h1>
-                <p className="truncate text-sm text-muted-foreground">
-                  {property.suburb}, {property.city} {property.postcode}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-teal-light text-teal-dark">
+                  <Icon className="size-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl font-bold tracking-tight text-foreground break-words">
+                    {property.address}
+                  </h1>
+                  <p className="text-sm text-muted-foreground break-words">
+                    {property.suburb}, {property.city} {property.postcode}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-medium text-teal-dark">
                     {PROPERTY_TYPE_LABEL[property.property_type]}
                   </span>
@@ -509,9 +510,10 @@ function PropertyDetail() {
                     <Bath className="size-3.5" />
                     {property.bathrooms}
                   </span>
+                  </div>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditingProperty((v) => !v)}
@@ -813,8 +815,8 @@ function PropertyDetail() {
               {maintenanceRows.length === 0 ? "No maintenance items logged." : "Nothing matches this filter."}
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+              <table className="w-full min-w-[560px] text-left text-xs">
                 <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Date</th>
