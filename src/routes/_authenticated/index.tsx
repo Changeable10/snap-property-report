@@ -8,6 +8,8 @@ import {
   Home as HomeIcon,
   Building2,
   AlertTriangle,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/property-types";
