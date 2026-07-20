@@ -867,7 +867,7 @@ function ListingCapture() {
       {styleModalFor ? (
         <StyleModal onClose={() => setStyleModalFor(null)} onChoose={handleStyleChosen} />
       ) : null}
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} topUp="staging" />
 
       {pendingNavDir ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
