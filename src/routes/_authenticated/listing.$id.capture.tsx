@@ -602,6 +602,7 @@ function ListingCapture() {
     if (transcript || manualNotes) await saveNotes(transcript, manualNotes);
     if (dir === "prev") setIndex((i) => Math.max(0, i - 1));
     else setIndex((i) => Math.min(total - 1, i + 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function confirmSaveThenNavigate() {
@@ -641,8 +642,8 @@ function ListingCapture() {
       <header className="border-b border-border px-5 pt-6 pb-4">
         <div className="mx-auto max-w-md">
           <Link
-            to="/inspection/setup/$propertyId"
-            params={{ propertyId: listing.property_id }}
+            to="/property/$id"
+            params={{ id: listing.property_id }}
             className="mb-2 inline-flex min-h-11 items-center gap-1 -ml-2 pr-3 pl-2 text-sm font-medium text-teal"
           >
             <ArrowLeft className="size-4" />
@@ -922,7 +923,7 @@ function ListingCapture() {
         </section>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-5 py-3">
+      <nav className="fixed inset-x-0 z-40 border-t border-border bg-card/95 px-5 py-3 backdrop-blur bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:bottom-0">
         <div className="mx-auto flex max-w-md items-center justify-between gap-2">
           <button
             type="button"
