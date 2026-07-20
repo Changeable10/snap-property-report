@@ -222,3 +222,34 @@ export function EnhancePhotoModal({
     </div>
   );
 }
+
+function TopUpEnhancement() {
+  const [notice, setNotice] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-card p-3 text-left">
+      <p className="text-xs font-semibold text-foreground">Or buy a top-up</p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Enhancement pack</p>
+          <p className="text-xs text-muted-foreground">25 image enhancements — NZ$5</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setNotice(true)}
+          className="min-h-9 rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent"
+        >
+          Buy
+        </button>
+      </div>
+      {notice ? (
+        <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[11px] text-amber-900">
+          Top-up packs aren't available for self-serve purchase yet. Email{" "}
+          <a href="mailto:hello@snapsure.app" className="font-semibold underline">
+            hello@snapsure.app
+          </a>{" "}
+          and we'll add credits to your account.
+        </p>
+      ) : null}
+    </div>
+  );
+}
