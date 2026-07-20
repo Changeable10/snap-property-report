@@ -16,6 +16,7 @@ import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
 import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
 import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
+import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
 
 export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   head: () => ({ meta: [{ title: "Listing capture — Snapsure" }] }),
@@ -32,6 +33,8 @@ interface ListingPhoto {
   staged_url: string | null;
   staging_style: string | null;
   enhanced_url?: string | null;
+  photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
+  user_id?: string;
 }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
 
@@ -102,7 +105,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,user_id")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -930,7 +933,10 @@ function StagedPhotoCard({
   const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
   const hasStaged = !!photo.staged_url;
   const hasEnhanced = !!photo.enhanced_url;
-  const [enhanceOpen, setEnhanceOpen] = useState(false);
+  const [aiEnhanceOpen, setAiEnhanceOpen] = useState(false);
+  const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust" | "colour_adjust">(null);
+  const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
+    "raw" | "enhanced" | "staged" | "colour_adjusted";
   const qc = useQueryClient();
   const [view, setView] = useState<"before" | "after">("after");
   useEffect(() => { setView(hasStaged ? "after" : "before"); }, [hasStaged]);
@@ -973,14 +979,42 @@ function StagedPhotoCard({
               Enhanced
             </span>
           ) : null}
-          {!staging ? (
+          {!staging && state === "raw" ? (
+            <div className="absolute bottom-1 right-1 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setClientOpen("enhance")}
+                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+                aria-label="Enhance photo"
+              >
+                <Sparkles className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiEnhanceOpen(true)}
+                className="rounded-full bg-background/85 px-1.5 text-[9px] font-semibold text-teal shadow backdrop-blur-sm"
+                aria-label="AI enhance"
+                title="AI enhance"
+              >
+                AI
+              </button>
+            </div>
+          ) : !staging && state === "enhanced" ? (
             <button
               type="button"
-              onClick={() => setEnhanceOpen(true)}
-              className="absolute bottom-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
-              aria-label="Enhance photo"
+              onClick={() => setClientOpen("adjust")}
+              className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
             >
-              <Sparkles className="size-3.5" />
+              Adjust
+            </button>
+          ) : null}
+          {!staging && (state === "staged" || state === "colour_adjusted") ? (
+            <button
+              type="button"
+              onClick={() => setClientOpen("colour_adjust")}
+              className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
+            >
+              Colour adjust
             </button>
           ) : null}
           {staging ? (
@@ -1022,14 +1056,28 @@ function StagedPhotoCard({
         </button>
       </div>
       <EnhancePhotoModal
-        open={enhanceOpen}
-        onClose={() => setEnhanceOpen(false)}
+        open={aiEnhanceOpen}
+        onClose={() => setAiEnhanceOpen(false)}
         photoId={photo.id}
         photoPath={photo.photo_url}
         table="listing_photos"
         onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
         onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos"] })}
       />
+      {clientOpen && photo.user_id ? (
+        <PhotoEnhanceClientModal
+          open={!!clientOpen}
+          onClose={() => setClientOpen(null)}
+          mode={clientOpen}
+          photoId={photo.id}
+          photoPath={photo.photo_url}
+          stagedPath={photo.staged_url ?? undefined}
+          photoState={state}
+          table="listing_photos"
+          userId={photo.user_id}
+          queryKey={["listing-photos"]}
+        />
+      ) : null}
     </div>
   );
 }
