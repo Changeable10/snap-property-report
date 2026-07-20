@@ -417,7 +417,7 @@ function ListingCapture() {
   const [videoSupported, setVideoSupported] = useState(true);
   const [videoRecording, setVideoRecording] = useState(false);
   const [videoElapsed, setVideoElapsed] = useState(0);
-  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number }>>([]);
+  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number; variance: number }>>([]);
   const [selectedFrames, setSelectedFrames] = useState<Set<number>>(new Set());
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -493,12 +493,24 @@ function ListingCapture() {
         fallbackDuration: Math.max(1, videoElapsed),
       });
       // Preserve existing shape: base64 as data URL for downstream consumers.
-      const frames = scored.map((f) => ({
-        base64: `data:image/jpeg;base64,${f.base64}`,
-        time: f.time,
-      }));
+      const frames = scored
+        .map((f) => ({
+          base64: `data:image/jpeg;base64,${f.base64}`,
+          time: f.time,
+          variance: f.variance,
+        }))
+        // Sort sharpest first.
+        .sort((a, b) => b.variance - a.variance);
       setExtractedFrames(frames);
-      setSelectedFrames(new Set(frames.map((_, i) => i)));
+      // Auto-deselect frames below the sharpness cutoff.
+      const SHARP_CUTOFF = 150;
+      setSelectedFrames(
+        new Set(
+          frames
+            .map((f, i) => (f.variance >= SHARP_CUTOFF ? i : -1))
+            .filter((i) => i >= 0),
+        ),
+      );
       if (frames.length === 0) {
         toast.message("No sharp frames detected — try recording again with steadier motion.");
       }
@@ -693,10 +705,33 @@ function ListingCapture() {
         </section>
 
         {videoRecording ? (
-          <div className="overflow-hidden rounded-xl border border-border bg-black">
-            <div className="relative">
-              <video ref={videoPreviewRef} className="aspect-video w-full" />
+          <div
+            className="fixed inset-0 z-50 flex flex-col bg-black"
+            role="dialog"
+            aria-label="Video walkthrough recording"
+          >
+            <div className="relative flex-1">
+              <video
+                ref={videoPreviewRef}
+                autoPlay
+                muted
+                playsInline
+                className="absolute inset-0 h-full w-full bg-black object-cover"
+              />
               <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
+              <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+12px)] flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">
+                <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
+                REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
+              </div>
+            </div>
+            <div className="shrink-0 bg-black px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+              <button
+                type="button"
+                onClick={stopVideo}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 text-base font-semibold text-white shadow-lg hover:bg-red-700"
+              >
+                <Square className="size-5 fill-white" /> Stop recording
+              </button>
             </div>
           </div>
         ) : null}
@@ -707,7 +742,14 @@ function ListingCapture() {
           </div>
         ) : null}
 
-        {extractedFrames.length > 0 ? (
+        {extractedFrames.length > 0 ? (() => {
+          const SHARP_CUTOFF = 150;
+          const sharpCount = extractedFrames.filter((f) => f.variance >= SHARP_CUTOFF).length;
+          const blurryCount = extractedFrames.length - sharpCount;
+          const selectedSharp = Array.from(selectedFrames).filter(
+            (i) => extractedFrames[i]?.variance >= SHARP_CUTOFF,
+          ).length;
+          return (
           <section className="rounded-xl border border-border bg-card p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-semibold">Select frames to save ({selectedFrames.size}/{extractedFrames.length})</p>
@@ -720,9 +762,19 @@ function ListingCapture() {
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              {selectedSharp} sharp frame{selectedSharp === 1 ? "" : "s"} selected
+              {blurryCount > 0 ? `, ${blurryCount} blurry excluded` : ""}. Sorted sharpest first.
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {extractedFrames.map((f, i) => {
                 const sel = selectedFrames.has(i);
+                const dot =
+                  f.variance >= 250 ? "bg-emerald-500" :
+                  f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
+                const label =
+                  f.variance >= 250 ? "Sharp" :
+                  f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
                 return (
                   <button
                     key={i}
@@ -735,6 +787,13 @@ function ListingCapture() {
                     className={`relative overflow-hidden rounded-lg border-2 ${sel ? "border-teal" : "border-transparent"}`}
                   >
                     <img src={f.base64} alt={`Frame ${i}`} className="aspect-video w-full object-cover" />
+                    <span
+                      className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white"
+                      title={`Sharpness: ${label} (${Math.round(f.variance)})`}
+                    >
+                      <span className={`inline-block size-1.5 rounded-full ${dot}`} />
+                      {label}
+                    </span>
                     {sel ? (
                       <div className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-teal text-teal-foreground">
                         <Check className="size-3" />
@@ -745,7 +804,8 @@ function ListingCapture() {
               })}
             </div>
           </section>
-        ) : null}
+          );
+        })() : null}
 
         {/* Photo thumbs */}
         {roomPhotos.length > 0 ? (
