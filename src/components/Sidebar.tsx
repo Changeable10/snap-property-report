@@ -77,9 +77,10 @@ function initialsFrom(email: string | undefined, name: string | undefined) {
 
 interface SidebarProps {
   user: { id: string; email?: string; user_metadata?: { name?: string; full_name?: string } } | null;
+  forceShow?: boolean;
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, forceShow = false }: SidebarProps) {
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const counts = useCounts();
   const { data: plan } = usePlan(user?.id ?? "");
@@ -115,7 +116,10 @@ export function Sidebar({ user }: SidebarProps) {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col border-r border-white/[0.06] md:flex"
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 w-[250px] flex-col border-r border-white/[0.06] md:flex",
+        forceShow ? "flex" : "hidden",
+      )}
       style={{ background: "var(--color-sidebar-bg)" }}
       aria-label="Primary"
     >
