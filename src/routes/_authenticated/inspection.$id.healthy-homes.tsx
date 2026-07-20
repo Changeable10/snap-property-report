@@ -326,8 +326,13 @@ function HealthyHomesPage() {
     } catch {
       return;
     }
-    if (stepIdx < STEPS.length - 1) setStepIdx(stepIdx + 1);
-    else setShowSummary(true);
+    if (stepIdx < STEPS.length - 1) {
+      setStepIdx(stepIdx + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      setShowSummary(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   async function finish() {
@@ -372,6 +377,7 @@ function HealthyHomesPage() {
           onJump={(i) => {
             setShowSummary(false);
             setStepIdx(i);
+            window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         />
       </div>
@@ -415,7 +421,7 @@ function HealthyHomesPage() {
           <div className="mx-auto flex max-w-md items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => stepIdx > 0 && setStepIdx(stepIdx - 1)}
+              onClick={() => { if (stepIdx > 0) { setStepIdx(stepIdx - 1); window.scrollTo({ top: 0, behavior: "smooth" }); } }}
               disabled={stepIdx === 0}
               className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40"
             >
