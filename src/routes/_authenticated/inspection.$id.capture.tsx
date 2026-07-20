@@ -1583,6 +1583,8 @@ function PhotoThumb({
   originalPath,
   enhancedPath,
   isEnhanced,
+  photoState,
+  userId,
   onEnhanced,
   onDeleted,
 }: {
@@ -1591,11 +1593,15 @@ function PhotoThumb({
   originalPath: string;
   enhancedPath: string | null;
   isEnhanced: boolean;
+  photoState?: "raw" | "enhanced" | "staged" | "colour_adjusted";
+  userId?: string;
   onEnhanced?: () => void;
   onDeleted?: () => void;
 }) {
   const url = useSignedUrl(displayPath);
-  const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust">(null);
+  const state = photoState ?? (isEnhanced ? "enhanced" : "raw");
   return (
     <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
       {url && <img src={url} alt="Captured" className="h-full w-full object-cover" />}
@@ -1608,24 +1614,62 @@ function PhotoThumb({
         storagePaths={[originalPath, enhancedPath]}
         onDeleted={onDeleted}
       />
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
-        aria-label="Enhance photo"
-      >
-        <Sparkles className="size-3" />
-        {isEnhanced ? "Enhanced" : "Enhance"}
-      </button>
+      {state === "raw" ? (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setClientOpen("enhance")}
+            className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+            aria-label="Enhance photo"
+          >
+            <Sparkles className="size-3" /> Enhance
+          </button>
+          <button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+            aria-label="AI enhance (uses monthly credit)"
+            title="AI enhance"
+          >
+            AI
+          </button>
+        </div>
+      ) : state === "enhanced" ? (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1">
+          <span className="rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
+            Enhanced
+          </span>
+          <button
+            type="button"
+            onClick={() => setClientOpen("adjust")}
+            className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
+          >
+            Adjust
+          </button>
+        </div>
+      ) : null}
       <EnhancePhotoModal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
         photoId={photoId}
         photoPath={originalPath}
         table="inspection_photos"
         onApplied={() => onEnhanced?.()}
         onDiscarded={() => onEnhanced?.()}
       />
+      {clientOpen && userId ? (
+        <PhotoEnhanceClientModal
+          open={!!clientOpen}
+          onClose={() => setClientOpen(null)}
+          mode={clientOpen}
+          photoId={photoId}
+          photoPath={originalPath}
+          photoState={state}
+          table="inspection_photos"
+          userId={userId}
+          queryKey={["inspection-photos"]}
+        />
+      ) : null}
     </div>
   );
 }
