@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Plus,
   Bed,
@@ -335,76 +335,14 @@ function Index() {
           />
         </section>
 
-        {/* Actions required */}
-        {actionsByProperty.size > 0 ? (
-          <section className="mt-8">
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-foreground">
-              <AlertTriangle className="size-5 text-condition-damaged" />
-              Actions required
-            </h2>
-            <div className="flex flex-col gap-4">
-              {Array.from(actionsByProperty.entries()).map(([propId, list]) => {
-                const prop = propertyById.get(propId);
-                if (!prop) return null;
-                return (
-                  <div key={propId} className="rounded-2xl border border-border bg-card p-4">
-                    <Link
-                      to="/property/$id"
-                      params={{ id: propId }}
-                      className="block text-sm font-semibold text-foreground hover:text-teal"
-                    >
-                      {prop.address}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{prop.suburb}</p>
-                    <ul className="mt-3 flex flex-col gap-2">
-                      {list.map(({ item, inspection }) => {
-                        const room = roomById.get(item.room_id);
-                        return (
-                          <li key={item.id} className="rounded-xl border border-border/70 bg-background p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-foreground">
-                                  {item.item_name}
-                                  {room ? (
-                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                      · {room.name}
-                                    </span>
-                                  ) : null}
-                                </p>
-                                {item.maintenance_notes || item.description ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {item.maintenance_notes ?? item.description}
-                                  </p>
-                                ) : null}
-                              </div>
-                              <span
-                                className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${PRIORITY_STYLE[item.maintenance_priority]}`}
-                              >
-                                {item.maintenance_priority.toUpperCase()}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                              Flagged {formatDMY(inspection.inspection_date)} · {TYPE_LABEL[inspection.inspection_type]}
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Properties grid */}
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Your properties</h2>
-            {properties && properties.length > 0 ? (
-              <span className="text-xs text-muted-foreground">{properties.length}</span>
-            ) : null}
-          </div>
+        {/* Your Properties */}
+        <CollapsibleSection
+          title="Your properties"
+          count={properties?.length ?? 0}
+          icon={<HomeIcon className="size-5 text-primary" />}
+          isOpen={openSections.properties}
+          onToggle={toggleSection("properties")}
+        >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(properties ?? []).map((p) => {
               const Icon = p.property_type === "apartment" || p.property_type === "unit" ? Building2 : HomeIcon;
@@ -516,14 +454,80 @@ function Index() {
               Add property
             </button>
           </div>
-        </section>
+        </CollapsibleSection>
 
-        {/* Recent inspections & listings */}
+        {/* Actions Required */}
+        {actionsByProperty.size > 0 ? (
+          <CollapsibleSection
+            title="Actions required"
+            count={openMaintenance.length}
+            icon={<AlertTriangle className="size-5 text-condition-damaged" />}
+            isOpen={openSections.actions}
+            onToggle={toggleSection("actions")}
+          >
+            <div className="flex flex-col gap-4">
+              {Array.from(actionsByProperty.entries()).map(([propId, list]) => {
+                const prop = propertyById.get(propId);
+                if (!prop) return null;
+                return (
+                  <div key={propId} className="rounded-2xl border border-border bg-card p-4">
+                    <Link
+                      to="/property/$id"
+                      params={{ id: propId }}
+                      className="block text-sm font-semibold text-foreground hover:text-teal"
+                    >
+                      {prop.address}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">{prop.suburb}</p>
+                    <ul className="mt-3 flex flex-col gap-2">
+                      {list.map(({ item, inspection }) => {
+                        const room = roomById.get(item.room_id);
+                        return (
+                          <li key={item.id} className="rounded-xl border border-border/70 bg-background p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground">
+                                  {item.item_name}
+                                  {room ? (
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                      · {room.name}
+                                    </span>
+                                  ) : null}
+                                </p>
+                                {item.maintenance_notes || item.description ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {item.maintenance_notes ?? item.description}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <span
+                                className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${PRIORITY_STYLE[item.maintenance_priority]}`}
+                              >
+                                {item.maintenance_priority.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                              Flagged {formatDMY(inspection.inspection_date)} · {TYPE_LABEL[inspection.inspection_type]}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </CollapsibleSection>
+        ) : null}
+
+        {/* Recent Inspections & Listings */}
         {feed.length > 0 ? (
-          <section className="mt-10">
-            <h2 className="mb-3 text-lg font-semibold text-foreground">
-              Recent Inspections &amp; Listings
-            </h2>
+          <CollapsibleSection
+            title="Recent Inspections & Listings"
+            count={feed.length}
+            isOpen={openSections.recent}
+            onToggle={toggleSection("recent")}
+          >
             <ul className="flex flex-col gap-2">
               {feed.map((entry) => {
                 if (entry.kind === "inspection") {
@@ -593,12 +597,56 @@ function Index() {
                 );
               })}
             </ul>
-          </section>
+          </CollapsibleSection>
         ) : null}
       </div>
 
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  count,
+  icon,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  icon?: ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="mt-8">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mb-3 flex w-full items-center justify-between rounded-xl py-1 text-left transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          {icon}
+          {title}
+          <span className="ml-1 text-sm font-normal text-muted-foreground">({count})</span>
+        </span>
+        {isOpen ? (
+          <ChevronDown className="size-5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-5 text-muted-foreground" />
+        )}
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isOpen ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        {children}
+      </div>
+    </section>
   );
 }
 
