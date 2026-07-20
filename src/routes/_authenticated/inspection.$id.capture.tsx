@@ -1203,6 +1203,7 @@ function CapturePage() {
                   enhancedPath={p.enhanced_url ?? null}
                   isEnhanced={!!p.enhanced_url}
                   photoState={(p.photo_state ?? (p.enhanced_url ? "enhanced" : "raw")) as any}
+                  hasAdjustments={!!(p as any).adjustments}
                   userId={inspection?.user_id ?? ""}
                   onEnhanced={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
                   onDeleted={() => qc.invalidateQueries({ queryKey: ["inspection-photos", id] })}
