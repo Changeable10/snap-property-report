@@ -148,6 +148,7 @@ export function EnhancePhotoModal({
             <p className="mt-1 text-muted-foreground">
               Upgrade your plan for more monthly enhancements.
             </p>
+            <TopUpEnhancement />
             <button
               type="button"
               onClick={onClose}
