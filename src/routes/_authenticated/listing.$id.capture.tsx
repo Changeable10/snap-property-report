@@ -34,6 +34,7 @@ interface ListingPhoto {
   staging_style: string | null;
   enhanced_url?: string | null;
   photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
+  adjustments?: Record<string, number> | null;
   user_id?: string;
 }
 interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
@@ -105,7 +106,7 @@ function ListingCapture() {
     queryKey: ["listing-photos", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,user_id")
+        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,adjustments,user_id")
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
