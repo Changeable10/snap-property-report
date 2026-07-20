@@ -308,7 +308,7 @@ function Index() {
     <div>
       <header className="mb-6">
         <p className="text-sm text-muted-foreground">{formatLongDate(now)}</p>
-        <h1 className="mt-0.5 truncate text-3xl font-extrabold tracking-tight text-foreground">
+        <h1 className="mt-0.5 text-3xl font-extrabold tracking-tight text-foreground break-words">
           {greetingFor(now)}, {displayName}
         </h1>
       </header>

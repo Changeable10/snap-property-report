@@ -51,15 +51,18 @@ export function AppShell({ user, children }: AppShellProps) {
 
       {/* Mobile drawer (simple overlay of the sidebar contents) */}
       {drawerOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/50"
             onClick={() => setDrawerOpen(false)}
             aria-label="Close menu"
           />
-          <div className="absolute inset-y-0 left-0 w-[260px]">
-            <Sidebar user={user as never} />
+          <div
+            className="absolute inset-y-0 left-0 w-[260px]"
+            onClick={() => setDrawerOpen(false)}
+          >
+            <Sidebar user={user as never} forceShow />
           </div>
         </div>
       ) : null}
