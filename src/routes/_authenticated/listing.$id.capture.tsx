@@ -965,7 +965,7 @@ function StagedPhotoCard({
           <div className="relative aspect-square overflow-hidden bg-muted">
             {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
-              After{photo.staging_style ? ` · ${photo.staging_style}` : ""}
+              Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
             </span>
           </div>
         </div>
@@ -1049,33 +1049,33 @@ function StagedPhotoCard({
       )}
       <div className="space-y-1.5 p-2">
         {hasStaged ? (
-          <div className="grid grid-cols-2 gap-1.5">
+          <>
             <button
               type="button"
-              onClick={() => setView(view === "before" ? "after" : "before")}
-              className="flex min-h-8 items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
-              aria-label="Toggle preview"
+              onClick={() => setClientOpen("colour_adjust")}
+              className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground"
             >
-              {view === "before" ? "Preview staged" : "Preview original"}
+              Colour adjust
             </button>
             <button
               type="button"
               onClick={onKeepOriginal}
-              className="flex min-h-8 items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
+              className="flex min-h-8 w-full items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
             >
               Keep original
             </button>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={onStage}
-          disabled={disabled}
-          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {staging ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-          {staging ? "Staging…" : label}
-        </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onStage}
+            disabled={disabled}
+            className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {staging ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+            {staging ? "Staging…" : label}
+          </button>
+        )}
       </div>
       <EnhancePhotoModal
         open={aiEnhanceOpen}
