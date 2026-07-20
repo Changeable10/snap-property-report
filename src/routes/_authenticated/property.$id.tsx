@@ -872,7 +872,7 @@ function PropertyDetail() {
             {rooms?.map((room, idx) => (
               <li
                 key={room.id}
-                className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3"
+                  className="flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3"
               >
                 {editingId === room.id ? (
                   <>
@@ -901,7 +901,7 @@ function PropertyDetail() {
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 truncate text-sm font-medium text-foreground">
+                    <span className="min-w-0 flex-1 break-words py-1.5 text-sm font-medium text-foreground">
                       {room.name}
                     </span>
                     <button
