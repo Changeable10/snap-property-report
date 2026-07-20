@@ -189,7 +189,7 @@ function CapturePage() {
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [videoProgress, setVideoProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [videoError, setVideoError] = useState<string | null>(null);
-  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number }>>([]);
+  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number; variance: number }>>([]);
   const [selectedFrameIdx, setSelectedFrameIdx] = useState<Set<number>>(new Set());
   const [pendingVideoBlob, setPendingVideoBlob] = useState<Blob | null>(null);
   const [extractingFrames, setExtractingFrames] = useState(false);
@@ -820,8 +820,18 @@ function CapturePage() {
         quality: 0.85,
         fallbackDuration: Math.max(1, videoElapsed),
       });
-      setExtractedFrames(scored);
-      setSelectedFrameIdx(new Set(scored.map((_, i) => i)));
+      // Sort sharpest first so the user sees the best frames at the top.
+      const sorted = [...scored].sort((a, b) => b.variance - a.variance);
+      setExtractedFrames(sorted);
+      // Auto-deselect frames below the sharpness cutoff.
+      const SHARP_CUTOFF = 150;
+      setSelectedFrameIdx(
+        new Set(
+          sorted
+            .map((f, i) => (f.variance >= SHARP_CUTOFF ? i : -1))
+            .filter((i) => i >= 0),
+        ),
+      );
       if (scored.length === 0) {
         toast.message("No sharp frames detected — try recording again with steadier motion.");
       }
