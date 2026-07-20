@@ -923,33 +923,29 @@ function ListingCapture() {
         </section>
       </main>
 
-      <nav className="fixed inset-x-0 z-40 border-t border-border bg-card/95 px-5 py-3 backdrop-blur bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:bottom-0">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-2">
+      <nav
+        className="fixed inset-x-0 z-40 border-t border-border bg-card/95 px-5 py-3 backdrop-blur bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:bottom-0"
+        aria-label="Room navigation"
+      >
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => tryNavigate("prev")}
             disabled={index === 0}
-            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-foreground disabled:opacity-40"
+            className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-teal disabled:opacity-40"
           >
             <ChevronLeft className="size-4" /> Previous
           </button>
-          {index < total - 1 ? (
-            <button
-              type="button"
-              onClick={() => tryNavigate("next")}
-              className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground"
-            >
-              Next <ChevronRight className="size-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => tryNavigate("finish")}
-              className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground"
-            >
-              Finish <Check className="size-4" />
-            </button>
-          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            Room {index + 1} of {total}
+          </span>
+          <button
+            type="button"
+            onClick={() => tryNavigate(index < total - 1 ? "next" : "finish")}
+            className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40"
+          >
+            {index < total - 1 ? "Next" : "Finish"} {index < total - 1 ? <ChevronRight className="size-4" /> : <Check className="size-4" />}
+          </button>
         </div>
       </nav>
 
