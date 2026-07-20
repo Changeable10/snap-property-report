@@ -1633,6 +1633,7 @@ function PhotoThumb({
   enhancedPath,
   isEnhanced,
   photoState,
+  hasAdjustments,
   userId,
   onEnhanced,
   onDeleted,
@@ -1643,6 +1644,7 @@ function PhotoThumb({
   enhancedPath: string | null;
   isEnhanced: boolean;
   photoState?: "raw" | "enhanced" | "staged" | "colour_adjusted";
+  hasAdjustments?: boolean;
   userId?: string;
   onEnhanced?: () => void;
   onDeleted?: () => void;
@@ -1685,15 +1687,15 @@ function PhotoThumb({
         </div>
       ) : state === "enhanced" ? (
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
-          <span className="rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
-            Enhanced
+          <span className="flex items-center gap-1 rounded-full bg-teal px-2 py-1 text-[10px] font-semibold text-teal-foreground shadow">
+            <Check className="size-3" strokeWidth={3} /> {hasAdjustments ? "Adjusted" : "Enhanced"}
           </span>
           <button
             type="button"
             onClick={() => setClientOpen("adjust")}
             className="rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm hover:bg-black/75"
           >
-            Adjust
+            {hasAdjustments ? "Re-adjust" : "Adjust"}
           </button>
         </div>
       ) : null}
