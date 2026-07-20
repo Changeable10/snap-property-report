@@ -160,7 +160,7 @@ async function persistStagedPhoto(params: {
 
   const { error: photoUpdateErr } = await admin
     .from("listing_photos")
-    .update({ staged_url: stagedPath, staging_style: params.style })
+    .update({ staged_url: stagedPath, staging_style: params.style, photo_state: "staged" })
     .eq("id", params.photoId);
   if (photoUpdateErr) {
     console.error("[stage-listing-photo] Failed to update photo", {
