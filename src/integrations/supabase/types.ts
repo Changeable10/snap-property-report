@@ -287,6 +287,7 @@ export type Database = {
       }
       inspection_photos: {
         Row: {
+          adjustments: Json | null
           ai_classification: Json | null
           captured_at: string
           created_at: string
@@ -294,12 +295,14 @@ export type Database = {
           id: string
           inspection_id: string
           inspection_item_id: string | null
+          photo_state: Database["public"]["Enums"]["photo_state"]
           photo_url: string
           room_id: string
           user_id: string
           voice_transcript: string | null
         }
         Insert: {
+          adjustments?: Json | null
           ai_classification?: Json | null
           captured_at?: string
           created_at?: string
@@ -307,12 +310,14 @@ export type Database = {
           id?: string
           inspection_id: string
           inspection_item_id?: string | null
+          photo_state?: Database["public"]["Enums"]["photo_state"]
           photo_url: string
           room_id: string
           user_id: string
           voice_transcript?: string | null
         }
         Update: {
+          adjustments?: Json | null
           ai_classification?: Json | null
           captured_at?: string
           created_at?: string
@@ -320,6 +325,7 @@ export type Database = {
           id?: string
           inspection_id?: string
           inspection_item_id?: string | null
+          photo_state?: Database["public"]["Enums"]["photo_state"]
           photo_url?: string
           room_id?: string
           user_id?: string
@@ -461,12 +467,14 @@ export type Database = {
       }
       listing_photos: {
         Row: {
+          adjustments: Json | null
           captured_at: string
           enhanced_url: string | null
           featured: boolean
           id: string
           is_hero: boolean
           listing_id: string
+          photo_state: Database["public"]["Enums"]["photo_state"]
           photo_url: string
           quality_reason: string | null
           quality_score: number | null
@@ -478,12 +486,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          adjustments?: Json | null
           captured_at?: string
           enhanced_url?: string | null
           featured?: boolean
           id?: string
           is_hero?: boolean
           listing_id: string
+          photo_state?: Database["public"]["Enums"]["photo_state"]
           photo_url: string
           quality_reason?: string | null
           quality_score?: number | null
@@ -495,12 +505,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          adjustments?: Json | null
           captured_at?: string
           enhanced_url?: string | null
           featured?: boolean
           id?: string
           is_hero?: boolean
           listing_id?: string
+          photo_state?: Database["public"]["Enums"]["photo_state"]
           photo_url?: string
           quality_reason?: string | null
           quality_score?: number | null
@@ -1189,6 +1201,7 @@ export type Database = {
       listing_status: "draft" | "published"
       listing_type: "for_sale" | "for_rent" | "holiday" | "development"
       maintenance_priority: "low" | "medium" | "high"
+      photo_state: "raw" | "enhanced" | "staged" | "colour_adjusted"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1334,6 +1347,7 @@ export const Constants = {
       listing_status: ["draft", "published"],
       listing_type: ["for_sale", "for_rent", "holiday", "development"],
       maintenance_priority: ["low", "medium", "high"],
+      photo_state: ["raw", "enhanced", "staged", "colour_adjusted"],
     },
   },
 } as const
