@@ -118,6 +118,14 @@ function TeamPage() {
   }
 
   const activeCount = members.filter((m) => m.status === "active").length;
+  const usedSeats = members.filter((m) => m.status === "active" || m.status === "invited").length;
+  const seatLimit = TEAM_MEMBER_LIMIT[plan ?? "free"];
+  const atSeatLimit = usedSeats >= seatLimit;
+  const extraCost = plan === "agency" ? "NZ$15" : "NZ$10";
+  const upgradeCopy =
+    plan === "portfolio"
+      ? `Your Portfolio plan includes up to ${seatLimit} team members. You currently have ${usedSeats}. Upgrade to Agency for up to 10 team members, or add extra members for NZ$10/month each.`
+      : `Your Agency plan includes up to ${seatLimit} team members. Add extra members for NZ$15/month each.`;
 
   async function handleInvite() {
     if (!inviteEmail.trim()) return;
