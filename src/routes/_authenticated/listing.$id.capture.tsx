@@ -234,7 +234,7 @@ function ListingCapture() {
         .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
       if (upErr) throw upErr;
       const { error: dbErr } = await supabase.from("listing_photos")
-        .update({ staged_url: stagedPath, staging_style: styleKey })
+        .update({ staged_url: stagedPath, staging_style: styleKey, photo_state: "staged" })
         .eq("id", p.id);
       if (dbErr) {
         console.error("[virtual-staging] Failed to update photo", {
