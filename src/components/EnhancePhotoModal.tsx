@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -57,6 +58,7 @@ export function EnhancePhotoModal({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
+  const [fullscreen, setFullscreen] = useState<"original" | "enhanced" | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -123,9 +125,13 @@ export function EnhancePhotoModal({
     onClose();
   }
 
+  const fullscreenUrl = fullscreen === "original" ? origUrl : fullscreen === "enhanced" ? enhUrl : null;
+  const fullscreenLabel = fullscreen === "original" ? "Original" : "Enhanced";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-background shadow-xl">
+    <>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
+      <div className="relative w-full max-w-2xl max-h-[95dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-background shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-teal" />
@@ -159,8 +165,8 @@ export function EnhancePhotoModal({
           </div>
         ) : (
           <>
-        <div className="grid grid-cols-2 gap-px bg-border">
-          <div className="relative aspect-square overflow-hidden bg-muted">
+        <div className="space-y-px bg-border">
+          <button type="button" onClick={() => origUrl && setFullscreen("original")} className="relative block w-full aspect-[4/3] overflow-hidden bg-muted">
             {origUrl ? (
               <img src={origUrl} alt="Original" className="size-full object-cover" />
             ) : (
@@ -169,8 +175,9 @@ export function EnhancePhotoModal({
             <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
               Original
             </span>
-          </div>
-          <div className="relative aspect-square overflow-hidden bg-muted">
+            {origUrl && <span className="absolute right-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">Tap to enlarge</span>}
+          </button>
+          <button type="button" onClick={() => enhUrl && setFullscreen("enhanced")} className="relative block w-full aspect-[4/3] overflow-hidden bg-muted">
             {enhUrl ? (
               <img src={enhUrl} alt="Enhanced" className="size-full object-cover" />
             ) : (
@@ -190,7 +197,8 @@ export function EnhancePhotoModal({
             <span className="absolute left-2 top-2 rounded bg-teal px-2 py-0.5 text-[10px] font-semibold text-teal-foreground">
               Enhanced
             </span>
-          </div>
+            {enhUrl && <span className="absolute right-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">Tap to enlarge</span>}
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-2 p-3">
@@ -198,7 +206,7 @@ export function EnhancePhotoModal({
             type="button"
             disabled={discarding}
             onClick={keepOriginal}
-            className="flex min-h-11 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-foreground disabled:opacity-60"
+            className="flex min-h-12 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-foreground disabled:opacity-60"
           >
             {discarding ? <Loader2 className="size-4 animate-spin" /> : "Keep original"}
           </button>
@@ -206,7 +214,7 @@ export function EnhancePhotoModal({
             type="button"
             disabled={!enhancedPath || running}
             onClick={useEnhanced}
-            className="flex min-h-11 items-center justify-center rounded-lg bg-teal px-3 text-sm font-semibold text-teal-foreground disabled:opacity-60"
+            className="flex min-h-12 items-center justify-center rounded-lg bg-teal px-3 text-sm font-semibold text-teal-foreground disabled:opacity-60"
           >
             Use enhanced
           </button>
@@ -220,6 +228,51 @@ export function EnhancePhotoModal({
         )}
       </div>
     </div>
+    {fullscreen && fullscreenUrl && createPortal(
+      <div className="fixed inset-0 z-[9999] flex flex-col bg-black/95" onClick={() => setFullscreen(null)} role="dialog" aria-modal="true">
+        <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2" onClick={(e) => e.stopPropagation()}>
+          <span className="text-sm font-semibold text-white">{fullscreenLabel}</span>
+          <button type="button" onClick={() => setFullscreen(null)} className="grid size-9 place-items-center rounded-full bg-white/20 text-white" aria-label="Close">
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="flex flex-1 items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+          <img src={fullscreenUrl} className="max-h-[80vh] max-w-full rounded-lg object-contain" alt={fullscreenLabel} />
+        </div>
+        <div className="shrink-0 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setFullscreen(fullscreen === "original" ? "enhanced" : "original")}
+              disabled={fullscreen === "enhanced" ? !origUrl : !enhUrl}
+              className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+            >
+              View {fullscreen === "original" ? "Enhanced" : "Original"}
+            </button>
+            {fullscreen === "enhanced" && enhancedPath ? (
+              <button
+                type="button"
+                onClick={() => { setFullscreen(null); useEnhanced(); }}
+                className="flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl bg-teal text-sm font-semibold text-teal-foreground"
+              >
+                <Sparkles className="size-4" /> Use enhanced
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setFullscreen(null); keepOriginal(); }}
+                disabled={discarding}
+                className="flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl bg-white/20 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Keep original
+              </button>
+            )}
+          </div>
+        </div>
+      </div>,
+      document.body,
+    )}
+    </>
   );
 }
 
