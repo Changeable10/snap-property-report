@@ -853,6 +853,11 @@ function ListingCapture() {
             const SHARP_CUTOFF = 150;
             const dot = f.variance >= 250 ? "bg-emerald-500" : f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
             const label = f.variance >= 250 ? "Sharp" : f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
+            // Build chronological navigation order
+            const timeOrder = extractedFrames.map((_, idx) => idx).sort((a, b) => extractedFrames[a].time - extractedFrames[b].time);
+            const posInTime = timeOrder.indexOf(previewFrameIdx);
+            const prevIdx = posInTime > 0 ? timeOrder[posInTime - 1] : null;
+            const nextIdx = posInTime < timeOrder.length - 1 ? timeOrder[posInTime + 1] : null;
             return (
               <div
                 className="fixed inset-0 z-[9999] flex flex-col bg-black/95"
@@ -866,7 +871,7 @@ function ListingCapture() {
                     {label} — {Math.round(f.time)}s
                   </span>
                   <span className="text-sm text-white/70">
-                    {previewFrameIdx + 1} / {extractedFrames.length}
+                    {posInTime + 1} / {extractedFrames.length}
                   </span>
                   <button
                     type="button"
@@ -888,8 +893,8 @@ function ListingCapture() {
                   <div className="flex gap-3">
                     <button
                       type="button"
-                      onClick={() => setPreviewFrameIdx((p) => p !== null && p > 0 ? p - 1 : p)}
-                      disabled={previewFrameIdx === 0}
+                      onClick={() => prevIdx !== null && setPreviewFrameIdx(prevIdx)}
+                      disabled={prevIdx === null}
                       className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
                     >
                       <ChevronLeft className="size-4" /> Prev
@@ -907,8 +912,8 @@ function ListingCapture() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPreviewFrameIdx((p) => p !== null && p < extractedFrames.length - 1 ? p + 1 : p)}
-                      disabled={previewFrameIdx === extractedFrames.length - 1}
+                      onClick={() => nextIdx !== null && setPreviewFrameIdx(nextIdx)}
+                      disabled={nextIdx === null}
                       className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
                     >
                       Next <ChevronRight className="size-4" />
