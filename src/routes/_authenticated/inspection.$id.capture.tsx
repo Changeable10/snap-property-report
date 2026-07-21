@@ -1267,7 +1267,7 @@ function CapturePage() {
 
         {videoRecording && (
           <div
-            className="fixed inset-0 z-50 flex flex-col bg-black"
+            className="fixed inset-0 z-[9999] flex flex-col bg-black"
             role="dialog"
             aria-label="Video walkthrough recording"
           >
