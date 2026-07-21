@@ -81,18 +81,30 @@ function CapturePage() {
     queryKey: ["previous-inspection", inspection?.property_id, id],
     enabled: !!inspection?.property_id && !!comparisonEnabled,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch recent inspections for this property (completed/signed preferred, but include in_progress too)
+      const { data: candidates, error } = await supabase
         .from("inspections")
-        .select("id, inspection_date, inspection_type, completed_at")
+        .select("id, inspection_date, inspection_type, completed_at, status")
         .eq("property_id", inspection!.property_id)
         .neq("id", id)
-        .in("status", ["completed", "signed"])
+        .in("status", ["completed", "signed", "in_progress"])
         .order("completed_at", { ascending: false, nullsFirst: false })
         .order("inspection_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
       if (error) throw error;
-      return data;
+      if (!candidates?.length) return null;
+      // Prefer completed/signed with photos; fall back to in_progress with photos; then any
+      for (const pref of [["completed", "signed"], ["in_progress"]]) {
+        for (const c of candidates) {
+          if (!pref.includes(c.status)) continue;
+          const { count } = await supabase.from("inspection_photos")
+            .select("id", { count: "exact", head: true })
+            .eq("inspection_id", c.id);
+          if (count && count > 0) return c;
+        }
+      }
+      // No inspection with photos — return the most recent completed/signed one for the banner
+      return candidates.find((c) => c.status === "completed" || c.status === "signed") ?? candidates[0];
     },
   });
 
@@ -2092,7 +2104,7 @@ function PreviousInspectionPanel({
         Previous inspection
       </p>
       {!hasData ? (
-        <p className="text-sm text-muted-foreground">No previous inspection data for this room</p>
+        <p className="text-sm text-muted-foreground">No previous photos for this room — capture to set the baseline</p>
       ) : (
         <>
           {photos.length > 0 && (
