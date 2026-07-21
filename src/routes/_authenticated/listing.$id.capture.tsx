@@ -1280,15 +1280,34 @@ function StagedPhotoCard({
             </button>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={onStage}
-            disabled={disabled}
-            className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {staging ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-            {staging ? "Staging…" : label}
-          </button>
+          <div className="flex gap-1.5">
+            {state === "raw" ? (
+              <button
+                type="button"
+                onClick={() => setAiEnhanceOpen(true)}
+                className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border border-teal px-2 text-[11px] font-semibold text-teal"
+              >
+                <Sparkles className="size-3.5" /> Enhance
+              </button>
+            ) : state === "enhanced" ? (
+              <button
+                type="button"
+                onClick={() => setClientOpen("adjust")}
+                className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border border-teal px-2 text-[11px] font-semibold text-teal"
+              >
+                {hasAdjustments ? "Re-adjust" : "Adjust"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onStage}
+              disabled={disabled}
+              className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {staging ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+              {staging ? "Staging…" : label}
+            </button>
+          </div>
         )}
       </div>
       <EnhancePhotoModal
