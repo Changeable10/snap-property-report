@@ -860,7 +860,7 @@ function ListingCapture() {
                 role="dialog"
                 aria-modal="true"
               >
-                <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
+                <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2" onClick={(e) => e.stopPropagation()}>
                   <span className="flex items-center gap-2 text-sm font-semibold text-white">
                     <span className={`inline-block size-2 rounded-full ${dot}`} />
                     {label} — {Math.round(f.time)}s
@@ -868,6 +868,14 @@ function ListingCapture() {
                   <span className="text-sm text-white/70">
                     {previewFrameIdx + 1} / {extractedFrames.length}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFrameIdx(null)}
+                    className="ml-3 grid size-9 place-items-center rounded-full bg-white/20 text-white"
+                    aria-label="Close preview"
+                  >
+                    ✕
+                  </button>
                 </div>
                 <div className="flex flex-1 items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
                   <img
