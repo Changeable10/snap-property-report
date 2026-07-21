@@ -442,6 +442,7 @@ function ListingCapture() {
   const [videoElapsed, setVideoElapsed] = useState(0);
   const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number; variance: number }>>([]);
   const [selectedFrames, setSelectedFrames] = useState<Set<number>>(new Set());
+  const [previewFrameIdx, setPreviewFrameIdx] = useState<number | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   // Room the video was recorded in — frames must save against this room,
@@ -806,36 +807,111 @@ function ListingCapture() {
                   f.variance >= 250 ? "Sharp" :
                   f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
                 return (
-                  <button
+                  <div
                     key={i}
-                    type="button"
-                    onClick={() => {
-                      const s = new Set(selectedFrames);
-                      if (sel) s.delete(i); else s.add(i);
-                      setSelectedFrames(s);
-                    }}
-                    className={`relative overflow-hidden rounded-lg border-2 ${sel ? "border-teal" : "border-transparent"}`}
+                    className={`relative overflow-hidden rounded-lg border-2 ${sel ? "border-teal" : "border-transparent opacity-60"}`}
                   >
-                    <img src={f.base64} alt={`Frame ${i}`} className="aspect-video w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFrameIdx(i)}
+                      className="w-full"
+                      aria-label={`Preview frame at ${Math.round(f.time)}s`}
+                    >
+                      <img src={f.base64} alt={`Frame ${i}`} className="aspect-video w-full object-cover" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const s = new Set(selectedFrames);
+                        if (sel) s.delete(i); else s.add(i);
+                        setSelectedFrames(s);
+                      }}
+                      className={`absolute right-1 top-1 grid size-6 place-items-center rounded-full text-white shadow ring-2 ring-white ${sel ? "bg-teal" : "bg-black/40"}`}
+                      aria-label={sel ? "Deselect frame" : "Select frame"}
+                    >
+                      {sel ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </button>
                     <span
-                      className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white"
+                      className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white pointer-events-none"
                       title={`Sharpness: ${label} (${Math.round(f.variance)})`}
                     >
                       <span className={`inline-block size-1.5 rounded-full ${dot}`} />
                       {label}
                     </span>
-                    {sel ? (
-                      <div className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-teal text-teal-foreground">
-                        <Check className="size-3" />
-                      </div>
-                    ) : null}
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </section>
           );
         })() : null}
+
+        {previewFrameIdx !== null && extractedFrames[previewFrameIdx] && createPortal(
+          (() => {
+            const f = extractedFrames[previewFrameIdx];
+            const isSelected = selectedFrames.has(previewFrameIdx);
+            const SHARP_CUTOFF = 150;
+            const dot = f.variance >= 250 ? "bg-emerald-500" : f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
+            const label = f.variance >= 250 ? "Sharp" : f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
+            return (
+              <div
+                className="fixed inset-0 z-[9999] flex flex-col bg-black/95"
+                onClick={() => setPreviewFrameIdx(null)}
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <span className={`inline-block size-2 rounded-full ${dot}`} />
+                    {label} — {Math.round(f.time)}s
+                  </span>
+                  <span className="text-sm text-white/70">
+                    {previewFrameIdx + 1} / {extractedFrames.length}
+                  </span>
+                </div>
+                <div className="flex flex-1 items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+                  <img
+                    src={f.base64}
+                    alt={`Frame at ${Math.round(f.time)}s`}
+                    className="max-h-[70vh] max-w-full rounded-lg object-contain"
+                  />
+                </div>
+                <div className="shrink-0 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFrameIdx((p) => p !== null && p > 0 ? p - 1 : p)}
+                      disabled={previewFrameIdx === 0}
+                      className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+                    >
+                      <ChevronLeft className="size-4" /> Prev
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const s = new Set(selectedFrames);
+                        if (s.has(previewFrameIdx!)) s.delete(previewFrameIdx!); else s.add(previewFrameIdx!);
+                        setSelectedFrames(s);
+                      }}
+                      className={`flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl text-sm font-semibold ${isSelected ? "bg-teal text-white" : "bg-white/20 text-white"}`}
+                    >
+                      <Check className="size-4" /> {isSelected ? "Selected" : "Select"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFrameIdx((p) => p !== null && p < extractedFrames.length - 1 ? p + 1 : p)}
+                      disabled={previewFrameIdx === extractedFrames.length - 1}
+                      className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+                    >
+                      Next <ChevronRight className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })(),
+          document.body,
+        )}
 
         {/* Photo thumbs */}
         {roomPhotos.length > 0 ? (
