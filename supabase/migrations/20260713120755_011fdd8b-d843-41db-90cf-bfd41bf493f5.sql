@@ -30,6 +30,10 @@ CREATE POLICY "Users can check own admin flag" ON public.admin_users
   USING (auth.uid() = user_id);
 
 -- 3. Seed Steve as admin (only known user in this project)
-INSERT INTO public.admin_users (user_id)
-VALUES ('e5d6a7de-abca-4892-9d2c-cefc2be5a4fc')
-ON CONFLICT (user_id) DO NOTHING;
+-- Commented out for the new Supabase project migration: this UUID is from the
+-- old project and does not exist in this project's auth.users. Admin will be
+-- seeded separately once Steve has signed up here. (Approved exception to the
+-- "don't modify migration files" rule for this migration-brief.)
+-- INSERT INTO public.admin_users (user_id)
+-- VALUES ('e5d6a7de-abca-4892-9d2c-cefc2be5a4fc')
+-- ON CONFLICT (user_id) DO NOTHING;
