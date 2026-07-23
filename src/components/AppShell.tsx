@@ -6,7 +6,6 @@ import type { User } from "@supabase/supabase-js";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { AdminTestBanner } from "./AdminTestBanner";
-import { FeedbackButton } from "./FeedbackButton";
 import { useServerFn } from "@tanstack/react-start";
 import { claimTeamInvites } from "@/lib/team.functions";
 
@@ -72,7 +71,6 @@ export function AppShell({ user, children }: AppShellProps) {
       </div>
 
       <BottomNav />
-      <FeedbackButton />
     </div>
   );
 }

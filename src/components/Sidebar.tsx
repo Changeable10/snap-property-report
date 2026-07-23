@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PLAN_LABEL, usePlan } from "@/lib/use-plan";
 import { cn } from "@/lib/utils";
 import { useMyTeam } from "@/lib/use-team";
+import { FeedbackButton } from "./FeedbackButton";
 
 interface NavItem {
   to: string;
@@ -75,7 +76,11 @@ function initialsFrom(email: string | undefined, name: string | undefined) {
 }
 
 interface SidebarProps {
-  user: { id: string; email?: string; user_metadata?: { name?: string; full_name?: string } } | null;
+  user: {
+    id: string;
+    email?: string;
+    user_metadata?: { name?: string; full_name?: string };
+  } | null;
   forceShow?: boolean;
 }
 
@@ -95,17 +100,33 @@ export function Sidebar({ user, forceShow = false }: SidebarProps) {
     (user?.email ? user.email.split("@")[0] : "You");
   const initials = initialsFrom(user?.email, displayName);
 
-  const today: NavItem[] = [
-    { to: "/", label: "Today", icon: LayoutDashboard, match: "/" },
-  ];
+  const today: NavItem[] = [{ to: "/", label: "Today", icon: LayoutDashboard, match: "/" }];
   const properties: NavItem[] = [
-    { to: "/", label: "All properties", icon: HomeIcon, match: "/properties", badge: counts.properties },
-    { to: "/inspections", label: "Inspections", icon: ClipboardList, match: "/inspections", badge: counts.inspections },
+    {
+      to: "/",
+      label: "All properties",
+      icon: HomeIcon,
+      match: "/properties",
+      badge: counts.properties,
+    },
+    {
+      to: "/inspections",
+      label: "Inspections",
+      icon: ClipboardList,
+      match: "/inspections",
+      badge: counts.inspections,
+    },
     { to: "/compliance", label: "Compliance", icon: ShieldCheck, match: "/compliance" },
     { to: "/listings", label: "Listings", icon: Tag, match: "/listings" },
   ];
   const records: NavItem[] = [
-    { to: "/maintenance", label: "Maintenance", icon: Wrench, match: "/maintenance", badge: counts.maintenance },
+    {
+      to: "/maintenance",
+      label: "Maintenance",
+      icon: Wrench,
+      match: "/maintenance",
+      badge: counts.maintenance,
+    },
     { to: "/inspections", label: "Reports", icon: FileText, match: "/reports" },
   ];
   const agencyItems: NavItem[] =
@@ -142,6 +163,10 @@ export function Sidebar({ user, forceShow = false }: SidebarProps) {
           <NavSection label="Agency" items={agencyItems} currentPath={currentPath} />
         ) : null}
       </nav>
+
+      <div className="px-3 pb-1">
+        <FeedbackButton />
+      </div>
 
       <div className="border-t border-white/[0.06] p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
@@ -221,9 +246,7 @@ function NavSection({
                   <span
                     className={cn(
                       "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                      active
-                        ? "bg-white/20 text-white"
-                        : "bg-white/[0.08] text-white/70",
+                      active ? "bg-white/20 text-white" : "bg-white/[0.08] text-white/70",
                     )}
                   >
                     {item.badge}

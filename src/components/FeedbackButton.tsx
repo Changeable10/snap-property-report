@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { MessageSquare, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -117,20 +117,23 @@ export function FeedbackButton() {
             : "Give voice feedback"
       }
       className={cn(
-        "fixed bottom-20 right-4 z-40 flex size-14 items-center justify-center rounded-full shadow-lg transition-colors md:bottom-6",
+        "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
         status === "recording"
-          ? "bg-destructive text-destructive-foreground"
-          : "bg-teal text-teal-foreground hover:bg-teal-dark",
+          ? "text-destructive"
+          : "text-[color:var(--color-sidebar-text)] hover:bg-[color:var(--color-sidebar-hover)] hover:text-white",
         status === "processing" && "opacity-70",
       )}
     >
       {status === "processing" ? (
-        <Loader2 className="size-5 animate-spin" />
+        <Loader2 className="size-4 shrink-0 animate-spin" />
       ) : status === "recording" ? (
-        <Square className="size-5" />
+        <Square className="size-4 shrink-0" />
       ) : (
-        <Mic className="size-5" />
+        <MessageSquare className="size-4 shrink-0" />
       )}
+      <span className="flex-1 truncate text-left">
+        {status === "recording" ? "Recording…" : status === "processing" ? "Saving…" : "Feedback"}
+      </span>
     </button>
   );
 }
