@@ -9,41 +9,47 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as InstallRouteImport } from './routes/install'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as InviteTokenRouteImport } from './routes/invite.$token'
-import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
-import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
-import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
-import { Route as AuthenticatedDowngradeRouteImport } from './routes/_authenticated/downgrade'
 import { Route as AuthenticatedComplianceRouteImport } from './routes/_authenticated/compliance'
-import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
-import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
+import { Route as AuthenticatedDowngradeRouteImport } from './routes/_authenticated/downgrade'
+import { Route as AuthenticatedInspectionsRouteImport } from './routes/_authenticated/inspections'
+import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
+import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenticated/maintenance'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
-import { Route as ApiPublicSignatureTokenTokenRouteImport } from './routes/api/public/signature-token.$token'
-import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
-import { Route as ApiPublicInviteTokenTokenRouteImport } from './routes/api/public/invite-token.$token'
-import { Route as AuthenticatedListingIdReviewRouteImport } from './routes/_authenticated/listing.$id.review'
-import { Route as AuthenticatedListingIdCaptureRouteImport } from './routes/_authenticated/listing.$id.capture'
-import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './routes/_authenticated/inspection.setup.$propertyId'
-import { Route as AuthenticatedInspectionIdSignRouteImport } from './routes/_authenticated/inspection.$id.sign'
-import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_authenticated/inspection.$id.review'
-import { Route as AuthenticatedInspectionIdReportRouteImport } from './routes/_authenticated/inspection.$id.report'
-import { Route as AuthenticatedInspectionIdHhReportRouteImport } from './routes/_authenticated/inspection.$id.hh-report'
-import { Route as AuthenticatedInspectionIdHealthyHomesRouteImport } from './routes/_authenticated/inspection.$id.healthy-homes'
-import { Route as AuthenticatedInspectionIdCompareRouteImport } from './routes/_authenticated/inspection.$id.compare'
+import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
+import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
 import { Route as AuthenticatedInspectionIdCaptureRouteImport } from './routes/_authenticated/inspection.$id.capture'
+import { Route as AuthenticatedInspectionIdCompareRouteImport } from './routes/_authenticated/inspection.$id.compare'
+import { Route as AuthenticatedInspectionIdHealthyHomesRouteImport } from './routes/_authenticated/inspection.$id.healthy-homes'
+import { Route as AuthenticatedInspectionIdHhReportRouteImport } from './routes/_authenticated/inspection.$id.hh-report'
+import { Route as AuthenticatedInspectionIdReportRouteImport } from './routes/_authenticated/inspection.$id.report'
+import { Route as AuthenticatedInspectionIdReviewRouteImport } from './routes/_authenticated/inspection.$id.review'
+import { Route as AuthenticatedInspectionIdSignRouteImport } from './routes/_authenticated/inspection.$id.sign'
+import { Route as AuthenticatedInspectionSetupPropertyIdRouteImport } from './routes/_authenticated/inspection.setup.$propertyId'
+import { Route as AuthenticatedListingIdCaptureRouteImport } from './routes/_authenticated/listing.$id.capture'
+import { Route as AuthenticatedListingIdReviewRouteImport } from './routes/_authenticated/listing.$id.review'
+import { Route as ApiPublicInviteTokenTokenRouteImport } from './routes/api/public/invite-token.$token'
+import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicSignatureTokenTokenRouteImport } from './routes/api/public/signature-token.$token'
 
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const InstallRoute = InstallRouteImport.update({
+  id: '/install',
+  path: '/install',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -51,30 +57,14 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
+const AuthenticatedComplianceRoute = AuthenticatedComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedMaintenanceRoute =
-  AuthenticatedMaintenanceRouteImport.update({
-    id: '/maintenance',
-    path: '/maintenance',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedListingsRoute = AuthenticatedListingsRouteImport.update({
-  id: '/listings',
-  path: '/listings',
+const AuthenticatedDowngradeRoute = AuthenticatedDowngradeRouteImport.update({
+  id: '/downgrade',
+  path: '/downgrade',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInspectionsRoute =
@@ -83,20 +73,36 @@ const AuthenticatedInspectionsRoute =
     path: '/inspections',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedDowngradeRoute = AuthenticatedDowngradeRouteImport.update({
-  id: '/downgrade',
-  path: '/downgrade',
+const AuthenticatedListingsRoute = AuthenticatedListingsRouteImport.update({
+  id: '/listings',
+  path: '/listings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedComplianceRoute = AuthenticatedComplianceRouteImport.update({
-  id: '/compliance',
-  path: '/compliance',
+const AuthenticatedMaintenanceRoute =
+  AuthenticatedMaintenanceRouteImport.update({
+    id: '/maintenance',
+    path: '/maintenance',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const SignInspectionIdTokenRoute = SignInspectionIdTokenRouteImport.update({
-  id: '/sign/$inspectionId/$token',
-  path: '/sign/$inspectionId/$token',
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
+  id: '/property/$id',
+  path: '/property/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPropertyNewRoute =
   AuthenticatedPropertyNewRouteImport.update({
@@ -104,75 +110,15 @@ const AuthenticatedPropertyNewRoute =
     path: '/property/new',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
-  id: '/property/$id',
-  path: '/property/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const SignInspectionIdTokenRoute = SignInspectionIdTokenRouteImport.update({
+  id: '/sign/$inspectionId/$token',
+  path: '/sign/$inspectionId/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicSignatureTokenTokenRoute =
-  ApiPublicSignatureTokenTokenRouteImport.update({
-    id: '/api/public/signature-token/$token',
-    path: '/api/public/signature-token/$token',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicPaymentsWebhookRoute =
-  ApiPublicPaymentsWebhookRouteImport.update({
-    id: '/api/public/payments/webhook',
-    path: '/api/public/payments/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicInviteTokenTokenRoute =
-  ApiPublicInviteTokenTokenRouteImport.update({
-    id: '/api/public/invite-token/$token',
-    path: '/api/public/invite-token/$token',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const AuthenticatedListingIdReviewRoute =
-  AuthenticatedListingIdReviewRouteImport.update({
-    id: '/listing/$id/review',
-    path: '/listing/$id/review',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedListingIdCaptureRoute =
-  AuthenticatedListingIdCaptureRouteImport.update({
-    id: '/listing/$id/capture',
-    path: '/listing/$id/capture',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionSetupPropertyIdRoute =
-  AuthenticatedInspectionSetupPropertyIdRouteImport.update({
-    id: '/inspection/setup/$propertyId',
-    path: '/inspection/setup/$propertyId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionIdSignRoute =
-  AuthenticatedInspectionIdSignRouteImport.update({
-    id: '/inspection/$id/sign',
-    path: '/inspection/$id/sign',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionIdReviewRoute =
-  AuthenticatedInspectionIdReviewRouteImport.update({
-    id: '/inspection/$id/review',
-    path: '/inspection/$id/review',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionIdReportRoute =
-  AuthenticatedInspectionIdReportRouteImport.update({
-    id: '/inspection/$id/report',
-    path: '/inspection/$id/report',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionIdHhReportRoute =
-  AuthenticatedInspectionIdHhReportRouteImport.update({
-    id: '/inspection/$id/hh-report',
-    path: '/inspection/$id/hh-report',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedInspectionIdHealthyHomesRoute =
-  AuthenticatedInspectionIdHealthyHomesRouteImport.update({
-    id: '/inspection/$id/healthy-homes',
-    path: '/inspection/$id/healthy-homes',
+const AuthenticatedInspectionIdCaptureRoute =
+  AuthenticatedInspectionIdCaptureRouteImport.update({
+    id: '/inspection/$id/capture',
+    path: '/inspection/$id/capture',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedInspectionIdCompareRoute =
@@ -181,16 +127,77 @@ const AuthenticatedInspectionIdCompareRoute =
     path: '/inspection/$id/compare',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedInspectionIdCaptureRoute =
-  AuthenticatedInspectionIdCaptureRouteImport.update({
-    id: '/inspection/$id/capture',
-    path: '/inspection/$id/capture',
+const AuthenticatedInspectionIdHealthyHomesRoute =
+  AuthenticatedInspectionIdHealthyHomesRouteImport.update({
+    id: '/inspection/$id/healthy-homes',
+    path: '/inspection/$id/healthy-homes',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInspectionIdHhReportRoute =
+  AuthenticatedInspectionIdHhReportRouteImport.update({
+    id: '/inspection/$id/hh-report',
+    path: '/inspection/$id/hh-report',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInspectionIdReportRoute =
+  AuthenticatedInspectionIdReportRouteImport.update({
+    id: '/inspection/$id/report',
+    path: '/inspection/$id/report',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInspectionIdReviewRoute =
+  AuthenticatedInspectionIdReviewRouteImport.update({
+    id: '/inspection/$id/review',
+    path: '/inspection/$id/review',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInspectionIdSignRoute =
+  AuthenticatedInspectionIdSignRouteImport.update({
+    id: '/inspection/$id/sign',
+    path: '/inspection/$id/sign',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedInspectionSetupPropertyIdRoute =
+  AuthenticatedInspectionSetupPropertyIdRouteImport.update({
+    id: '/inspection/setup/$propertyId',
+    path: '/inspection/setup/$propertyId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedListingIdCaptureRoute =
+  AuthenticatedListingIdCaptureRouteImport.update({
+    id: '/listing/$id/capture',
+    path: '/listing/$id/capture',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedListingIdReviewRoute =
+  AuthenticatedListingIdReviewRouteImport.update({
+    id: '/listing/$id/review',
+    path: '/listing/$id/review',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiPublicInviteTokenTokenRoute =
+  ApiPublicInviteTokenTokenRouteImport.update({
+    id: '/api/public/invite-token/$token',
+    path: '/api/public/invite-token/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicPaymentsWebhookRoute =
+  ApiPublicPaymentsWebhookRouteImport.update({
+    id: '/api/public/payments/webhook',
+    path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicSignatureTokenTokenRoute =
+  ApiPublicSignatureTokenTokenRouteImport.update({
+    id: '/api/public/signature-token/$token',
+    path: '/api/public/signature-token/$token',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/install': typeof InstallRoute
   '/compliance': typeof AuthenticatedComplianceRoute
   '/downgrade': typeof AuthenticatedDowngradeRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/install': typeof InstallRoute
   '/compliance': typeof AuthenticatedComplianceRoute
   '/downgrade': typeof AuthenticatedDowngradeRoute
   '/inspections': typeof AuthenticatedInspectionsRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/install': typeof InstallRoute
   '/_authenticated/compliance': typeof AuthenticatedComplianceRoute
   '/_authenticated/downgrade': typeof AuthenticatedDowngradeRoute
   '/_authenticated/inspections': typeof AuthenticatedInspectionsRoute
@@ -279,6 +288,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/install'
     | '/compliance'
     | '/downgrade'
     | '/inspections'
@@ -306,6 +316,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/install'
     | '/compliance'
     | '/downgrade'
     | '/inspections'
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/install'
     | '/_authenticated/compliance'
     | '/_authenticated/downgrade'
     | '/_authenticated/inspections'
@@ -365,6 +377,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  InstallRoute: typeof InstallRoute
   InviteTokenRoute: typeof InviteTokenRoute
   SignInspectionIdTokenRoute: typeof SignInspectionIdTokenRoute
   ApiPublicInviteTokenTokenRoute: typeof ApiPublicInviteTokenTokenRoute
@@ -374,6 +387,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -381,11 +401,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+    '/install': {
+      id: '/install'
+      path: '/install'
+      fullPath: '/install'
+      preLoaderRoute: typeof InstallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -395,46 +415,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/team': {
-      id: '/_authenticated/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AuthenticatedTeamRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/maintenance': {
-      id: '/_authenticated/maintenance'
-      path: '/maintenance'
-      fullPath: '/maintenance'
-      preLoaderRoute: typeof AuthenticatedMaintenanceRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/listings': {
-      id: '/_authenticated/listings'
-      path: '/listings'
-      fullPath: '/listings'
-      preLoaderRoute: typeof AuthenticatedListingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspections': {
-      id: '/_authenticated/inspections'
-      path: '/inspections'
-      fullPath: '/inspections'
-      preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
+    '/_authenticated/compliance': {
+      id: '/_authenticated/compliance'
+      path: '/compliance'
+      fullPath: '/compliance'
+      preLoaderRoute: typeof AuthenticatedComplianceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/downgrade': {
@@ -444,11 +429,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDowngradeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/compliance': {
-      id: '/_authenticated/compliance'
-      path: '/compliance'
-      fullPath: '/compliance'
-      preLoaderRoute: typeof AuthenticatedComplianceRouteImport
+    '/_authenticated/inspections': {
+      id: '/_authenticated/inspections'
+      path: '/inspections'
+      fullPath: '/inspections'
+      preLoaderRoute: typeof AuthenticatedInspectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/listings': {
+      id: '/_authenticated/listings'
+      path: '/listings'
+      fullPath: '/listings'
+      preLoaderRoute: typeof AuthenticatedListingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/maintenance': {
+      id: '/_authenticated/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof AuthenticatedMaintenanceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/property/$id': {
+      id: '/_authenticated/property/$id'
+      path: '/property/$id'
+      fullPath: '/property/$id'
+      preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/property/new': {
+      id: '/_authenticated/property/new'
+      path: '/property/new'
+      fullPath: '/property/new'
+      preLoaderRoute: typeof AuthenticatedPropertyNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/sign/$inspectionId/$token': {
@@ -458,95 +492,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInspectionIdTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/property/new': {
-      id: '/_authenticated/property/new'
-      path: '/property/new'
-      fullPath: '/property/new'
-      preLoaderRoute: typeof AuthenticatedPropertyNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/property/$id': {
-      id: '/_authenticated/property/$id'
-      path: '/property/$id'
-      fullPath: '/property/$id'
-      preLoaderRoute: typeof AuthenticatedPropertyIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/api/public/signature-token/$token': {
-      id: '/api/public/signature-token/$token'
-      path: '/api/public/signature-token/$token'
-      fullPath: '/api/public/signature-token/$token'
-      preLoaderRoute: typeof ApiPublicSignatureTokenTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/payments/webhook': {
-      id: '/api/public/payments/webhook'
-      path: '/api/public/payments/webhook'
-      fullPath: '/api/public/payments/webhook'
-      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/invite-token/$token': {
-      id: '/api/public/invite-token/$token'
-      path: '/api/public/invite-token/$token'
-      fullPath: '/api/public/invite-token/$token'
-      preLoaderRoute: typeof ApiPublicInviteTokenTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/listing/$id/review': {
-      id: '/_authenticated/listing/$id/review'
-      path: '/listing/$id/review'
-      fullPath: '/listing/$id/review'
-      preLoaderRoute: typeof AuthenticatedListingIdReviewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/listing/$id/capture': {
-      id: '/_authenticated/listing/$id/capture'
-      path: '/listing/$id/capture'
-      fullPath: '/listing/$id/capture'
-      preLoaderRoute: typeof AuthenticatedListingIdCaptureRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/setup/$propertyId': {
-      id: '/_authenticated/inspection/setup/$propertyId'
-      path: '/inspection/setup/$propertyId'
-      fullPath: '/inspection/setup/$propertyId'
-      preLoaderRoute: typeof AuthenticatedInspectionSetupPropertyIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/$id/sign': {
-      id: '/_authenticated/inspection/$id/sign'
-      path: '/inspection/$id/sign'
-      fullPath: '/inspection/$id/sign'
-      preLoaderRoute: typeof AuthenticatedInspectionIdSignRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/$id/review': {
-      id: '/_authenticated/inspection/$id/review'
-      path: '/inspection/$id/review'
-      fullPath: '/inspection/$id/review'
-      preLoaderRoute: typeof AuthenticatedInspectionIdReviewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/$id/report': {
-      id: '/_authenticated/inspection/$id/report'
-      path: '/inspection/$id/report'
-      fullPath: '/inspection/$id/report'
-      preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/$id/hh-report': {
-      id: '/_authenticated/inspection/$id/hh-report'
-      path: '/inspection/$id/hh-report'
-      fullPath: '/inspection/$id/hh-report'
-      preLoaderRoute: typeof AuthenticatedInspectionIdHhReportRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/inspection/$id/healthy-homes': {
-      id: '/_authenticated/inspection/$id/healthy-homes'
-      path: '/inspection/$id/healthy-homes'
-      fullPath: '/inspection/$id/healthy-homes'
-      preLoaderRoute: typeof AuthenticatedInspectionIdHealthyHomesRouteImport
+    '/_authenticated/inspection/$id/capture': {
+      id: '/_authenticated/inspection/$id/capture'
+      path: '/inspection/$id/capture'
+      fullPath: '/inspection/$id/capture'
+      preLoaderRoute: typeof AuthenticatedInspectionIdCaptureRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inspection/$id/compare': {
@@ -556,12 +506,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInspectionIdCompareRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/inspection/$id/capture': {
-      id: '/_authenticated/inspection/$id/capture'
-      path: '/inspection/$id/capture'
-      fullPath: '/inspection/$id/capture'
-      preLoaderRoute: typeof AuthenticatedInspectionIdCaptureRouteImport
+    '/_authenticated/inspection/$id/healthy-homes': {
+      id: '/_authenticated/inspection/$id/healthy-homes'
+      path: '/inspection/$id/healthy-homes'
+      fullPath: '/inspection/$id/healthy-homes'
+      preLoaderRoute: typeof AuthenticatedInspectionIdHealthyHomesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/hh-report': {
+      id: '/_authenticated/inspection/$id/hh-report'
+      path: '/inspection/$id/hh-report'
+      fullPath: '/inspection/$id/hh-report'
+      preLoaderRoute: typeof AuthenticatedInspectionIdHhReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/report': {
+      id: '/_authenticated/inspection/$id/report'
+      path: '/inspection/$id/report'
+      fullPath: '/inspection/$id/report'
+      preLoaderRoute: typeof AuthenticatedInspectionIdReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/review': {
+      id: '/_authenticated/inspection/$id/review'
+      path: '/inspection/$id/review'
+      fullPath: '/inspection/$id/review'
+      preLoaderRoute: typeof AuthenticatedInspectionIdReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/$id/sign': {
+      id: '/_authenticated/inspection/$id/sign'
+      path: '/inspection/$id/sign'
+      fullPath: '/inspection/$id/sign'
+      preLoaderRoute: typeof AuthenticatedInspectionIdSignRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inspection/setup/$propertyId': {
+      id: '/_authenticated/inspection/setup/$propertyId'
+      path: '/inspection/setup/$propertyId'
+      fullPath: '/inspection/setup/$propertyId'
+      preLoaderRoute: typeof AuthenticatedInspectionSetupPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/listing/$id/capture': {
+      id: '/_authenticated/listing/$id/capture'
+      path: '/listing/$id/capture'
+      fullPath: '/listing/$id/capture'
+      preLoaderRoute: typeof AuthenticatedListingIdCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/listing/$id/review': {
+      id: '/_authenticated/listing/$id/review'
+      path: '/listing/$id/review'
+      fullPath: '/listing/$id/review'
+      preLoaderRoute: typeof AuthenticatedListingIdReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/invite-token/$token': {
+      id: '/api/public/invite-token/$token'
+      path: '/api/public/invite-token/$token'
+      fullPath: '/api/public/invite-token/$token'
+      preLoaderRoute: typeof ApiPublicInviteTokenTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/payments/webhook': {
+      id: '/api/public/payments/webhook'
+      path: '/api/public/payments/webhook'
+      fullPath: '/api/public/payments/webhook'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/signature-token/$token': {
+      id: '/api/public/signature-token/$token'
+      path: '/api/public/signature-token/$token'
+      fullPath: '/api/public/signature-token/$token'
+      preLoaderRoute: typeof ApiPublicSignatureTokenTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -621,6 +641,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  InstallRoute: InstallRoute,
   InviteTokenRoute: InviteTokenRoute,
   SignInspectionIdTokenRoute: SignInspectionIdTokenRoute,
   ApiPublicInviteTokenTokenRoute: ApiPublicInviteTokenTokenRoute,
@@ -630,3 +651,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
