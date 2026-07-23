@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Share, SquarePlus, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 
 export const Route = createFileRoute("/install")({
   ssr: false,
@@ -66,7 +65,7 @@ function InstallPage() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-background px-5 py-12">
       <div className="w-full max-w-sm text-center">
-        <img src={logoUrl.url} alt="Snapsure" className="mx-auto h-10 w-auto" />
+        <img src="/snapsure-logo.png" alt="Snapsure" className="mx-auto h-10 w-auto" />
         <h1 className="mt-6 text-2xl font-bold tracking-tight text-foreground">Install Snapsure</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Add Snapsure to your home screen for one-tap access to your inspections.

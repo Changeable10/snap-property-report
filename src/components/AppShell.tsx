@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { AdminTestBanner } from "./AdminTestBanner";
@@ -37,7 +36,7 @@ export function AppShell({ user, children }: AppShellProps) {
         style={{ background: "var(--color-sidebar-bg)" }}
       >
         <Link to="/" className="flex items-center">
-          <img src={logoUrl.url} alt="Snapsure" className="h-6 w-auto" />
+          <img src="/snapsure-logo.png" alt="Snapsure" className="h-6 w-auto" />
         </Link>
         <button
           type="button"

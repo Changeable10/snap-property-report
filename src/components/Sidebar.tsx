@@ -10,7 +10,6 @@ import {
   Settings as SettingsIcon,
   Users,
 } from "lucide-react";
-import logoUrl from "@/assets/snapsure-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LABEL, usePlan } from "@/lib/use-plan";
@@ -126,7 +125,7 @@ export function Sidebar({ user, forceShow = false }: SidebarProps) {
       <div className="flex h-16 items-center px-5">
         <Link to="/" className="flex items-center">
           <img
-            src={logoUrl.url}
+            src="/snapsure-logo.png"
             alt="Snapsure"
             width={640}
             height={213}
