@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { AdminTestBanner } from "./AdminTestBanner";
+import { FeedbackButton } from "./FeedbackButton";
 import { useServerFn } from "@tanstack/react-start";
 import { claimTeamInvites } from "@/lib/team.functions";
 
@@ -57,10 +58,7 @@ export function AppShell({ user, children }: AppShellProps) {
             onClick={() => setDrawerOpen(false)}
             aria-label="Close menu"
           />
-          <div
-            className="absolute inset-y-0 left-0 w-[260px]"
-            onClick={() => setDrawerOpen(false)}
-          >
+          <div className="absolute inset-y-0 left-0 w-[260px]" onClick={() => setDrawerOpen(false)}>
             <Sidebar user={user as never} forceShow />
           </div>
         </div>
@@ -74,6 +72,7 @@ export function AppShell({ user, children }: AppShellProps) {
       </div>
 
       <BottomNav />
+      <FeedbackButton />
     </div>
   );
 }

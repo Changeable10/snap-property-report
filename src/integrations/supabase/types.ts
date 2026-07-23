@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_users: {
@@ -1128,6 +1153,42 @@ export type Database = {
         }
         Relationships: []
       }
+      tester_feedback: {
+        Row: {
+          created_at: string | null
+          feedback_type: string | null
+          id: string
+          page_url: string | null
+          raw_transcript: string | null
+          severity: string | null
+          structured_summary: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          page_url?: string | null
+          raw_transcript?: string | null
+          severity?: string | null
+          structured_summary?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          page_url?: string | null
+          raw_transcript?: string | null
+          severity?: string | null
+          structured_summary?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       usage_tracking: {
         Row: {
           count: number
@@ -1310,6 +1371,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       comparison_change_type: [

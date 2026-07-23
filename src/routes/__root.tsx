@@ -13,6 +13,12 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { Toaster } from "@/components/ui/sonner";
+import { initSentry, Sentry } from "@/lib/sentry";
+
+// As early as possible in the client bundle — this app has no entry-client.tsx
+// (TanStack Start hydrates without one), so __root.tsx module scope is the
+// earliest hook available.
+initSentry();
 
 function NotFoundComponent() {
   return (
@@ -95,9 +101,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Snapsure — AI Property Inspections for NZ Rentals" },
-      { name: "twitter:description", content: "Capture rental property condition with photos and voice. Snapsure turns it into a compliant NZ tenancy inspection report — no forms." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Capture rental property condition with photos and voice. Snapsure turns it into a compliant NZ tenancy inspection report — no forms.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4bf0485f-15b3-4dba-a604-cfbafcd32aaa/id-preview-c6e6872e--391e39ea-ee9a-4dff-a6b5-217f498adde0.lovable.app-1783570328580.png",
+      },
     ],
     links: [
       {
@@ -139,15 +157,40 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RootErrorFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          Something went wrong
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We've been notified. Try refreshing the page.
+        </p>
+        <div className="mt-6">
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Go home
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <PaymentTestModeBanner />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster />
-    </QueryClientProvider>
+    <Sentry.ErrorBoundary fallback={<RootErrorFallback />}>
+      <QueryClientProvider client={queryClient}>
+        <PaymentTestModeBanner />
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster />
+      </QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }

@@ -21,6 +21,7 @@ import { Route as AuthenticatedMaintenanceRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin.feedback'
 import { Route as AuthenticatedPropertyIdRouteImport } from './routes/_authenticated/property.$id'
 import { Route as AuthenticatedPropertyNewRouteImport } from './routes/_authenticated/property.new'
 import { Route as SignInspectionIdTokenRouteImport } from './routes/sign.$inspectionId.$token'
@@ -99,6 +100,12 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/admin/feedback',
+    path: '/admin/feedback',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPropertyIdRoute = AuthenticatedPropertyIdRouteImport.update({
   id: '/property/$id',
   path: '/property/$id',
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/team': typeof AuthenticatedTeamRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
@@ -235,6 +243,7 @@ export interface FileRoutesByTo {
   '/team': typeof AuthenticatedTeamRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/property/$id': typeof AuthenticatedPropertyIdRoute
   '/property/new': typeof AuthenticatedPropertyNewRoute
   '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
@@ -266,6 +275,7 @@ export interface FileRoutesById {
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/property/$id': typeof AuthenticatedPropertyIdRoute
   '/_authenticated/property/new': typeof AuthenticatedPropertyNewRoute
   '/sign/$inspectionId/$token': typeof SignInspectionIdTokenRoute
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/team'
     | '/invite/$token'
+    | '/admin/feedback'
     | '/property/$id'
     | '/property/new'
     | '/sign/$inspectionId/$token'
@@ -326,6 +337,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/invite/$token'
     | '/'
+    | '/admin/feedback'
     | '/property/$id'
     | '/property/new'
     | '/sign/$inspectionId/$token'
@@ -356,6 +368,7 @@ export interface FileRouteTypes {
     | '/_authenticated/team'
     | '/invite/$token'
     | '/_authenticated/'
+    | '/_authenticated/admin/feedback'
     | '/_authenticated/property/$id'
     | '/_authenticated/property/new'
     | '/sign/$inspectionId/$token'
@@ -470,6 +483,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/admin/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/property/$id': {
       id: '/_authenticated/property/$id'
@@ -595,6 +615,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedPropertyIdRoute: typeof AuthenticatedPropertyIdRoute
   AuthenticatedPropertyNewRoute: typeof AuthenticatedPropertyNewRoute
   AuthenticatedInspectionIdCaptureRoute: typeof AuthenticatedInspectionIdCaptureRoute
@@ -618,6 +639,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedPropertyIdRoute: AuthenticatedPropertyIdRoute,
   AuthenticatedPropertyNewRoute: AuthenticatedPropertyNewRoute,
   AuthenticatedInspectionIdCaptureRoute: AuthenticatedInspectionIdCaptureRoute,
