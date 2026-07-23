@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
+import { UserTypeCapture, getUserType } from "@/components/UserTypeCapture";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -19,6 +21,12 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthedLayout() {
   const { user } = Route.useRouteContext();
+  const [userType, setUserType] = useState(() => getUserType(user));
+
+  if (!userType) {
+    return <UserTypeCapture onDone={setUserType} />;
+  }
+
   return (
     <AppShell user={user}>
       <Outlet />
