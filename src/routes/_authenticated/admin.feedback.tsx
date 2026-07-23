@@ -47,7 +47,12 @@ function AdminFeedbackPage() {
   const { user } = Route.useRouteContext();
   const { data: isAdmin, isLoading: adminLoading } = useIsAdmin(user.id);
   const fn = useServerFn(getAllFeedback);
-  const { data: feedback, isLoading } = useQuery({
+  const {
+    data: feedback,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["admin-feedback"],
     queryFn: () => fn(),
     enabled: !!isAdmin,
@@ -64,6 +69,10 @@ function AdminFeedbackPage() {
     >
       {isLoading || adminLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : isError ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center text-sm text-destructive">
+          Couldn't load feedback: {error instanceof Error ? error.message : "Unknown error"}
+        </div>
       ) : !feedback || feedback.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           No feedback yet.
