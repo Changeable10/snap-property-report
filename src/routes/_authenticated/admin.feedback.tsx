@@ -1,6 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { PageShell } from "@/components/PageShell";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,11 +11,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useIsAdmin } from "@/lib/use-plan";
-import { getAllFeedback } from "@/lib/admin-feedback.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/feedback")({
   component: AdminFeedbackPage,
 });
+
+interface FeedbackRow {
+  id: string;
+  user_id: string | null;
+  feedback_type: string | null;
+  severity: string | null;
+  raw_transcript: string | null;
+  structured_summary: string | null;
+  created_at: string | null;
+}
 
 const TYPE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   bug: "destructive",
@@ -46,7 +55,6 @@ function formatDateTime(iso: string | null) {
 function AdminFeedbackPage() {
   const { user } = Route.useRouteContext();
   const { data: isAdmin, isLoading: adminLoading } = useIsAdmin(user.id);
-  const fn = useServerFn(getAllFeedback);
   const {
     data: feedback,
     isLoading,
@@ -54,7 +62,14 @@ function AdminFeedbackPage() {
     error,
   } = useQuery({
     queryKey: ["admin-feedback"],
-    queryFn: () => fn(),
+    queryFn: async (): Promise<FeedbackRow[]> => {
+      const { data, error } = await supabase
+        .from("tester_feedback")
+        .select("id,user_id,feedback_type,severity,raw_transcript,structured_summary,created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
     enabled: !!isAdmin,
   });
 
@@ -83,7 +98,7 @@ function AdminFeedbackPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                <TableHead>User</TableHead>
+                <TableHead>User ID</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Severity</TableHead>
                 <TableHead>Summary</TableHead>
@@ -96,7 +111,9 @@ function AdminFeedbackPage() {
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {formatDateTime(row.created_at)}
                   </TableCell>
-                  <TableCell className="text-sm">{row.user_email ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {row.user_id ?? "—"}
+                  </TableCell>
                   <TableCell>
                     {row.feedback_type ? (
                       <Badge variant={TYPE_VARIANT[row.feedback_type] ?? "outline"}>
