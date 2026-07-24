@@ -1,12 +1,17 @@
-import logoAsset from "@/assets/snapsure-logo.png.asset.json";
-
 let cached: { dataUrl: string; w: number; h: number } | null | undefined;
 
-export async function loadSnapsureLogo(): Promise<{ dataUrl: string; w: number; h: number } | null> {
+export async function loadSnapsureLogo(): Promise<{
+  dataUrl: string;
+  w: number;
+  h: number;
+} | null> {
   if (cached !== undefined) return cached;
   try {
-    const res = await fetch(logoAsset.url);
-    if (!res.ok) { cached = null; return null; }
+    const res = await fetch("/snapsure-logo.png");
+    if (!res.ok) {
+      cached = null;
+      return null;
+    }
     const blob = await res.blob();
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const fr = new FileReader();
