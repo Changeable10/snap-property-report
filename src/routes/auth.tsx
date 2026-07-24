@@ -40,6 +40,7 @@ function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup" | "magiclink">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -115,9 +116,13 @@ function AuthPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
     setMessage(null);
+    if (mode === "signup" && password !== confirmPassword) {
+      setError("Passwords don't match");
+      return;
+    }
+    setLoading(true);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
@@ -259,6 +264,20 @@ function AuthPage() {
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 />
               </label>
+              {mode === "signup" ? (
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Confirm password
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="min-h-11 rounded-xl border border-input bg-card px-3 text-base"
+                    autoComplete="new-password"
+                  />
+                </label>
+              ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
               {message ? <p className="text-sm text-teal-dark">{message}</p> : null}
               <button
@@ -274,6 +293,7 @@ function AuthPage() {
                 type="button"
                 onClick={() => {
                   setMode("magiclink");
+                  setConfirmPassword("");
                   setError(null);
                   setMessage(null);
                 }}
@@ -286,6 +306,7 @@ function AuthPage() {
               type="button"
               onClick={() => {
                 setMode(mode === "signin" ? "signup" : "signin");
+                setConfirmPassword("");
                 setError(null);
                 setMessage(null);
               }}
