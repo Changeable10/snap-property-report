@@ -3,6 +3,8 @@ import { MessageSquare, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { displayNameFromUser } from "@/lib/display-name";
+import { feedbackAckEmailHtml } from "@/lib/email-templates";
 
 type Status = "idle" | "recording" | "processing";
 
@@ -67,8 +69,8 @@ export function FeedbackButton() {
     }
     try {
       const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error("Not signed in");
+      const user = userData.user;
+      if (!user) throw new Error("Not signed in");
 
       const { data, error } = await supabase.functions.invoke("classify-feedback", {
         body: { transcript },
@@ -81,7 +83,7 @@ export function FeedbackButton() {
       };
 
       const { error: insertError } = await supabase.from("tester_feedback").insert({
-        user_id: userId,
+        user_id: user.id,
         feedback_type: classification.feedback_type,
         severity: classification.severity,
         raw_transcript: transcript,
@@ -90,6 +92,21 @@ export function FeedbackButton() {
         user_agent: navigator.userAgent,
       });
       if (insertError) throw insertError;
+
+      if (user.email) {
+        const name = displayNameFromUser(user) ?? user.email.split("@")[0];
+        supabase.functions
+          .invoke("send-email", {
+            body: {
+              to: user.email,
+              subject: "We got your feedback — thank you",
+              body: feedbackAckEmailHtml({ name, origin: window.location.origin, transcript }),
+            },
+          })
+          .catch(() => {
+            /* best-effort — never block the feedback flow on email delivery */
+          });
+      }
 
       toast.success("Thanks for your feedback!");
     } catch (err) {

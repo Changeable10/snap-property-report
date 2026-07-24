@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Home, Building2, Users, Building, FlaskConical, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { displayNameFromUser } from "@/lib/display-name";
+import { welcomeEmailHtml } from "@/lib/email-templates";
 
 export type UserType =
   "self_managing_landlord" | "portfolio_landlord" | "property_manager" | "agency" | "tester";
@@ -19,7 +21,13 @@ export function getUserType(user: User): UserType | null {
   return USER_TYPES.some((t) => t.value === value) ? (value as UserType) : null;
 }
 
-export function UserTypeCapture({ onDone }: { onDone: (type: UserType) => void }) {
+export function UserTypeCapture({
+  user,
+  onDone,
+}: {
+  user: User;
+  onDone: (type: UserType) => void;
+}) {
   const [saving, setSaving] = useState<UserType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +40,24 @@ export function UserTypeCapture({ onDone }: { onDone: (type: UserType) => void }
       setSaving(null);
       return;
     }
+    sendWelcomeEmail();
     onDone(value);
+  }
+
+  function sendWelcomeEmail() {
+    if (!user.email) return;
+    const name = displayNameFromUser(user) ?? user.email.split("@")[0];
+    supabase.functions
+      .invoke("send-email", {
+        body: {
+          to: user.email,
+          subject: "Welcome to Snapsure — here's how to get started",
+          body: welcomeEmailHtml({ name, origin: window.location.origin }),
+        },
+      })
+      .catch(() => {
+        /* best-effort — never block onboarding on email delivery */
+      });
   }
 
   return (

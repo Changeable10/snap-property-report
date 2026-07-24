@@ -24,7 +24,7 @@ function AuthedLayout() {
   const [userType, setUserType] = useState(() => getUserType(user));
 
   if (!userType) {
-    return <UserTypeCapture onDone={setUserType} />;
+    return <UserTypeCapture user={user} onDone={setUserType} />;
   }
 
   return (
