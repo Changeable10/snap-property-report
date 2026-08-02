@@ -18,6 +18,7 @@ import {
   Package,
 } from "lucide-react";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
+import { DeclutterPhotoModal } from "@/components/DeclutterPhotoModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { renderEnhancedBlob, toFilterString, type EnhanceRecs } from "@/lib/photo-enhance";
@@ -27,7 +28,8 @@ import {
   STAGING_MONTHLY_LIMIT,
   STAGING_STYLES,
 } from "@/lib/use-staging-limit";
-import { resolveRoomType } from "@/lib/decor8-room-type";
+import { resolveRoomType, UnmappedRoomTypeError } from "@/lib/decor8-room-type";
+import { declutterListingPhoto } from "@/lib/declutter-photo";
 import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { exportListingPackage } from "@/lib/listing-export";
@@ -632,8 +634,8 @@ function ListingReview() {
   const stagingRemaining =
     stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
   const [stagingId, setStagingId] = useState<string | null>(null);
-  const [declutterId, setDeclutterId] = useState<string | null>(null);
   const [styleModalFor, setStyleModalFor] = useState<PhotoRow | "bulk" | null>(null);
+  const [declutterModalFor, setDeclutterModalFor] = useState<PhotoRow | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [bulkStaging, setBulkStaging] = useState(false);
   const [bulkStageProgress, setBulkStageProgress] = useState<{ done: number; total: number }>({
@@ -641,7 +643,6 @@ function ListingReview() {
     total: 0,
   });
   const [acceptedStagedIds, setAcceptedStagedIds] = useState<Set<string>>(new Set());
-  const [acceptedDeclutteredIds, setAcceptedDeclutteredIds] = useState<Set<string>>(new Set());
 
   async function removeStagedPhoto(p: PhotoRow) {
     try {
@@ -665,99 +666,13 @@ function ListingReview() {
     }
   }
 
-  async function removeDeclutteredPhoto(p: PhotoRow) {
-    try {
-      if (p.decluttered_url) {
-        await supabase.storage.from("inspection-photos").remove([p.decluttered_url]);
-      }
-      const { error } = await supabase
-        .from("listing_photos")
-        .update({ decluttered_url: null })
-        .eq("id", p.id);
-      if (error) throw error;
-      setAcceptedDeclutteredIds((s) => {
-        const n = new Set(s);
-        n.delete(p.id);
-        return n;
-      });
-      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
-      toast.success("Kept original photo");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to remove cleaned up version");
-    }
-  }
-
-  // Pure action: signs the photo, calls declutter-listing-photo, and returns
-  // the resulting storage path. No toasts / query invalidation here — callers
-  // (the standalone "Clean up" handler, and stagePhoto's auto-chain) each
-  // decide how to surface success/failure since they have different UX needs
-  // (one loading state + one toast for standalone; folded silently into the
-  // single "Stage this room" loading state when chained).
-  async function declutterPhoto(
-    p: PhotoRow,
-  ): Promise<{ ok: boolean; path?: string; error?: string }> {
-    try {
-      const { data: signed } = await supabase.storage
-        .from("inspection-photos")
-        .createSignedUrl(p.photo_url, 3600);
-      const url = signed?.signedUrl;
-      if (!url) throw new Error("Signed URL failed");
-      // Throws UnmappedRoomTypeError (caught below, surfaced as the result's
-      // `error`) rather than silently guessing a room type.
-      const roomType = resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
-      const { data, error } = await supabase.functions.invoke("declutter-listing-photo", {
-        body: {
-          image_url: url,
-          room_type: roomType,
-          listing_id: id,
-          photo_id: p.id,
-          photo_path: p.photo_url,
-        },
-      });
-      if (error) {
-        const { unwrapFunctionsError } = await import("@/lib/email-client");
-        throw new Error(await unwrapFunctionsError(error, "Clean up failed"));
-      }
-      console.log("[declutter] declutter-listing-photo response", data);
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const declutteredPathFromServer = (data as any)?.decluttered_path as string | undefined;
-      if (declutteredPathFromServer) return { ok: true, path: declutteredPathFromServer };
-
-      // Fallback: server-side persistence unavailable — persist client-side,
-      // mirroring stagePhoto's own fallback path below.
-      const declutteredRemote = (data as any).decluttered_url as string;
-      const resp = await fetch(declutteredRemote);
-      if (!resp.ok) throw new Error("Failed to fetch decluttered image");
-      const blob = await resp.blob();
-      const {
-        data: { user: _u },
-      } = await supabase.auth.getUser();
-      const uid = _u?.id ?? authUserId;
-      if (!uid) throw new Error("Sign in required to save decluttered image");
-      const declutteredPath = `${uid}/declutter/${id}/${p.id}-decluttered.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from("inspection-photos")
-        .upload(declutteredPath, blob, { contentType: "image/jpeg", upsert: true });
-      if (upErr) throw upErr;
-      const { error: dbErr } = await supabase
-        .from("listing_photos")
-        .update({ decluttered_url: declutteredPath })
-        .eq("id", p.id);
-      if (dbErr) throw new Error("Failed to update photo");
-      // Shared bucket with staging — see the comment on stagingRemaining above.
-      const { error: usageErr } = await supabase.from("staging_usage").insert({
-        user_id: uid,
-        listing_photo_id: p.id,
-        style: null,
-      });
-      if (usageErr) throw new Error("Failed to save staging usage");
-      return { ok: true, path: declutteredPath };
-    } catch (e: any) {
-      return { ok: false, error: e?.message ?? "Clean up failed" };
-    }
-  }
-
-  async function requestDeclutter(p: PhotoRow) {
+  // Gates on plan/credits, resolves the room type up front (so an unmappable
+  // room name fails loudly right away rather than after opening a modal),
+  // then opens the standalone Clean up modal — which runs the actual Decor8
+  // call itself and presents before/after with accept/decline, matching
+  // Enhance's pattern. The chained declutter-then-stage step in stagePhoto
+  // below never opens this modal — it calls declutterListingPhoto directly.
+  function requestDeclutter(p: PhotoRow) {
     if (plan === "free") {
       setShowUpgrade(true);
       return;
@@ -766,18 +681,13 @@ function ListingReview() {
       setShowUpgrade(true);
       return;
     }
-    setDeclutterId(p.id);
-    const result = await declutterPhoto(p);
-    setDeclutterId(null);
-    if (result.ok) {
-      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
-      await refetchStagingUsage();
-      void incrementUsage("staging");
-      await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
-      toast.success("Photo cleaned up");
-    } else {
-      toast.error(result.error ?? "Clean up failed");
+    try {
+      resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
+    } catch (e: any) {
+      toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Clean up failed");
+      return;
     }
+    setDeclutterModalFor(p);
   }
 
   async function stagePhoto(p: PhotoRow, styleKey: string): Promise<boolean> {
@@ -785,12 +695,24 @@ function ListingReview() {
     try {
       let sourcePath = p.decluttered_url ?? p.photo_url;
       if (!p.decluttered_url) {
-        const declutterResult = await declutterPhoto(p);
+        // Chained internal declutter step — no modal, no separate
+        // accept/decline; only the final staged result gets reviewed.
+        const roomType = resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
+        const {
+          data: { user: _u },
+        } = await supabase.auth.getUser();
+        const declutterResult = await declutterListingPhoto({
+          photoId: p.id,
+          photoUrl: p.photo_url,
+          listingId: id,
+          roomType,
+          authUserId: _u?.id ?? authUserId,
+        });
         if (!declutterResult.ok) {
           toast.error(declutterResult.error ?? "Clean up step failed");
           return false;
         }
-        sourcePath = declutterResult.path!;
+        sourcePath = declutterResult.path;
         await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
         await refetchStagingUsage();
         void incrementUsage("staging");
@@ -1122,24 +1044,16 @@ function ListingReview() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {photos.map((p) => {
                   const showCompare = !!p.staged_url && !acceptedStagedIds.has(p.id);
-                  const showDeclutterCompare =
-                    !!p.decluttered_url && !p.staged_url && !acceptedDeclutteredIds.has(p.id);
                   return (
                     <PhotoStagingTile
                       key={p.id}
                       photo={p}
                       staging={stagingId === p.id}
-                      decluttering={declutterId === p.id}
                       showCompare={showCompare}
-                      showDeclutterCompare={showDeclutterCompare}
                       onStage={() => requestStage(p)}
                       onDeclutter={() => requestDeclutter(p)}
                       onUseStaged={() => setAcceptedStagedIds((s) => new Set(s).add(p.id))}
                       onKeepOriginal={() => removeStagedPhoto(p)}
-                      onUseDecluttered={() =>
-                        setAcceptedDeclutteredIds((s) => new Set(s).add(p.id))
-                      }
-                      onKeepOriginalFromDeclutter={() => removeDeclutteredPhoto(p)}
                     />
                   );
                 })}
@@ -1470,7 +1384,6 @@ function ListingReview() {
                   key={p.id}
                   photo={p}
                   staging={stagingId === p.id}
-                  decluttering={declutterId === p.id}
                   onStage={() => requestStage(p)}
                   onDeclutter={() => requestDeclutter(p)}
                 />
@@ -1567,6 +1480,22 @@ function ListingReview() {
           }
         />
       ) : null}
+      <DeclutterPhotoModal
+        open={!!declutterModalFor}
+        onClose={() => setDeclutterModalFor(null)}
+        photoId={declutterModalFor?.id ?? ""}
+        photoUrl={declutterModalFor?.photo_url ?? ""}
+        listingId={id}
+        roomType={
+          declutterModalFor
+            ? resolveRoomType(
+                declutterModalFor.room_id ? roomNameById.get(declutterModalFor.room_id) : undefined,
+              )
+            : ""
+        }
+        onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
+        onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
+      />
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} topUp="staging" />
     </div>
   );
@@ -1633,13 +1562,11 @@ function StyleModal({
 function StagedCard({
   photo,
   staging,
-  decluttering,
   onStage,
   onDeclutter,
 }: {
   photo: PhotoRow;
   staging: boolean;
-  decluttering: boolean;
   onStage: () => void;
   onDeclutter: () => void;
 }) {
@@ -1676,7 +1603,6 @@ function StagedCard({
   }, [photo.staged_url]);
   const hasStaged = !!photo.staged_url;
   const hasDeclutter = !!photo.decluttered_url;
-  const busy = staging || decluttering;
   const displaySrc = hasStaged && showStaged ? stagedUrl : origUrl;
 
   return (
@@ -1688,17 +1614,12 @@ function StagedCard({
             <Loader2 className="size-5 animate-spin" />
             <p className="mt-1 text-[11px] font-medium">Staging in progress…</p>
           </div>
-        ) : decluttering ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-white">
-            <Loader2 className="size-5 animate-spin" />
-            <p className="mt-1 text-[11px] font-medium">Cleaning up…</p>
-          </div>
         ) : null}
-        {hasStaged && !busy ? (
+        {hasStaged && !staging ? (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
             {showStaged ? `Staged · ${photo.staging_style ?? ""}` : "Original"}
           </span>
-        ) : hasDeclutter && !busy ? (
+        ) : hasDeclutter && !staging ? (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
             Cleaned up
           </span>
@@ -1717,7 +1638,7 @@ function StagedCard({
         <button
           type="button"
           onClick={onStage}
-          disabled={busy}
+          disabled={staging}
           className="flex min-h-8 w-full items-center justify-center gap-1 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground disabled:opacity-60"
         >
           {staging ? <Loader2 className="size-3 animate-spin" /> : <Sofa className="size-3" />}
@@ -1727,14 +1648,10 @@ function StagedCard({
           <button
             type="button"
             onClick={onDeclutter}
-            disabled={busy}
+            disabled={staging}
             className="flex min-h-8 w-full items-center justify-center gap-1 rounded-md border border-border px-2 text-[11px] font-semibold text-foreground disabled:opacity-60"
           >
-            {decluttering ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Eraser className="size-3" />
-            )}
+            <Eraser className="size-3" />
             {hasDeclutter ? "Clean up again" : "Clean up"}
           </button>
         ) : null}
@@ -1919,27 +1836,19 @@ function ScoredCard({
 function PhotoStagingTile({
   photo,
   staging,
-  decluttering,
   showCompare,
-  showDeclutterCompare,
   onStage,
   onDeclutter,
   onUseStaged,
   onKeepOriginal,
-  onUseDecluttered,
-  onKeepOriginalFromDeclutter,
 }: {
   photo: PhotoRow;
   staging: boolean;
-  decluttering: boolean;
   showCompare: boolean;
-  showDeclutterCompare: boolean;
   onStage: () => void;
   onDeclutter: () => void;
   onUseStaged: () => void;
   onKeepOriginal: () => void;
-  onUseDecluttered: () => void;
-  onKeepOriginalFromDeclutter: () => void;
 }) {
   const [origUrl, setOrigUrl] = useState<string | undefined>();
   const [stagedUrl, setStagedUrl] = useState<string | undefined>();
@@ -1993,7 +1902,6 @@ function PhotoStagingTile({
 
   const hasStaged = !!photo.staged_url;
   const hasDeclutter = !!photo.decluttered_url;
-  const busy = staging || decluttering;
 
   if (hasStaged && showCompare) {
     return (
@@ -2036,47 +1944,6 @@ function PhotoStagingTile({
     );
   }
 
-  if (hasDeclutter && showDeclutterCompare) {
-    return (
-      <div className="col-span-2 overflow-hidden rounded-lg border border-border bg-background sm:col-span-3">
-        <div className="grid grid-cols-2">
-          <div className="relative aspect-square overflow-hidden bg-muted">
-            {origUrl ? (
-              <img src={origUrl} alt="Original" className="size-full object-cover" />
-            ) : null}
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
-              Original
-            </span>
-          </div>
-          <div className="relative aspect-square overflow-hidden bg-muted">
-            {declutteredUrl ? (
-              <img src={declutteredUrl} alt="Cleaned up" className="size-full object-cover" />
-            ) : null}
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
-              Cleaned up
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 p-2">
-          <button
-            type="button"
-            onClick={onUseDecluttered}
-            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md bg-teal px-2 text-xs font-semibold text-teal-foreground"
-          >
-            <Check className="size-3.5" /> Use cleaned up
-          </button>
-          <button
-            type="button"
-            onClick={onKeepOriginalFromDeclutter}
-            className="flex min-h-9 flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 text-xs font-semibold text-foreground"
-          >
-            <RotateCcw className="size-3.5" /> Keep original
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const displaySrc = hasStaged ? stagedUrl : hasDeclutter ? declutteredUrl : origUrl;
   return (
     <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
@@ -2094,10 +1961,10 @@ function PhotoStagingTile({
           Enhanced
         </span>
       ) : null}
-      {busy ? (
+      {staging ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
           <Loader2 className="size-5 animate-spin" />
-          <p className="text-[11px] font-medium">{staging ? "Staging…" : "Cleaning up…"}</p>
+          <p className="text-[11px] font-medium">Staging…</p>
         </div>
       ) : (
         <>
