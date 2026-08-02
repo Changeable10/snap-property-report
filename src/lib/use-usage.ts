@@ -18,11 +18,12 @@ export const STAGING_LIMIT: Record<Plan, number> = {
   agency: 50,
 };
 
+// Agency enhancement is a 100/mo fair-use cap, not truly unlimited.
 export const ENHANCEMENT_LIMIT: Record<Plan, number> = {
   free: 0,
   professional: 20,
   portfolio: 50,
-  agency: Infinity,
+  agency: 100,
 };
 
 export const TEAM_MEMBER_LIMIT: Record<Plan, number> = {

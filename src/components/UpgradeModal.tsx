@@ -8,7 +8,7 @@ export type TopUpPack = "staging" | "enhancement" | "listing";
 const TOP_UP_PACKS: Record<TopUpPack, { title: string; description: string; price: string }> = {
   staging: {
     title: "Staging pack",
-    description: "10 virtual staging images",
+    description: "10 staging/clean-up credits",
     price: "NZ$5",
   },
   enhancement: {
@@ -37,33 +37,23 @@ const PLANS = [
     name: "Professional",
     price: "NZ$39.95",
     priceId: "professional_monthly",
-    features: [
-      "Up to 10 properties",
-      "5 listings/month",
-      "AI photo analysis",
-      "Voice-to-report",
-    ],
+    features: ["Up to 10 properties", "5 listings/month", "AI photo analysis", "Voice-to-report"],
     cta: "Upgrade",
     highlight: true,
   },
   {
     id: "portfolio",
     name: "Portfolio",
-    price: "NZ$59.95",
+    price: "NZ$79.95",
     priceId: "portfolio_monthly",
-    features: [
-      "Up to 25 properties",
-      "Unlimited listings",
-      "3 team members",
-      "Report branding",
-    ],
+    features: ["Up to 25 properties", "Unlimited listings", "3 team members", "Report branding"],
     cta: "Upgrade",
     highlight: false,
   },
   {
     id: "agency",
     name: "Agency",
-    price: "NZ$99.95",
+    price: "NZ$179",
     priceId: "agency_monthly",
     features: [
       "Up to 100 properties",

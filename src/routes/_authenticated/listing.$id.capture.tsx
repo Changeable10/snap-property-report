@@ -3,18 +3,41 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowLeft, Camera, Mic, Square, ChevronLeft, ChevronRight, Check, Video, Loader2,
-  Lightbulb, X, AlertTriangle, RefreshCw, Wand2, Sparkles,
+  ArrowLeft,
+  Camera,
+  Mic,
+  Square,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Video,
+  Loader2,
+  Lightbulb,
+  X,
+  AlertTriangle,
+  RefreshCw,
+  Wand2,
+  Sparkles,
+  Eraser,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
-import { useStagingThisMonth, STAGING_MONTHLY_LIMIT, STAGING_STYLES } from "@/lib/use-staging-limit";
+import {
+  useStagingThisMonth,
+  STAGING_MONTHLY_LIMIT,
+  STAGING_STYLES,
+} from "@/lib/use-staging-limit";
+import { resolveRoomType } from "@/lib/decor8-room-type";
 import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
-import { ACCEPTED_IMAGE_ACCEPT_ATTR, IMAGE_VALIDATION_ERROR, isAcceptedImage } from "@/lib/image-validation";
+import {
+  ACCEPTED_IMAGE_ACCEPT_ATTR,
+  IMAGE_VALIDATION_ERROR,
+  isAcceptedImage,
+} from "@/lib/image-validation";
 import { CameraFeedbackOverlay } from "@/components/CameraFeedbackOverlay";
 import { HIGH_RES_VIDEO_CONSTRAINTS, scoreVideoFrames } from "@/lib/camera-quality";
 import { PhotoEnhanceClientModal } from "@/components/PhotoEnhanceClientModal";
@@ -25,7 +48,11 @@ export const Route = createFileRoute("/_authenticated/listing/$id/capture")({
   component: ListingCapture,
 });
 
-interface Room { id: string; name: string; sort_order: number }
+interface Room {
+  id: string;
+  name: string;
+  sort_order: number;
+}
 interface ListingPhoto {
   id: string;
   room_id: string | null;
@@ -34,22 +61,47 @@ interface ListingPhoto {
   captured_at: string;
   staged_url: string | null;
   staging_style: string | null;
+  decluttered_url?: string | null;
   enhanced_url?: string | null;
   photo_state?: "raw" | "enhanced" | "staged" | "colour_adjusted" | null;
   adjustments?: Record<string, number> | null;
   user_id?: string;
 }
-interface ListingRoom { id: string; room_id: string; transcript: string | null; notes: string | null }
+interface ListingRoom {
+  id: string;
+  room_id: string;
+  transcript: string | null;
+  notes: string | null;
+}
 
 type ShotRating = "good" | "consider_retaking" | "retake_recommended";
-interface ShotCheck { photoId: string; rating: ShotRating; reason: string }
+interface ShotCheck {
+  photoId: string;
+  rating: ShotRating;
+  reason: string;
+}
 
 const ROOM_TIPS: { keywords: string[]; tip: string }[] = [
-  { keywords: ["living", "lounge", "family"], tip: "Stand in the doorway and shoot towards the window. Natural light sells." },
-  { keywords: ["kitchen"], tip: "Capture the full bench and splashback. Include appliances. Clear the clutter." },
-  { keywords: ["bed"], tip: "Shoot from the corner to show the full room. Include the window for light." },
-  { keywords: ["bath", "toilet", "ensuite", "wc"], tip: "Shoot from the doorway. Include the vanity, shower, and toilet in one frame if possible." },
-  { keywords: ["outdoor", "garden", "yard", "deck", "patio", "section", "exterior"], tip: "Shoot in the afternoon for warm light. Include the full section if possible." },
+  {
+    keywords: ["living", "lounge", "family"],
+    tip: "Stand in the doorway and shoot towards the window. Natural light sells.",
+  },
+  {
+    keywords: ["kitchen"],
+    tip: "Capture the full bench and splashback. Include appliances. Clear the clutter.",
+  },
+  {
+    keywords: ["bed"],
+    tip: "Shoot from the corner to show the full room. Include the window for light.",
+  },
+  {
+    keywords: ["bath", "toilet", "ensuite", "wc"],
+    tip: "Shoot from the doorway. Include the vanity, shower, and toilet in one frame if possible.",
+  },
+  {
+    keywords: ["outdoor", "garden", "yard", "deck", "patio", "section", "exterior"],
+    tip: "Shoot in the afternoon for warm light. Include the full section if possible.",
+  },
   { keywords: ["garage"], tip: "Open the door for light. Show the full depth." },
 ];
 const DEFAULT_TIP = "Stand in the corner and shoot diagonally across the room for the widest view.";
@@ -65,11 +117,19 @@ function useSignedUrl(path: string | undefined) {
   const [url, setUrl] = useState<string | undefined>();
   useEffect(() => {
     let cancel = false;
-    if (!path) { setUrl(undefined); return; }
-    supabase.storage.from("inspection-photos").createSignedUrl(path, 3600).then(({ data }) => {
-      if (!cancel) setUrl(data?.signedUrl);
-    });
-    return () => { cancel = true; };
+    if (!path) {
+      setUrl(undefined);
+      return;
+    }
+    supabase.storage
+      .from("inspection-photos")
+      .createSignedUrl(path, 3600)
+      .then(({ data }) => {
+        if (!cancel) setUrl(data?.signedUrl);
+      });
+    return () => {
+      cancel = true;
+    };
   }, [path]);
   return url;
 }
@@ -85,7 +145,8 @@ function ListingCapture() {
       const { data, error } = await supabase
         .from("listings")
         .select("id,property_id,user_id,title,listing_type,target_portal")
-        .eq("id", id).single();
+        .eq("id", id)
+        .single();
       if (error) throw error;
       return data;
     },
@@ -95,7 +156,8 @@ function ListingCapture() {
     queryKey: ["listing-rooms-list", listing?.property_id],
     enabled: !!listing?.property_id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("rooms")
+      const { data, error } = await supabase
+        .from("rooms")
         .select("id,name,sort_order")
         .eq("property_id", listing!.property_id)
         .order("sort_order", { ascending: true });
@@ -107,8 +169,11 @@ function ListingCapture() {
   const { data: photos } = useQuery({
     queryKey: ["listing-photos", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("listing_photos")
-        .select("id,room_id,photo_url,source,captured_at,staged_url,staging_style,enhanced_url,photo_state,adjustments,user_id")
+      const { data, error } = await supabase
+        .from("listing_photos")
+        .select(
+          "id,room_id,photo_url,source,captured_at,staged_url,staging_style,decluttered_url,enhanced_url,photo_state,adjustments,user_id",
+        )
         .eq("listing_id", id)
         .order("captured_at", { ascending: true });
       if (error) throw error;
@@ -119,7 +184,8 @@ function ListingCapture() {
   const { data: listingRooms } = useQuery({
     queryKey: ["listing-room-notes", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("listing_rooms")
+      const { data, error } = await supabase
+        .from("listing_rooms")
         .select("id,room_id,transcript,notes")
         .eq("listing_id", id);
       if (error) throw error;
@@ -142,18 +208,19 @@ function ListingCapture() {
   function toggleTips() {
     const next = !tipsEnabled;
     setTipsEnabled(next);
-    try { window.localStorage.setItem("snapsure.shotTips", next ? "on" : "off"); } catch {}
+    try {
+      window.localStorage.setItem("snapsure.shotTips", next ? "on" : "off");
+    } catch {}
   }
   const [dismissedTipRooms, setDismissedTipRooms] = useState<Set<string>>(new Set());
-  const tipVisible =
-    tipsEnabled &&
-    !!current &&
-    !dismissedTipRooms.has(current.id);
+  const tipVisible = tipsEnabled && !!current && !dismissedTipRooms.has(current.id);
 
   // Post-capture shot check
   const [checking, setChecking] = useState(false);
   const [shotCheck, setShotCheck] = useState<ShotCheck | null>(null);
-  useEffect(() => { setShotCheck(null); }, [current?.id]);
+  useEffect(() => {
+    setShotCheck(null);
+  }, [current?.id]);
 
   // Post-capture photo quality gate (blur/exposure check, before the AI shot check)
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
@@ -184,34 +251,175 @@ function ListingCapture() {
       if (error) console.error("[virtual-staging] Failed to read authenticated user", error);
       if (active) setAuthUserId(data.user?.id);
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
   const { data: plan = "free" } = usePlan(listing?.user_id);
   const { data: stagingUsed = 0, refetch: refetchStagingUsage } = useStagingThisMonth(authUserId);
   const stagingLimit = STAGING_MONTHLY_LIMIT[plan];
-  const stagingRemaining = stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
+  const stagingRemaining =
+    stagingLimit === Infinity ? Infinity : Math.max(0, stagingLimit - stagingUsed);
+  // Declutter draws from this same monthly pool — there is no separate
+  // credit bucket. A photo that needs decluttering before staging consumes 2
+  // of these in one "Stage this room" action.
   const outOfCredits = plan !== "free" && stagingRemaining < 1;
   const [stagingId, setStagingId] = useState<string | null>(null);
+  const [declutterId, setDeclutterId] = useState<string | null>(null);
   const [styleModalFor, setStyleModalFor] = useState<ListingPhoto | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   function requestStage(p: ListingPhoto) {
-    if (plan === "free" || stagingRemaining < 1) {
+    if (plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    const needed = p.decluttered_url ? 1 : 2;
+    if (stagingRemaining < needed) {
       setShowUpgrade(true);
       return;
     }
     setStyleModalFor(p);
   }
 
+  // Pure action: signs the photo, calls declutter-listing-photo, and returns
+  // the resulting storage path. No toasts / invalidation here — the standalone
+  // "Clean up" handler and stagePhoto's auto-chain each surface success/failure
+  // differently (own loading state + toast for standalone; folded silently into
+  // the single "Stage this room" loading state when chained).
+  async function declutterPhoto(
+    p: ListingPhoto,
+  ): Promise<{ ok: boolean; path?: string; error?: string }> {
+    try {
+      const { data: signed } = await supabase.storage
+        .from("inspection-photos")
+        .createSignedUrl(p.photo_url, 3600);
+      const url = signed?.signedUrl;
+      if (!url) throw new Error("Signed URL failed");
+      const roomName = (rooms ?? []).find((r) => r.id === p.room_id)?.name;
+      // Throws UnmappedRoomTypeError (caught below, surfaced as the result's
+      // `error`) rather than silently guessing a room type.
+      const roomType = resolveRoomType(roomName);
+      const { data, error } = await supabase.functions.invoke("declutter-listing-photo", {
+        body: {
+          image_url: url,
+          room_type: roomType,
+          listing_id: id,
+          photo_id: p.id,
+          photo_path: p.photo_url,
+        },
+      });
+      if (error) {
+        const { unwrapFunctionsError } = await import("@/lib/email-client");
+        throw new Error(await unwrapFunctionsError(error, "Clean up failed"));
+      }
+      console.log("[declutter] declutter-listing-photo response", data);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const declutteredPathFromServer = (data as any)?.decluttered_path as string | undefined;
+      if (declutteredPathFromServer) return { ok: true, path: declutteredPathFromServer };
+
+      const declutteredRemote = (data as any).decluttered_url as string;
+      const resp = await fetch(declutteredRemote);
+      if (!resp.ok) throw new Error("Failed to fetch decluttered image");
+      const blob = await resp.blob();
+      const {
+        data: { user: _u },
+      } = await supabase.auth.getUser();
+      const uid = _u?.id ?? authUserId;
+      if (!uid) throw new Error("Sign in required to save decluttered image");
+      const declutteredPath = `${uid}/declutter/${id}/${p.id}-decluttered.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from("inspection-photos")
+        .upload(declutteredPath, blob, { contentType: "image/jpeg", upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase
+        .from("listing_photos")
+        .update({ decluttered_url: declutteredPath })
+        .eq("id", p.id);
+      if (dbErr) throw new Error("Failed to update photo");
+      // Shared bucket with staging — see the comment on outOfCredits above.
+      const { error: usageErr } = await supabase.from("staging_usage").insert({
+        user_id: uid,
+        listing_photo_id: p.id,
+        style: null,
+      });
+      if (usageErr) throw new Error("Failed to save staging usage");
+      return { ok: true, path: declutteredPath };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? "Clean up failed" };
+    }
+  }
+
+  async function requestDeclutter(p: ListingPhoto) {
+    if (plan === "free") {
+      setShowUpgrade(true);
+      return;
+    }
+    if (stagingRemaining < 1) {
+      setShowUpgrade(true);
+      return;
+    }
+    setDeclutterId(p.id);
+    const result = await declutterPhoto(p);
+    setDeclutterId(null);
+    if (result.ok) {
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      await refetchStagingUsage();
+      void incrementUsage("staging");
+      await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
+      toast.success("Photo cleaned up");
+    } else {
+      toast.error(result.error ?? "Clean up failed");
+    }
+  }
+
+  async function keepOriginalFromDeclutter(p: ListingPhoto) {
+    if (!p.decluttered_url) return;
+    try {
+      await supabase.storage.from("inspection-photos").remove([p.decluttered_url]);
+    } catch {
+      /* ignore */
+    }
+    const { error } = await supabase
+      .from("listing_photos")
+      .update({ decluttered_url: null })
+      .eq("id", p.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+  }
+
   async function stagePhoto(p: ListingPhoto, styleKey: string) {
     setStagingId(p.id);
     try {
+      let sourcePath = p.decluttered_url ?? p.photo_url;
+      if (!p.decluttered_url) {
+        const declutterResult = await declutterPhoto(p);
+        if (!declutterResult.ok) {
+          toast.error(declutterResult.error ?? "Clean up step failed");
+          return;
+        }
+        sourcePath = declutterResult.path!;
+        await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+        await refetchStagingUsage();
+        void incrementUsage("staging");
+        await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
+      }
       const { data: signed } = await supabase.storage
-        .from("inspection-photos").createSignedUrl(p.photo_url, 3600);
+        .from("inspection-photos")
+        .createSignedUrl(sourcePath, 3600);
       const url = signed?.signedUrl;
       if (!url) throw new Error("Signed URL failed");
       const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
-        body: { image_url: url, style: styleKey, listing_id: id, photo_id: p.id, photo_path: p.photo_url },
+        body: {
+          image_url: url,
+          style: styleKey,
+          listing_id: id,
+          photo_id: p.id,
+          photo_path: p.photo_url,
+        },
       });
       if (error) {
         const { unwrapFunctionsError } = await import("@/lib/email-client");
@@ -232,7 +440,9 @@ function ListingCapture() {
       if (!resp.ok) throw new Error("Failed to fetch staged image");
       const blob = await resp.blob();
       // Storage RLS requires first folder to equal auth.uid().
-      const { data: { user: _u } } = await supabase.auth.getUser();
+      const {
+        data: { user: _u },
+      } = await supabase.auth.getUser();
       const uid = _u?.id ?? authUserId;
       if (!uid) throw new Error("Sign in required to save staged image");
       const stagedPath = `${uid}/staging/${id}/${p.id}-staged.jpg`;
@@ -240,7 +450,8 @@ function ListingCapture() {
         .from("inspection-photos")
         .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
       if (upErr) throw upErr;
-      const { error: dbErr } = await supabase.from("listing_photos")
+      const { error: dbErr } = await supabase
+        .from("listing_photos")
         .update({ staged_url: stagedPath, staging_style: styleKey, photo_state: "staged" })
         .eq("id", p.id);
       if (dbErr) {
@@ -251,8 +462,15 @@ function ListingCapture() {
         });
         throw new Error("Failed to update photo");
       }
-      const { data: { user: _authUser }, error: userErr } = await supabase.auth.getUser();
-      if (userErr) console.error("[virtual-staging] Failed to read authenticated user before staging usage insert", userErr);
+      const {
+        data: { user: _authUser },
+        error: userErr,
+      } = await supabase.auth.getUser();
+      if (userErr)
+        console.error(
+          "[virtual-staging] Failed to read authenticated user before staging usage insert",
+          userErr,
+        );
       const usageUserId = _authUser?.id ?? authUserId;
       if (!usageUserId) throw new Error("Sign in required to save staging usage");
       const { error: usageErr } = await supabase.from("staging_usage").insert({
@@ -284,7 +502,11 @@ function ListingCapture() {
     const target = styleModalFor;
     setStyleModalFor(null);
     if (!target) return;
-    if (stagingRemaining < 1) { setShowUpgrade(true); return; }
+    const needed = target.decluttered_url ? 1 : 2;
+    if (stagingRemaining < needed) {
+      setShowUpgrade(true);
+      return;
+    }
     await stagePhoto(target, styleKey);
   }
 
@@ -292,11 +514,17 @@ function ListingCapture() {
     if (!p.staged_url) return;
     try {
       await supabase.storage.from("inspection-photos").remove([p.staged_url]);
-    } catch { /* ignore */ }
-    const { error } = await supabase.from("listing_photos")
+    } catch {
+      /* ignore */
+    }
+    const { error } = await supabase
+      .from("listing_photos")
       .update({ staged_url: null, staging_style: null })
       .eq("id", p.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["listing-photos", id] });
   }
 
@@ -304,7 +532,10 @@ function ListingCapture() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !current || !listing) return;
-    if (!isAcceptedImage(file)) { toast.error(IMAGE_VALIDATION_ERROR); return; }
+    if (!isAcceptedImage(file)) {
+      toast.error(IMAGE_VALIDATION_ERROR);
+      return;
+    }
     // Route through the post-capture quality gate first — upload/shot-check
     // only happens once the user confirms (or the photo auto-passes).
     setPendingPhotoFile(file);
@@ -317,16 +548,27 @@ function ListingCapture() {
     if (!current || !listing) return;
     const path = `${listing.user_id}/listing-${id}/${current.id}/${crypto.randomUUID()}-${file.name}`;
     const { error: upErr } = await supabase.storage
-      .from("inspection-photos").upload(path, file, { contentType: file.type });
-    if (upErr) { toast.error(upErr.message); return; }
-    const { data: inserted, error: insErr } = await supabase.from("listing_photos").insert({
-      user_id: listing.user_id,
-      listing_id: id,
-      room_id: current.id,
-      photo_url: path,
-      source: "photo",
-    }).select("id").single();
-    if (insErr) { toast.error(insErr.message); return; }
+      .from("inspection-photos")
+      .upload(path, file, { contentType: file.type });
+    if (upErr) {
+      toast.error(upErr.message);
+      return;
+    }
+    const { data: inserted, error: insErr } = await supabase
+      .from("listing_photos")
+      .insert({
+        user_id: listing.user_id,
+        listing_id: id,
+        room_id: current.id,
+        photo_url: path,
+        source: "photo",
+      })
+      .select("id")
+      .single();
+    if (insErr) {
+      toast.error(insErr.message);
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["listing-photos", id] });
     if (tipsEnabled && inserted?.id) {
       void runShotCheck(inserted.id, path);
@@ -344,7 +586,8 @@ function ListingCapture() {
     setShotCheck(null);
     try {
       const { data: signed } = await supabase.storage
-        .from("inspection-photos").createSignedUrl(storagePath, 600);
+        .from("inspection-photos")
+        .createSignedUrl(storagePath, 600);
       if (!signed?.signedUrl) throw new Error("Signed URL failed");
       const { data, error } = await supabase.functions.invoke("check-listing-photo", {
         body: { image_url: signed.signedUrl },
@@ -367,7 +610,9 @@ function ListingCapture() {
     if (photo) {
       try {
         await supabase.storage.from("inspection-photos").remove([photo.photo_url]);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       await supabase.from("listing_photos").delete().eq("id", photo.id);
       qc.invalidateQueries({ queryKey: ["listing-photos", id] });
     }
@@ -384,8 +629,10 @@ function ListingCapture() {
   const finalRef = useRef("");
 
   useEffect(() => {
-    const SR: any = typeof window !== "undefined"
-      ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : null;
+    const SR: any =
+      typeof window !== "undefined"
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
     setSpeechSupported(!!SR);
   }, []);
 
@@ -397,10 +644,15 @@ function ListingCapture() {
 
   function startRec() {
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { setSpeechSupported(false); return; }
+    if (!SR) {
+      setSpeechSupported(false);
+      return;
+    }
     finalRef.current = transcript ? transcript + " " : "";
     const rec = new SR();
-    rec.continuous = true; rec.interimResults = false; rec.lang = "en-NZ";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-NZ";
     rec.onresult = (ev: any) => {
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
@@ -413,11 +665,18 @@ function ListingCapture() {
     };
     rec.onend = () => setRecording(false);
     recognitionRef.current = rec;
-    try { rec.start(); setRecording(true); } catch (e: any) { toast.error(e?.message ?? "Voice error"); }
+    try {
+      rec.start();
+      setRecording(true);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Voice error");
+    }
   }
   function stopRec() {
     setRecording(false);
-    try { recognitionRef.current?.stop(); } catch {}
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
     setTimeout(() => saveNotes(finalRef.current.trim() || transcript, manualNotes), 400);
   }
 
@@ -430,9 +689,13 @@ function ListingCapture() {
       transcript: newTranscript || null,
       notes: newNotes || null,
     };
-    const { error } = await supabase.from("listing_rooms")
+    const { error } = await supabase
+      .from("listing_rooms")
       .upsert(payload, { onConflict: "listing_id,room_id" });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["listing-room-notes", id] });
   }
 
@@ -440,7 +703,9 @@ function ListingCapture() {
   const [videoSupported, setVideoSupported] = useState(true);
   const [videoRecording, setVideoRecording] = useState(false);
   const [videoElapsed, setVideoElapsed] = useState(0);
-  const [extractedFrames, setExtractedFrames] = useState<Array<{ base64: string; time: number; variance: number }>>([]);
+  const [extractedFrames, setExtractedFrames] = useState<
+    Array<{ base64: string; time: number; variance: number }>
+  >([]);
   const [selectedFrames, setSelectedFrames] = useState<Set<number>>(new Set());
   const [previewFrameIdx, setPreviewFrameIdx] = useState<number | null>(null);
   const [extracting, setExtracting] = useState(false);
@@ -456,18 +721,24 @@ function ListingCapture() {
   const videoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const ok = typeof navigator !== "undefined"
-      && !!navigator.mediaDevices?.getUserMedia
-      && typeof (window as any).MediaRecorder !== "undefined";
+    const ok =
+      typeof navigator !== "undefined" &&
+      !!navigator.mediaDevices?.getUserMedia &&
+      typeof (window as any).MediaRecorder !== "undefined";
     setVideoSupported(ok);
   }, []);
 
   useEffect(() => {
     if (!videoRecording) return;
-    const el = videoPreviewRef.current; const stream = videoStreamRef.current;
+    const el = videoPreviewRef.current;
+    const stream = videoStreamRef.current;
     if (!el || !stream) return;
-    try { el.srcObject = stream; } catch {}
-    el.muted = true; (el as any).playsInline = true; el.autoplay = true;
+    try {
+      el.srcObject = stream;
+    } catch {}
+    el.muted = true;
+    (el as any).playsInline = true;
+    el.autoplay = true;
     el.play().catch(() => {});
   }, [videoRecording]);
 
@@ -478,12 +749,15 @@ function ListingCapture() {
       // if the user navigates before saving.
       setFrameRoomId(current.id);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: HIGH_RES_VIDEO_CONSTRAINTS, audio: true,
+        video: HIGH_RES_VIDEO_CONSTRAINTS,
+        audio: true,
       });
       videoStreamRef.current = stream;
       videoChunksRef.current = [];
       const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
-      rec.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) videoChunksRef.current.push(e.data);
+      };
       rec.onstop = () => {
         const blob = new Blob(videoChunksRef.current, { type: "video/webm" });
         stream.getTracks().forEach((t) => t.stop());
@@ -501,7 +775,9 @@ function ListingCapture() {
     }
   }
   function stopVideo() {
-    try { videoRecRef.current?.stop(); } catch {}
+    try {
+      videoRecRef.current?.stop();
+    } catch {}
     setVideoRecording(false);
   }
 
@@ -529,11 +805,7 @@ function ListingCapture() {
       // Auto-deselect frames below the sharpness cutoff.
       const SHARP_CUTOFF = 150;
       setSelectedFrames(
-        new Set(
-          frames
-            .map((f, i) => (f.variance >= SHARP_CUTOFF ? i : -1))
-            .filter((i) => i >= 0),
-        ),
+        new Set(frames.map((f, i) => (f.variance >= SHARP_CUTOFF ? i : -1)).filter((i) => i >= 0)),
       );
       if (frames.length === 0) {
         toast.message("No sharp frames detected — try recording again with steadier motion.");
@@ -556,7 +828,8 @@ function ListingCapture() {
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         const path = `${listing.user_id}/listing-${id}/${targetRoomId}/frame-${crypto.randomUUID()}.jpg`;
-        const { error: upErr } = await supabase.storage.from("inspection-photos")
+        const { error: upErr } = await supabase.storage
+          .from("inspection-photos")
           .upload(path, new Blob([bytes], { type: "image/jpeg" }), { contentType: "image/jpeg" });
         if (upErr) throw upErr;
         const { error: insErr } = await supabase.from("listing_photos").insert({
@@ -600,7 +873,10 @@ function ListingCapture() {
   }
 
   async function performNavigate(dir: "prev" | "next" | "finish") {
-    if (dir === "finish") { await finish(); return; }
+    if (dir === "finish") {
+      await finish();
+      return;
+    }
     if (transcript || manualNotes) await saveNotes(transcript, manualNotes);
     if (dir === "prev") setIndex((i) => Math.max(0, i - 1));
     else setIndex((i) => Math.min(total - 1, i + 1));
@@ -658,7 +934,10 @@ function ListingCapture() {
             </span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div className="h-full bg-teal transition-all" style={{ width: `${((index + 1) / total) * 100}%` }} />
+            <div
+              className="h-full bg-teal transition-all"
+              style={{ width: `${((index + 1) / total) * 100}%` }}
+            />
           </div>
           <div className="mt-2 flex items-center justify-between">
             <p className="text-xs uppercase tracking-wide text-teal">Listing mode</p>
@@ -680,7 +959,8 @@ function ListingCapture() {
           <div className="flex items-start gap-2 rounded-xl border border-teal/40 bg-teal-light/60 p-3">
             <Lightbulb className="mt-0.5 size-4 shrink-0 text-teal" />
             <p className="flex-1 text-xs text-foreground">
-              <span className="font-semibold">Tip: </span>{tipForRoom(current?.name)}
+              <span className="font-semibold">Tip: </span>
+              {tipForRoom(current?.name)}
             </p>
             <button
               type="button"
@@ -705,7 +985,14 @@ function ListingCapture() {
           >
             <Camera className="size-5" /> Capture photo
           </button>
-          <input ref={fileRef} type="file" accept={ACCEPTED_IMAGE_ACCEPT_ATTR} capture="environment" className="hidden" onChange={onFile} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_ACCEPT_ATTR}
+            capture="environment"
+            className="hidden"
+            onChange={onFile}
+          />
           <PhotoQualityGate
             open={showQualityGate}
             imageFile={pendingPhotoFile}
@@ -752,7 +1039,8 @@ function ListingCapture() {
               <CameraFeedbackOverlay videoRef={videoPreviewRef} recording />
               <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+12px)] flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">
                 <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
-                REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:{String(videoElapsed % 60).padStart(2, "0")}
+                REC {String(Math.floor(videoElapsed / 60)).padStart(2, "0")}:
+                {String(videoElapsed % 60).padStart(2, "0")}
               </div>
             </div>
             <div className="shrink-0 bg-black px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
@@ -773,158 +1061,190 @@ function ListingCapture() {
           </div>
         ) : null}
 
-        {extractedFrames.length > 0 ? (() => {
-          const SHARP_CUTOFF = 150;
-          const sharpCount = extractedFrames.filter((f) => f.variance >= SHARP_CUTOFF).length;
-          const blurryCount = extractedFrames.length - sharpCount;
-          const selectedSharp = Array.from(selectedFrames).filter(
-            (i) => extractedFrames[i]?.variance >= SHARP_CUTOFF,
-          ).length;
-          return (
-          <section className="rounded-xl border border-border bg-card p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold">Select frames to save ({selectedFrames.size}/{extractedFrames.length})</p>
-              <button
-                type="button"
-                onClick={saveSelectedFrames}
-                disabled={saving || selectedFrames.size === 0}
-                className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground disabled:opacity-60"
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
-            </div>
-            <p className="mb-2 text-[11px] text-muted-foreground">
-              {selectedSharp} sharp frame{selectedSharp === 1 ? "" : "s"} selected
-              {blurryCount > 0 ? `, ${blurryCount} blurry excluded` : ""}. Sorted sharpest first.
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {extractedFrames.map((f, i) => {
-                const sel = selectedFrames.has(i);
-                const dot =
-                  f.variance >= 250 ? "bg-emerald-500" :
-                  f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
-                const label =
-                  f.variance >= 250 ? "Sharp" :
-                  f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
-                return (
-                  <div
-                    key={i}
-                    className={`relative overflow-hidden rounded-lg border-2 ${sel ? "border-teal" : "border-transparent opacity-60"}`}
-                  >
+        {extractedFrames.length > 0
+          ? (() => {
+              const SHARP_CUTOFF = 150;
+              const sharpCount = extractedFrames.filter((f) => f.variance >= SHARP_CUTOFF).length;
+              const blurryCount = extractedFrames.length - sharpCount;
+              const selectedSharp = Array.from(selectedFrames).filter(
+                (i) => extractedFrames[i]?.variance >= SHARP_CUTOFF,
+              ).length;
+              return (
+                <section className="rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold">
+                      Select frames to save ({selectedFrames.size}/{extractedFrames.length})
+                    </p>
                     <button
                       type="button"
-                      onClick={() => setPreviewFrameIdx(i)}
-                      className="w-full"
-                      aria-label={`Preview frame at ${Math.round(f.time)}s`}
+                      onClick={saveSelectedFrames}
+                      disabled={saving || selectedFrames.size === 0}
+                      className="rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-teal-foreground disabled:opacity-60"
                     >
-                      <img src={f.base64} alt={`Frame ${i}`} className="aspect-video w-full object-cover" />
+                      {saving ? "Saving…" : "Save"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const s = new Set(selectedFrames);
-                        if (sel) s.delete(i); else s.add(i);
-                        setSelectedFrames(s);
-                      }}
-                      className={`absolute right-1 top-1 grid size-6 place-items-center rounded-full text-white shadow ring-2 ring-white ${sel ? "bg-teal" : "bg-black/40"}`}
-                      aria-label={sel ? "Deselect frame" : "Select frame"}
-                    >
-                      {sel ? <Check className="size-3" strokeWidth={3} /> : null}
-                    </button>
-                    <span
-                      className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white pointer-events-none"
-                      title={`Sharpness: ${label} (${Math.round(f.variance)})`}
-                    >
-                      <span className={`inline-block size-1.5 rounded-full ${dot}`} />
-                      {label}
-                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-          );
-        })() : null}
+                  <p className="mb-2 text-[11px] text-muted-foreground">
+                    {selectedSharp} sharp frame{selectedSharp === 1 ? "" : "s"} selected
+                    {blurryCount > 0 ? `, ${blurryCount} blurry excluded` : ""}. Sorted sharpest
+                    first.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {extractedFrames.map((f, i) => {
+                      const sel = selectedFrames.has(i);
+                      const dot =
+                        f.variance >= 250
+                          ? "bg-emerald-500"
+                          : f.variance >= SHARP_CUTOFF
+                            ? "bg-amber-500"
+                            : "bg-red-500";
+                      const label =
+                        f.variance >= 250 ? "Sharp" : f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
+                      return (
+                        <div
+                          key={i}
+                          className={`relative overflow-hidden rounded-lg border-2 ${sel ? "border-teal" : "border-transparent opacity-60"}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPreviewFrameIdx(i)}
+                            className="w-full"
+                            aria-label={`Preview frame at ${Math.round(f.time)}s`}
+                          >
+                            <img
+                              src={f.base64}
+                              alt={`Frame ${i}`}
+                              className="aspect-video w-full object-cover"
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const s = new Set(selectedFrames);
+                              if (sel) s.delete(i);
+                              else s.add(i);
+                              setSelectedFrames(s);
+                            }}
+                            className={`absolute right-1 top-1 grid size-6 place-items-center rounded-full text-white shadow ring-2 ring-white ${sel ? "bg-teal" : "bg-black/40"}`}
+                            aria-label={sel ? "Deselect frame" : "Select frame"}
+                          >
+                            {sel ? <Check className="size-3" strokeWidth={3} /> : null}
+                          </button>
+                          <span
+                            className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white pointer-events-none"
+                            title={`Sharpness: ${label} (${Math.round(f.variance)})`}
+                          >
+                            <span className={`inline-block size-1.5 rounded-full ${dot}`} />
+                            {label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()
+          : null}
 
-        {previewFrameIdx !== null && extractedFrames[previewFrameIdx] && createPortal(
-          (() => {
-            const f = extractedFrames[previewFrameIdx];
-            const isSelected = selectedFrames.has(previewFrameIdx);
-            const SHARP_CUTOFF = 150;
-            const dot = f.variance >= 250 ? "bg-emerald-500" : f.variance >= SHARP_CUTOFF ? "bg-amber-500" : "bg-red-500";
-            const label = f.variance >= 250 ? "Sharp" : f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
-            // Build chronological navigation order
-            const timeOrder = extractedFrames.map((_, idx) => idx).sort((a, b) => extractedFrames[a].time - extractedFrames[b].time);
-            const posInTime = timeOrder.indexOf(previewFrameIdx);
-            const prevIdx = posInTime > 0 ? timeOrder[posInTime - 1] : null;
-            const nextIdx = posInTime < timeOrder.length - 1 ? timeOrder[posInTime + 1] : null;
-            return (
-              <div
-                className="fixed inset-0 z-[9999] flex flex-col bg-black/95"
-                onClick={() => setPreviewFrameIdx(null)}
-                role="dialog"
-                aria-modal="true"
-              >
-                <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="flex items-center gap-2 text-sm font-semibold text-white">
-                    <span className={`inline-block size-2 rounded-full ${dot}`} />
-                    {label} — {Math.round(f.time)}s
-                  </span>
-                  <span className="text-sm text-white/70">
-                    {posInTime + 1} / {extractedFrames.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewFrameIdx(null)}
-                    className="ml-3 grid size-9 place-items-center rounded-full bg-white/20 text-white"
-                    aria-label="Close preview"
+        {previewFrameIdx !== null &&
+          extractedFrames[previewFrameIdx] &&
+          createPortal(
+            (() => {
+              const f = extractedFrames[previewFrameIdx];
+              const isSelected = selectedFrames.has(previewFrameIdx);
+              const SHARP_CUTOFF = 150;
+              const dot =
+                f.variance >= 250
+                  ? "bg-emerald-500"
+                  : f.variance >= SHARP_CUTOFF
+                    ? "bg-amber-500"
+                    : "bg-red-500";
+              const label =
+                f.variance >= 250 ? "Sharp" : f.variance >= SHARP_CUTOFF ? "OK" : "Blurry";
+              // Build chronological navigation order
+              const timeOrder = extractedFrames
+                .map((_, idx) => idx)
+                .sort((a, b) => extractedFrames[a].time - extractedFrames[b].time);
+              const posInTime = timeOrder.indexOf(previewFrameIdx);
+              const prevIdx = posInTime > 0 ? timeOrder[posInTime - 1] : null;
+              const nextIdx = posInTime < timeOrder.length - 1 ? timeOrder[posInTime + 1] : null;
+              return (
+                <div
+                  className="fixed inset-0 z-[9999] flex flex-col bg-black/95"
+                  onClick={() => setPreviewFrameIdx(null)}
+                  role="dialog"
+                  aria-modal="true"
+                >
+                  <div
+                    className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    ✕
-                  </button>
-                </div>
-                <div className="flex flex-1 items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
-                  <img
-                    src={f.base64}
-                    alt={`Frame at ${Math.round(f.time)}s`}
-                    className="max-h-[70vh] max-w-full rounded-lg object-contain"
-                  />
-                </div>
-                <div className="shrink-0 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex gap-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span className={`inline-block size-2 rounded-full ${dot}`} />
+                      {label} — {Math.round(f.time)}s
+                    </span>
+                    <span className="text-sm text-white/70">
+                      {posInTime + 1} / {extractedFrames.length}
+                    </span>
                     <button
                       type="button"
-                      onClick={() => prevIdx !== null && setPreviewFrameIdx(prevIdx)}
-                      disabled={prevIdx === null}
-                      className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+                      onClick={() => setPreviewFrameIdx(null)}
+                      className="ml-3 grid size-9 place-items-center rounded-full bg-white/20 text-white"
+                      aria-label="Close preview"
                     >
-                      <ChevronLeft className="size-4" /> Prev
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const s = new Set(selectedFrames);
-                        if (s.has(previewFrameIdx!)) s.delete(previewFrameIdx!); else s.add(previewFrameIdx!);
-                        setSelectedFrames(s);
-                      }}
-                      className={`flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl text-sm font-semibold ${isSelected ? "bg-teal text-white" : "bg-white/20 text-white"}`}
-                    >
-                      <Check className="size-4" /> {isSelected ? "Selected" : "Select"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => nextIdx !== null && setPreviewFrameIdx(nextIdx)}
-                      disabled={nextIdx === null}
-                      className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
-                    >
-                      Next <ChevronRight className="size-4" />
+                      ✕
                     </button>
                   </div>
+                  <div
+                    className="flex flex-1 items-center justify-center px-4"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img
+                      src={f.base64}
+                      alt={`Frame at ${Math.round(f.time)}s`}
+                      className="max-h-[70vh] max-w-full rounded-lg object-contain"
+                    />
+                  </div>
+                  <div
+                    className="shrink-0 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => prevIdx !== null && setPreviewFrameIdx(prevIdx)}
+                        disabled={prevIdx === null}
+                        className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+                      >
+                        <ChevronLeft className="size-4" /> Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const s = new Set(selectedFrames);
+                          if (s.has(previewFrameIdx!)) s.delete(previewFrameIdx!);
+                          else s.add(previewFrameIdx!);
+                          setSelectedFrames(s);
+                        }}
+                        className={`flex min-h-12 flex-[2] items-center justify-center gap-2 rounded-xl text-sm font-semibold ${isSelected ? "bg-teal text-white" : "bg-white/20 text-white"}`}
+                      >
+                        <Check className="size-4" /> {isSelected ? "Selected" : "Select"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => nextIdx !== null && setPreviewFrameIdx(nextIdx)}
+                        disabled={nextIdx === null}
+                        className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-white/20 text-sm font-semibold text-white disabled:opacity-30"
+                      >
+                        Next <ChevronRight className="size-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })(),
-          document.body,
-        )}
+              );
+            })(),
+            document.body,
+          )}
 
         {/* Photo thumbs */}
         {roomPhotos.length > 0 ? (
@@ -935,8 +1255,8 @@ function ListingCapture() {
             {plan !== "free" ? (
               <p className="mb-2 text-[11px] text-muted-foreground">
                 {stagingLimit === Infinity
-                  ? "Unlimited virtual staging on your plan."
-                  : `${stagingUsed} of ${stagingLimit} staging credits used this month.`}
+                  ? "Unlimited virtual staging/clean-up on your plan."
+                  : `${stagingUsed} of ${stagingLimit} staging/clean-up credits used this month.`}
               </p>
             ) : null}
             <div className="grid grid-cols-2 gap-2">
@@ -945,10 +1265,14 @@ function ListingCapture() {
                   key={p.id}
                   photo={p}
                   staging={stagingId === p.id}
+                  decluttering={declutterId === p.id}
                   outOfCredits={outOfCredits}
+                  stagingRemaining={stagingRemaining}
                   freePlan={plan === "free"}
                   onStage={() => requestStage(p)}
+                  onDeclutter={() => requestDeclutter(p)}
                   onKeepOriginal={() => keepOriginal(p)}
+                  onKeepOriginalFromDeclutter={() => keepOriginalFromDeclutter(p)}
                   onDeleted={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
                 />
               ))}
@@ -1034,7 +1358,8 @@ function ListingCapture() {
             onClick={() => tryNavigate(index < total - 1 ? "next" : "finish")}
             className="flex min-h-11 items-center gap-1 rounded-xl bg-teal px-4 text-sm font-semibold text-teal-foreground disabled:opacity-40"
           >
-            {index < total - 1 ? "Next" : "Finish"} {index < total - 1 ? <ChevronRight className="size-4" /> : <Check className="size-4" />}
+            {index < total - 1 ? "Next" : "Finish"}{" "}
+            {index < total - 1 ? <ChevronRight className="size-4" /> : <Check className="size-4" />}
           </button>
         </div>
       </nav>
@@ -1048,10 +1373,12 @@ function ListingCapture() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
           <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl">
             <h2 className="text-base font-semibold text-foreground">
-              Save {selectedFrames.size || extractedFrames.length} photos to {frameRoomName} before moving on?
+              Save {selectedFrames.size || extractedFrames.length} photos to {frameRoomName} before
+              moving on?
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              You have unsaved video frames from {frameRoomName}. They'll be discarded if you continue without saving.
+              You have unsaved video frames from {frameRoomName}. They'll be discarded if you
+              continue without saving.
             </p>
             <div className="mt-4 flex flex-col gap-2">
               <button
@@ -1087,122 +1414,257 @@ function ListingCapture() {
 function StagedPhotoCard({
   photo,
   staging,
+  decluttering,
   outOfCredits,
+  stagingRemaining,
   freePlan,
   onStage,
+  onDeclutter,
   onKeepOriginal,
+  onKeepOriginalFromDeclutter,
   onDeleted,
 }: {
   photo: ListingPhoto;
   staging: boolean;
+  decluttering: boolean;
   outOfCredits: boolean;
+  stagingRemaining: number;
   freePlan: boolean;
   onStage: () => void;
+  onDeclutter: () => void;
   onKeepOriginal: () => void;
+  onKeepOriginalFromDeclutter: () => void;
   onDeleted?: () => void;
 }) {
   const origUrl = useSignedUrl(photo.photo_url);
   const enhancedUrl = useSignedUrl(photo.enhanced_url ?? undefined);
   const stagedUrl = useSignedUrl(photo.staged_url ?? undefined);
+  const declutteredUrl = useSignedUrl(photo.decluttered_url ?? undefined);
   const hasStaged = !!photo.staged_url;
   const hasEnhanced = !!photo.enhanced_url;
+  const hasDeclutter = !!photo.decluttered_url;
   const hasAdjustments = !!photo.adjustments;
   const [aiEnhanceOpen, setAiEnhanceOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState<null | "enhance" | "adjust" | "colour_adjust">(null);
   const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
     "raw" | "enhanced" | "staged" | "colour_adjusted";
   const qc = useQueryClient();
-  const disabled = staging || (!hasStaged && (freePlan || outOfCredits));
+  const busy = staging || decluttering;
+  // A photo that hasn't been decluttered yet needs 2 credits when staged
+  // (declutter + stage, chained); already-decluttered or standalone
+  // clean-up only needs 1.
+  const disabled = busy || (!hasStaged && (freePlan || stagingRemaining < (hasDeclutter ? 1 : 2)));
+  const declutterDisabled = busy || freePlan || stagingRemaining < 1;
   const label = freePlan
     ? "Upgrade for staging"
     : outOfCredits && !hasStaged
       ? "Upgrade for more credits"
-      : hasStaged ? "Try another style" : "Virtual staging";
+      : hasStaged
+        ? "Try another style"
+        : "Virtual staging";
 
   const hasBeforeAfter = hasStaged;
-  const [lightbox, setLightbox] = useState<"before" | "staged" | "current" | null>(null);
-  const lightboxUrl = lightbox === "before" ? origUrl : lightbox === "staged" ? stagedUrl : lightbox === "current" ? (hasEnhanced ? enhancedUrl : origUrl) : null;
-  const lightboxLabel = lightbox === "before" ? "Original" : lightbox === "staged" ? `Staged · ${photo.staging_style ?? ""}` : lightbox === "current" ? (hasEnhanced ? (hasAdjustments ? "Adjusted" : "Enhanced") : "Original") : "";
+  const hasDeclutterBeforeAfter = hasDeclutter && !hasStaged;
+  const [lightbox, setLightbox] = useState<"before" | "staged" | "declutter" | "current" | null>(
+    null,
+  );
+  const lightboxUrl =
+    lightbox === "before"
+      ? origUrl
+      : lightbox === "staged"
+        ? stagedUrl
+        : lightbox === "declutter"
+          ? declutteredUrl
+          : lightbox === "current"
+            ? hasEnhanced
+              ? enhancedUrl
+              : origUrl
+            : null;
+  const lightboxLabel =
+    lightbox === "before"
+      ? "Original"
+      : lightbox === "staged"
+        ? `Staged · ${photo.staging_style ?? ""}`
+        : lightbox === "declutter"
+          ? "Cleaned up"
+          : lightbox === "current"
+            ? hasEnhanced
+              ? hasAdjustments
+                ? "Adjusted"
+                : "Enhanced"
+              : "Original"
+            : "";
 
   return (
-    <div className={`relative overflow-hidden rounded-lg border border-border bg-background${hasBeforeAfter ? " col-span-2" : ""}`}>
-      {lightbox && lightboxUrl ? createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setLightbox(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <button
-            type="button"
-            onClick={() => setLightbox(null)}
-            className="absolute right-3 top-3 z-10 flex size-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm"
-            aria-label="Close"
-          >
-            <X className="size-6" />
-          </button>
-          <span className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs font-semibold text-white">
-            {lightboxLabel}
-          </span>
-          <img
-            src={lightboxUrl}
-            alt={lightboxLabel}
-            className="max-h-[85vh] max-w-full rounded-lg object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-          {hasStaged ? (
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3">
+    <div
+      className={`relative overflow-hidden rounded-lg border border-border bg-background${hasBeforeAfter || hasDeclutterBeforeAfter ? " col-span-2" : ""}`}
+    >
+      {lightbox && lightboxUrl
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
+              onClick={() => setLightbox(null)}
+              role="dialog"
+              aria-modal="true"
+            >
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setLightbox("before"); }}
-                className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "before" ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                onClick={() => setLightbox(null)}
+                className="absolute right-3 top-3 z-10 flex size-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm"
+                aria-label="Close"
               >
-                Before
+                <X className="size-6" />
               </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setLightbox("staged"); }}
-                className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "staged" ? "bg-teal text-teal-foreground" : "bg-white/20 text-white"}`}
-              >
-                Staged
-              </button>
-            </div>
-          ) : null}
-        </div>,
-        document.body
-      ) : null}
+              <span className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs font-semibold text-white">
+                {lightboxLabel}
+              </span>
+              <img
+                src={lightboxUrl}
+                alt={lightboxLabel}
+                className="max-h-[85vh] max-w-full rounded-lg object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {hasStaged ? (
+                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightbox("before");
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "before" ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  >
+                    Before
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightbox("staged");
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "staged" ? "bg-teal text-teal-foreground" : "bg-white/20 text-white"}`}
+                  >
+                    Staged
+                  </button>
+                </div>
+              ) : hasDeclutterBeforeAfter ? (
+                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightbox("before");
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "before" ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  >
+                    Before
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightbox("declutter");
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm ${lightbox === "declutter" ? "bg-teal text-teal-foreground" : "bg-white/20 text-white"}`}
+                  >
+                    Cleaned up
+                  </button>
+                </div>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
       <DeletePhotoButton
         photoId={photo.id}
         table="listing_photos"
-        storagePaths={[photo.photo_url, photo.enhanced_url, photo.staged_url]}
+        storagePaths={[
+          photo.photo_url,
+          photo.enhanced_url,
+          photo.staged_url,
+          photo.decluttered_url,
+        ]}
         onDeleted={onDeleted}
         className="absolute right-1 top-1 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 text-white shadow backdrop-blur-sm hover:bg-black/75"
       />
       {hasStaged ? (
         <div className="grid grid-cols-2 gap-px bg-border">
-          <button type="button" onClick={() => setLightbox("before")} className="relative aspect-[4/3] overflow-hidden bg-muted text-left">
-            {origUrl ? <img src={origUrl} alt="Original" className="size-full object-cover" /> : null}
-            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">Before</span>
+          <button
+            type="button"
+            onClick={() => setLightbox("before")}
+            className="relative aspect-[4/3] overflow-hidden bg-muted text-left"
+          >
+            {origUrl ? (
+              <img src={origUrl} alt="Original" className="size-full object-cover" />
+            ) : null}
+            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              Before
+            </span>
           </button>
-          <button type="button" onClick={() => setLightbox("staged")} className="relative aspect-[4/3] overflow-hidden bg-muted text-left">
-            {stagedUrl ? <img src={stagedUrl} alt="Staged" className="size-full object-cover" /> : null}
+          <button
+            type="button"
+            onClick={() => setLightbox("staged")}
+            className="relative aspect-[4/3] overflow-hidden bg-muted text-left"
+          >
+            {stagedUrl ? (
+              <img src={stagedUrl} alt="Staged" className="size-full object-cover" />
+            ) : null}
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
               Staged{photo.staging_style ? ` · ${photo.staging_style}` : ""}
             </span>
           </button>
         </div>
+      ) : hasDeclutterBeforeAfter ? (
+        <div className="grid grid-cols-2 gap-px bg-border">
+          <button
+            type="button"
+            onClick={() => setLightbox("before")}
+            className="relative aspect-[4/3] overflow-hidden bg-muted text-left"
+          >
+            {origUrl ? (
+              <img src={origUrl} alt="Original" className="size-full object-cover" />
+            ) : null}
+            <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              Before
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLightbox("declutter")}
+            className="relative aspect-[4/3] overflow-hidden bg-muted text-left"
+          >
+            {declutteredUrl ? (
+              <img src={declutteredUrl} alt="Cleaned up" className="size-full object-cover" />
+            ) : null}
+            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
+              Cleaned up
+            </span>
+          </button>
+        </div>
       ) : (
-        <div className="relative aspect-square w-full overflow-hidden bg-muted" onClick={() => setLightbox("current")} role="button" tabIndex={0}>
+        <div
+          className="relative aspect-square w-full overflow-hidden bg-muted"
+          onClick={() => setLightbox("current")}
+          role="button"
+          tabIndex={0}
+        >
           {(hasEnhanced ? enhancedUrl : origUrl) ? (
-            <img src={hasEnhanced ? enhancedUrl : origUrl} alt="" className="size-full object-cover" />
+            <img
+              src={hasEnhanced ? enhancedUrl : origUrl}
+              alt=""
+              className="size-full object-cover"
+            />
           ) : null}
           {hasEnhanced ? (
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
               ✓ {hasAdjustments ? "Adjusted" : "Enhanced"}
             </span>
           ) : null}
-          {!staging && state === "raw" ? (
-            <div className="absolute bottom-1 right-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {!busy && state === "raw" ? (
+            <div
+              className="absolute bottom-1 right-1 flex items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() => setAiEnhanceOpen(true)}
@@ -1211,6 +1673,16 @@ function StagedPhotoCard({
                 title="AI enhance"
               >
                 <Sparkles className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onDeclutter}
+                disabled={declutterDisabled}
+                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Clean up photo"
+                title="Clean up"
+              >
+                <Eraser className="size-3.5" />
               </button>
               <button
                 type="button"
@@ -1223,8 +1695,11 @@ function StagedPhotoCard({
                 <Wand2 className="size-3.5" />
               </button>
             </div>
-          ) : !staging && state === "enhanced" ? (
-            <div className="absolute bottom-1 right-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          ) : !busy && state === "enhanced" ? (
+            <div
+              className="absolute bottom-1 right-1 flex items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() => setClientOpen("adjust")}
@@ -1247,16 +1722,21 @@ function StagedPhotoCard({
           {!staging && (state === "staged" || state === "colour_adjusted") ? (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setClientOpen("colour_adjust"); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setClientOpen("colour_adjust");
+              }}
               className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
             >
               Colour adjust
             </button>
           ) : null}
-          {staging ? (
+          {busy ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
               <Loader2 className="size-5 animate-spin" />
-              <p className="text-[11px] font-medium">Staging your room…</p>
+              <p className="text-[11px] font-medium">
+                {staging ? "Staging your room…" : "Cleaning up…"}
+              </p>
             </div>
           ) : null}
         </div>
@@ -1290,6 +1770,30 @@ function StagedPhotoCard({
               {staging ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
               {staging ? "Staging…" : label}
             </button>
+            {state === "raw" ? (
+              <button
+                type="button"
+                onClick={onDeclutter}
+                disabled={declutterDisabled}
+                className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {decluttering ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Eraser className="size-4" />
+                )}
+                {decluttering ? "Cleaning up…" : hasDeclutter ? "Clean up again" : "Clean up"}
+              </button>
+            ) : null}
+            {state === "raw" && hasDeclutter ? (
+              <button
+                type="button"
+                onClick={onKeepOriginalFromDeclutter}
+                className="flex min-h-7 w-full items-center justify-center rounded-md px-2 text-[11px] font-medium text-muted-foreground hover:underline"
+              >
+                Revert to original
+              </button>
+            ) : null}
             {state === "raw" ? (
               <button
                 type="button"
@@ -1398,19 +1902,35 @@ function ShotCheckCard({
 }) {
   const style =
     check.rating === "good"
-      ? { border: "border-green-500/40", bg: "bg-green-50", text: "text-green-700", label: "Good shot", Icon: Check }
+      ? {
+          border: "border-green-500/40",
+          bg: "bg-green-50",
+          text: "text-green-700",
+          label: "Good shot",
+          Icon: Check,
+        }
       : check.rating === "consider_retaking"
-      ? { border: "border-amber-500/40", bg: "bg-amber-50", text: "text-amber-700", label: "Consider retaking", Icon: AlertTriangle }
-      : { border: "border-red-500/40", bg: "bg-red-50", text: "text-red-700", label: "Retake recommended", Icon: RefreshCw };
+        ? {
+            border: "border-amber-500/40",
+            bg: "bg-amber-50",
+            text: "text-amber-700",
+            label: "Consider retaking",
+            Icon: AlertTriangle,
+          }
+        : {
+            border: "border-red-500/40",
+            bg: "bg-red-50",
+            text: "text-red-700",
+            label: "Retake recommended",
+            Icon: RefreshCw,
+          };
   const Icon = style.Icon;
   return (
     <div className={`mt-3 rounded-xl border ${style.border} ${style.bg} p-3`}>
       <div className={`flex items-center gap-2 text-sm font-semibold ${style.text}`}>
         <Icon className="size-4" /> {style.label}
       </div>
-      {check.reason ? (
-        <p className="mt-1 text-xs text-foreground">{check.reason}</p>
-      ) : null}
+      {check.reason ? <p className="mt-1 text-xs text-foreground">{check.reason}</p> : null}
       {check.rating !== "good" ? (
         <div className="mt-3 flex gap-2">
           <button

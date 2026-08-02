@@ -10,7 +10,7 @@ const PLAN_INFO: Record<UpgradePlan, { name: string; price: string; features: st
     features: [
       "Up to 10 properties",
       "5 listings/month",
-      "5 staged photos/month",
+      "5 staging/clean-up credits/month",
       "20 photo enhancements/month",
       "AI photo analysis + voice-to-report",
       "Email support",
@@ -18,11 +18,11 @@ const PLAN_INFO: Record<UpgradePlan, { name: string; price: string; features: st
   },
   portfolio: {
     name: "Portfolio",
-    price: "NZ$59.95/mo (NZ$599/yr)",
+    price: "NZ$79.95/mo (NZ$799/yr)",
     features: [
       "Up to 25 properties",
       "Unlimited listings",
-      "15 staged photos/month",
+      "15 staging/clean-up credits/month",
       "50 photo enhancements/month",
       "3 team members included (+NZ$10/mo per extra)",
       "Report branding",
@@ -31,12 +31,12 @@ const PLAN_INFO: Record<UpgradePlan, { name: string; price: string; features: st
   },
   agency: {
     name: "Agency",
-    price: "NZ$99.95/mo (NZ$999/yr)",
+    price: "NZ$179/mo (NZ$1,790/yr)",
     features: [
       "Up to 100 properties",
       "Unlimited listings",
-      "50 staged photos/month",
-      "Unlimited photo enhancements",
+      "50 staging/clean-up credits/month",
+      "100 image enhancements/month (fair use)",
       "10 team members included (+NZ$15/mo per extra)",
       "White-label reports",
       "Rex CRM integration",
@@ -73,9 +73,7 @@ export function UpgradePlanModal({ open, plan, onClose }: UpgradePlanModalProps)
         >
           <X className="size-5" />
         </button>
-        <h2 className="pr-10 text-xl font-semibold text-foreground">
-          Upgrade to {info.name}
-        </h2>
+        <h2 className="pr-10 text-xl font-semibold text-foreground">Upgrade to {info.name}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{info.price}</p>
         <ul className="mt-4 flex flex-col gap-2 text-sm text-foreground">
           {info.features.map((f) => (

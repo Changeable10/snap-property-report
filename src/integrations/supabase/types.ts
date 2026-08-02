@@ -494,6 +494,7 @@ export type Database = {
         Row: {
           adjustments: Json | null
           captured_at: string
+          decluttered_url: string | null
           enhanced_url: string | null
           featured: boolean
           id: string
@@ -513,6 +514,7 @@ export type Database = {
         Insert: {
           adjustments?: Json | null
           captured_at?: string
+          decluttered_url?: string | null
           enhanced_url?: string | null
           featured?: boolean
           id?: string
@@ -532,6 +534,7 @@ export type Database = {
         Update: {
           adjustments?: Json | null
           captured_at?: string
+          decluttered_url?: string | null
           enhanced_url?: string | null
           featured?: boolean
           id?: string
