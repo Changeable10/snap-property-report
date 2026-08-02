@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
 import { Toaster } from "@/components/ui/sonner";
 import { initSentry, Sentry } from "@/lib/sentry";
 
@@ -184,6 +185,7 @@ function RootComponent() {
     <Sentry.ErrorBoundary fallback={<RootErrorFallback />}>
       <QueryClientProvider client={queryClient}>
         <PaymentTestModeBanner />
+        <PwaUpdatePrompt />
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster />
