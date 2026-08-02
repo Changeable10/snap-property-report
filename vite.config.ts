@@ -7,6 +7,15 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+// This repo builds for two different targets that land the client bundle in
+// different places: Vercel's own builder (`.vercel/output/static`, signalled
+// by the `VERCEL` env var Vercel sets on every build) and the Cloudflare/Nitro
+// path used by the default `npm run build` locally (`.output/public`). vite-
+// plugin-pwa needs to be pointed at whichever one is actually active — if it's
+// pointed at the wrong directory, its glob matches nothing and the build fails
+// hard (which is what we want instead of silently shipping a broken/empty SW).
+const pwaOutDir = process.env.VERCEL ? ".vercel/output/static" : ".output/public";
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -23,10 +32,10 @@ export default defineConfig({
       registerType: "prompt",
       injectRegister: false,
       manifest: false,
-      outDir: ".output/public",
+      outDir: pwaOutDir,
       includeManifestIcons: false,
       workbox: {
-        globDirectory: ".output/public",
+        globDirectory: pwaOutDir,
         globPatterns: ["assets/**/*.{js,css}"],
         navigateFallback: null,
         cleanupOutdatedCaches: true,
