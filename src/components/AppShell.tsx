@@ -65,7 +65,7 @@ export function AppShell({ user, children }: AppShellProps) {
 
       <div className="md:pl-[250px]">
         <AdminTestBanner userId={user?.id} />
-        <main className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-7">
+        <main className="mx-auto w-full max-w-[1200px] px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] md:px-8 md:pb-10 md:pt-7">
           {children}
         </main>
       </div>
