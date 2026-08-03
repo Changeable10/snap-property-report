@@ -71,6 +71,11 @@ export function UpgradeModal({ open, onClose, title, description, topUp }: Upgra
   const { openCheckout, loading } = usePaddleCheckout();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [topUpNotice, setTopUpNotice] = useState(false);
+  // No real Paddle account is configured yet, so checkout always fails at the
+  // price-lookup step before any real checkout UI opens — catch that and show
+  // the same "coming soon" notice as the top-up flow below, instead of a dead
+  // button. Once a real account is configured this starts working silently.
+  const [upgradeNotice, setUpgradeNotice] = useState(false);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setUser({ id: data.user.id, email: data.user.email ?? undefined });
@@ -80,12 +85,16 @@ export function UpgradeModal({ open, onClose, title, description, topUp }: Upgra
 
   async function handleUpgrade(plan: (typeof PLANS)[number]) {
     if (!user) return;
-    await openCheckout({
-      priceId: plan.priceId,
-      customerEmail: user.email,
-      customData: { userId: user.id },
-      successUrl: `${window.location.origin}/settings?upgraded=true`,
-    });
+    try {
+      await openCheckout({
+        priceId: plan.priceId,
+        customerEmail: user.email,
+        customData: { userId: user.id },
+        successUrl: `${window.location.origin}/settings?upgraded=true`,
+      });
+    } catch {
+      setUpgradeNotice(true);
+    }
   }
   return (
     <div
@@ -152,6 +161,19 @@ export function UpgradeModal({ open, onClose, title, description, topUp }: Upgra
             </div>
           ))}
         </div>
+
+        {upgradeNotice ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <p className="font-semibold">Coming soon</p>
+            <p className="mt-1">
+              Self-serve upgrades aren't available yet. Email{" "}
+              <a href="mailto:hello@snapsure.app" className="font-semibold underline">
+                hello@snapsure.app
+              </a>{" "}
+              and we'll get you upgraded.
+            </p>
+          </div>
+        ) : null}
 
         {topUp ? (
           <div className="mt-6">

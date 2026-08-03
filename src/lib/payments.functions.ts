@@ -1,14 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { gatewayFetch, type PaddleEnv } from "@/lib/paddle.server";
+import { getPaddleClient, type PaddleEnv } from "@/lib/paddle.server";
 
+// Paddle's List Prices API has no external_id/import_meta filter, so this
+// walks the (small) active price catalog and matches on import_meta.external_id
+// client-side — see the investigation this was built from.
 export const resolvePaddlePrice = createServerFn({ method: "GET" })
   .inputValidator((data: { priceId: string; environment: PaddleEnv }) => data)
   .handler(async ({ data }) => {
-    const response = await gatewayFetch(
-      data.environment,
-      `/prices?external_id=${encodeURIComponent(data.priceId)}`,
-    );
-    const result = await response.json();
-    if (!result.data?.length) throw new Error("Price not found");
-    return result.data[0].id as string;
+    const paddle = getPaddleClient(data.environment);
+    for await (const price of paddle.prices.list({ status: ["active"] })) {
+      if (price.importMeta?.externalId === data.priceId) return price.id;
+    }
+    throw new Error("Price not found");
   });
