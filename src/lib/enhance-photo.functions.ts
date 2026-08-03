@@ -33,6 +33,13 @@ export const enhancePhoto = createServerFn({ method: "POST" })
     const { photoId, table, photoPath } = data;
     const { userId } = context;
 
+    // TEMP DIAGNOSTIC: reqId disambiguates console.time labels across
+    // concurrent invocations sharing this server process.
+    const reqId = crypto.randomUUID().slice(0, 8);
+    const timings: Record<string, number> = {};
+    const tTotal0 = Date.now();
+    console.log("[enhance-photo] request start", { reqId, photoId, table });
+
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
       // Mirrors UpgradePlanModal's "Coming soon — email us" tone rather than
@@ -55,14 +62,29 @@ export const enhancePhoto = createServerFn({ method: "POST" })
     if (!row) throw new Error("Photo not found or access denied");
 
     // Download original
+    console.time(`[enhance-photo:${reqId}] download-original`);
+    const tDownload0 = Date.now();
     const dl = await supabaseAdmin.storage.from("inspection-photos").download(photoPath);
     if (dl.error || !dl.data)
       throw new Error(`Failed to read original: ${dl.error?.message ?? "not found"}`);
     const originalBuf = new Uint8Array(await dl.data.arrayBuffer());
+    timings.download_original_ms = Date.now() - tDownload0;
+    console.timeEnd(`[enhance-photo:${reqId}] download-original`);
     if (originalBuf.byteLength === 0) throw new Error("Original photo is empty");
+    // Answers "is this being sent to the provider at full/uncompressed
+    // resolution?" directly from the real production file size.
+    console.log("[enhance-photo] original photo size", {
+      reqId,
+      bytes: originalBuf.byteLength,
+      kb: Math.round(originalBuf.byteLength / 1024),
+    });
 
     // Convert to base64 (chunked to avoid stack overflow on large images).
+    console.time(`[enhance-photo:${reqId}] base64-encode`);
+    const tB64_0 = Date.now();
     const b64 = bytesToBase64(originalBuf);
+    timings.base64_encode_ms = Date.now() - tB64_0;
+    console.timeEnd(`[enhance-photo:${reqId}] base64-encode`);
     const mime = guessMime(photoPath);
 
     // Call Gemini's generateContent directly — no gateway in front of it.
@@ -70,6 +92,8 @@ export const enhancePhoto = createServerFn({ method: "POST" })
     const timer = setTimeout(() => controller.abort(), 20000);
     let respJson: any;
     try {
+      console.time(`[enhance-photo:${reqId}] gemini-request`);
+      const tGeminiReq0 = Date.now();
       const resp = await fetch(
         "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-image:generateContent",
         {
@@ -89,6 +113,8 @@ export const enhancePhoto = createServerFn({ method: "POST" })
           }),
         },
       );
+      timings.gemini_request_ms = Date.now() - tGeminiReq0;
+      console.timeEnd(`[enhance-photo:${reqId}] gemini-request`);
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
         if (resp.status === 401)
@@ -96,7 +122,11 @@ export const enhancePhoto = createServerFn({ method: "POST" })
         if (resp.status === 429) throw new Error("Rate limit reached — try again in a moment.");
         throw new Error(`Enhancement failed (${resp.status}): ${errText.slice(0, 200)}`);
       }
+      console.time(`[enhance-photo:${reqId}] gemini-body-parse`);
+      const tGeminiBody0 = Date.now();
       respJson = await resp.json();
+      timings.gemini_body_parse_ms = Date.now() - tGeminiBody0;
+      console.timeEnd(`[enhance-photo:${reqId}] gemini-body-parse`);
     } finally {
       clearTimeout(timer);
     }
@@ -116,6 +146,8 @@ export const enhancePhoto = createServerFn({ method: "POST" })
       ?.data;
     if (!outB64) {
       // Fall back to text signal — if the model refused/couldn't improve, treat as unchanged.
+      timings.total_ms = Date.now() - tTotal0;
+      console.log("[enhance-photo] TIMING BREAKDOWN (unchanged)", { reqId, ...timings });
       return { enhancedPath: null, unchanged: true };
     }
 
@@ -127,24 +159,38 @@ export const enhancePhoto = createServerFn({ method: "POST" })
       const sameEnds =
         equalRange(outBytes, originalBuf, 0, 1024) &&
         equalRange(outBytes, originalBuf, Math.max(0, outBytes.byteLength - 1024), 1024);
-      if (sameEnds) return { enhancedPath: null, unchanged: true };
+      if (sameEnds) {
+        timings.total_ms = Date.now() - tTotal0;
+        console.log("[enhance-photo] TIMING BREAKDOWN (unchanged)", { reqId, ...timings });
+        return { enhancedPath: null, unchanged: true };
+      }
     }
 
     const enhancedPath = `${userId}/enhanced/${photoId}.jpg`;
+    console.time(`[enhance-photo:${reqId}] upload-enhanced`);
+    const tUpload0 = Date.now();
     const up = await supabaseAdmin.storage
       .from("inspection-photos")
       .upload(enhancedPath, outBytes, {
         contentType: "image/jpeg",
         upsert: true,
       });
+    timings.upload_enhanced_ms = Date.now() - tUpload0;
+    console.timeEnd(`[enhance-photo:${reqId}] upload-enhanced`);
     if (up.error) throw new Error(`Failed to save enhanced photo: ${up.error.message}`);
 
+    console.time(`[enhance-photo:${reqId}] db-write`);
+    const tDbWrite0 = Date.now();
     const { error: updErr } = await supabaseAdmin
       .from(table)
       .update({ enhanced_url: enhancedPath, photo_state: "enhanced" })
       .eq("id", photoId);
+    timings.db_write_ms = Date.now() - tDbWrite0;
+    console.timeEnd(`[enhance-photo:${reqId}] db-write`);
     if (updErr) throw new Error(updErr.message);
 
+    timings.total_ms = Date.now() - tTotal0;
+    console.log("[enhance-photo] TIMING BREAKDOWN", { reqId, ...timings });
     return { enhancedPath, unchanged: false };
   });
 

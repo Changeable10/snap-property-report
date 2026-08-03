@@ -70,7 +70,11 @@ async function persistDeclutteredPhoto(params: {
   photoId: string;
   photoPath: string;
   declutteredUrl: string;
+  reqId?: string;
+  timings?: Record<string, number>;
 }) {
+  const reqId = params.reqId ?? "?";
+  const timings = params.timings ?? {};
   const admin = adminClient();
   if (!admin) {
     console.warn("[declutter-listing-photo] service role unavailable; returning provider URL only");
@@ -78,10 +82,13 @@ async function persistDeclutteredPhoto(params: {
   }
 
   console.log("[declutter-listing-photo] persist start", {
+    reqId,
     listingId: params.listingId,
     photoId: params.photoId,
   });
 
+  console.time(`[declutter-listing-photo:${reqId}] persist-authz-load`);
+  const tAuthz0 = Date.now();
   const { data: photo, error: photoErr } = await admin
     .from("listing_photos")
     .select("id,listing_id,photo_url,user_id,team_id,listings!inner(id,user_id,team_id)")
@@ -114,7 +121,11 @@ async function persistDeclutteredPhoto(params: {
     });
     return { error: "Failed to update photo", status: 403 };
   }
+  timings.persist_authz_load_ms = Date.now() - tAuthz0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] persist-authz-load`);
 
+  console.time(`[declutter-listing-photo:${reqId}] persist-download-from-decor8`);
+  const tDownload0 = Date.now();
   const declutteredFetch = await fetch(params.declutteredUrl);
   if (!declutteredFetch.ok) {
     console.error("[declutter-listing-photo] Failed to fetch decluttered image for storage", {
@@ -123,16 +134,24 @@ async function persistDeclutteredPhoto(params: {
     return { error: "Failed to save decluttered image", status: 502 };
   }
   const blob = await declutteredFetch.blob();
+  timings.persist_download_from_decor8_ms = Date.now() - tDownload0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] persist-download-from-decor8`);
+  console.log("[declutter-listing-photo] downloaded decluttered image", { reqId, bytes: blob.size });
+
   // Storage RLS on `inspection-photos` requires the first path segment to be
   // the caller's user id. Nest decluttered files under `{userId}/declutter/...`
   // so the client can createSignedUrl / read them back.
   const declutteredPath = `${params.userId}/declutter/${params.listingId}/${params.photoId}-decluttered.jpg`;
+  console.time(`[declutter-listing-photo:${reqId}] persist-upload-to-supabase`);
+  const tUpload0 = Date.now();
   const { error: uploadErr } = await admin.storage
     .from("inspection-photos")
     .upload(declutteredPath, blob, {
       contentType: declutteredFetch.headers.get("content-type") ?? "image/jpeg",
       upsert: true,
     });
+  timings.persist_upload_to_supabase_ms = Date.now() - tUpload0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] persist-upload-to-supabase`);
   if (uploadErr) {
     console.error("[declutter-listing-photo] Failed to save decluttered image", {
       table: "storage.objects",
@@ -142,6 +161,8 @@ async function persistDeclutteredPhoto(params: {
     return { error: "Failed to save decluttered image", status: 500 };
   }
 
+  console.time(`[declutter-listing-photo:${reqId}] persist-db-write`);
+  const tDbWrite0 = Date.now();
   const { error: photoUpdateErr } = await admin
     .from("listing_photos")
     .update({ decluttered_url: declutteredPath })
@@ -163,6 +184,8 @@ async function persistDeclutteredPhoto(params: {
     listing_photo_id: params.photoId,
     style: null,
   });
+  timings.persist_db_write_ms = Date.now() - tDbWrite0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] persist-db-write`);
   if (usageErr) {
     console.error("[declutter-listing-photo] Failed to save staging usage", {
       table: "staging_usage",
@@ -173,6 +196,7 @@ async function persistDeclutteredPhoto(params: {
   }
 
   console.log("[declutter-listing-photo] persist success", {
+    reqId,
     listingId: params.listingId,
     photoId: params.photoId,
     declutteredPath,
@@ -183,18 +207,32 @@ async function persistDeclutteredPhoto(params: {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const t0 = Date.now();
-  console.log("[declutter-listing-photo] request start", { method: req.method });
+  // TEMP DIAGNOSTIC: reqId disambiguates console.time labels across concurrent
+  // invocations (Deno's console.time registry is process-global, not per-request).
+  const reqId = crypto.randomUUID().slice(0, 8);
+  const timings: Record<string, number> = {};
+  console.log("[declutter-listing-photo] request start", { reqId, method: req.method });
+
+  console.time(`[declutter-listing-photo:${reqId}] auth`);
+  const tAuth0 = Date.now();
   const auth = await requireUser(req, corsHeaders);
+  timings.auth_ms = Date.now() - tAuth0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] auth`);
   if (auth instanceof Response) {
-    console.warn("[declutter-listing-photo] unauthorized");
+    console.warn("[declutter-listing-photo] unauthorized", { reqId });
     return auth;
   }
-  console.log("[declutter-listing-photo] user", auth.userId);
+  console.log("[declutter-listing-photo] user", { reqId, userId: auth.userId });
+
+  console.time(`[declutter-listing-photo:${reqId}] plan+gates`);
+  const tGates0 = Date.now();
   const plan = await getUserPlan(auth.userId);
-  console.log("[declutter-listing-photo] plan", plan);
+  console.log("[declutter-listing-photo] plan", { reqId, plan });
   const gate = await requirePlan(auth.userId, ["professional", "portfolio", "agency"], corsHeaders);
   if (gate) {
-    console.warn("[declutter-listing-photo] plan gate blocked", { plan });
+    timings.plan_gates_ms = Date.now() - tGates0;
+    console.timeEnd(`[declutter-listing-photo:${reqId}] plan+gates`);
+    console.warn("[declutter-listing-photo] plan gate blocked", { reqId, plan });
     return gate;
   }
   // Declutter draws from the SAME monthly Decor8 budget as virtual staging —
@@ -208,8 +246,10 @@ Deno.serve(async (req) => {
     agency: 50,
   };
   const overLimit = await requireMonthlyLimit(auth.userId, "staging_usage", combinedLimits[plan] ?? 0, corsHeaders);
+  timings.plan_gates_ms = Date.now() - tGates0;
+  console.timeEnd(`[declutter-listing-photo:${reqId}] plan+gates`);
   if (overLimit) {
-    console.warn("[declutter-listing-photo] monthly limit reached", { plan });
+    console.warn("[declutter-listing-photo] monthly limit reached", { reqId, plan });
     return overLimit;
   }
   const json = (body: unknown, status = 200) =>
@@ -248,6 +288,7 @@ Deno.serve(async (req) => {
     const photoId = payload.photo_id ?? payload.photoId;
     const photoPath = payload.photo_path ?? payload.photoPath;
     console.log("[declutter-listing-photo] payload", {
+      reqId,
       hasImageUrl: !!image_url,
       room_type,
       hasListingId: !!listingId,
@@ -258,10 +299,29 @@ Deno.serve(async (req) => {
     }
     const rt = String(room_type ?? "livingroom").toLowerCase();
 
+    // TEMP DIAGNOSTIC: HEAD the source image to learn its size — answers
+    // "is this being sent to the provider at full/uncompressed resolution?"
+    // without altering the actual request. Never allowed to break the call.
+    try {
+      const tHead0 = Date.now();
+      const headResp = await fetch(image_url, { method: "HEAD" });
+      timings.source_image_head_ms = Date.now() - tHead0;
+      console.log("[declutter-listing-photo] source image size", {
+        reqId,
+        contentLength: headResp.headers.get("content-length"),
+        contentType: headResp.headers.get("content-type"),
+        ms: timings.source_image_head_ms,
+      });
+    } catch (e) {
+      console.warn("[declutter-listing-photo] source image HEAD probe failed (non-fatal)", { reqId, err: String(e) });
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
 
-    console.log("[declutter-listing-photo] calling Decor8", { rt });
+    console.log("[declutter-listing-photo] calling Decor8", { reqId, rt });
+    console.time(`[declutter-listing-photo:${reqId}] decor8-request`);
+    const tDecor8Req0 = Date.now();
     const resp = await fetch("https://api.decor8.ai/remove_objects_from_room", {
       method: "POST",
       signal: controller.signal,
@@ -274,14 +334,20 @@ Deno.serve(async (req) => {
         room_type: rt,
       }),
     }).finally(() => clearTimeout(timer));
+    timings.decor8_request_ms = Date.now() - tDecor8Req0;
+    console.timeEnd(`[declutter-listing-photo:${reqId}] decor8-request`);
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      console.error("[declutter-listing-photo] Decor8 non-2xx", { status: resp.status, text: text.slice(0, 400) });
+      console.error("[declutter-listing-photo] Decor8 non-2xx", { reqId, status: resp.status, text: text.slice(0, 400) });
       const status = resp.status === 429 ? 429 : 502;
       return json({ error: `Object removal provider error (${resp.status}): ${text.slice(0, 400)}` }, status);
     }
+    console.time(`[declutter-listing-photo:${reqId}] decor8-body-parse`);
+    const tDecor8Body0 = Date.now();
     const data: any = await resp.json();
+    timings.decor8_body_parse_ms = Date.now() - tDecor8Body0;
+    console.timeEnd(`[declutter-listing-photo:${reqId}] decor8-body-parse`);
     console.log("[declutter-listing-photo] Decor8 raw response:", JSON.stringify(data).slice(0, 2000));
     const declutteredUrl: string | undefined =
       data?.info?.image?.url ?? data?.info?.url ?? data?.image_url ?? data?.url;
@@ -297,11 +363,16 @@ Deno.serve(async (req) => {
         photoId,
         photoPath,
         declutteredUrl,
+        reqId,
+        timings,
       });
       if (persisted.error) return json({ error: persisted.error }, persisted.status ?? 500);
       if (persisted.declutteredPath) {
+        timings.total_ms = Date.now() - t0;
+        console.log("[declutter-listing-photo] TIMING BREAKDOWN", { reqId, ...timings });
         console.log("[declutter-listing-photo] success", {
-          ms: Date.now() - t0,
+          reqId,
+          ms: timings.total_ms,
           declutteredUrl,
           declutteredPath: persisted.declutteredPath,
         });
@@ -309,12 +380,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log("[declutter-listing-photo] success", { ms: Date.now() - t0, declutteredUrl });
+    timings.total_ms = Date.now() - t0;
+    console.log("[declutter-listing-photo] TIMING BREAKDOWN", { reqId, ...timings });
+    console.log("[declutter-listing-photo] success", { reqId, ms: timings.total_ms, declutteredUrl });
     return json({ decluttered_url: declutteredUrl });
   } catch (err: any) {
     const msg = err?.name === "AbortError" ? "timeout" : (err?.message ?? "unknown error");
     const status = err?.name === "AbortError" ? 504 : 500;
-    console.error("[declutter-listing-photo] handler error", { msg, status });
+    timings.total_ms = Date.now() - t0;
+    console.log("[declutter-listing-photo] TIMING BREAKDOWN (error path)", { reqId, ...timings });
+    console.error("[declutter-listing-photo] handler error", { reqId, msg, status });
     return json({ error: msg }, status);
   }
 });
