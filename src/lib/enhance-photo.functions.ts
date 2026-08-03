@@ -11,7 +11,8 @@ const ENHANCE_PROMPT =
   "Auto-enhance this real-estate / property-inspection photo. Apply gentle, realistic corrections only: balance exposure and contrast so the image is well-lit without blowing out highlights, normalise white balance, and slightly increase sharpness and clarity. Do NOT add, remove, restyle or move any objects, furniture, people, text or watermarks. Keep composition, framing, aspect ratio and all room contents identical. Return only the corrected photograph.";
 
 /**
- * Enhance a photo (inspection or listing) using Lovable AI (Gemini image edit).
+ * Enhance a photo (inspection or listing) by calling Google's Gemini API
+ * directly (gemini-3.1-flash-image, image-edit).
  * - Downloads the original from the `inspection-photos` bucket.
  * - Runs a single edit pass.
  * - Uploads the result to `${userId}/enhanced/${photoId}.jpg` in the same bucket.
@@ -32,8 +33,15 @@ export const enhancePhoto = createServerFn({ method: "POST" })
     const { photoId, table, photoPath } = data;
     const { userId } = context;
 
-    const lovableKey = process.env.LOVABLE_API_KEY;
-    if (!lovableKey) throw new Error("Enhancement service not configured");
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      // Mirrors UpgradePlanModal's "Coming soon — email us" tone rather than
+      // a raw "not configured" string. Once GEMINI_API_KEY is set this path
+      // never triggers again — see EnhancePhotoModal's plain-text error slot.
+      throw new Error(
+        "AI enhancement isn't turned on yet — email hello@snapsure.app and we'll get it set up for you.",
+      );
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -48,42 +56,43 @@ export const enhancePhoto = createServerFn({ method: "POST" })
 
     // Download original
     const dl = await supabaseAdmin.storage.from("inspection-photos").download(photoPath);
-    if (dl.error || !dl.data) throw new Error(`Failed to read original: ${dl.error?.message ?? "not found"}`);
+    if (dl.error || !dl.data)
+      throw new Error(`Failed to read original: ${dl.error?.message ?? "not found"}`);
     const originalBuf = new Uint8Array(await dl.data.arrayBuffer());
     if (originalBuf.byteLength === 0) throw new Error("Original photo is empty");
 
     // Convert to base64 (chunked to avoid stack overflow on large images).
     const b64 = bytesToBase64(originalBuf);
     const mime = guessMime(photoPath);
-    const dataUrl = `data:${mime};base64,${b64}`;
 
-    // Call Lovable AI Gateway — Gemini 3.1 flash image (fast image editing).
+    // Call Gemini's generateContent directly — no gateway in front of it.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     let respJson: any;
     try {
-      const resp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${lovableKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3.1-flash-image",
-          modalities: ["image", "text"],
-          messages: [{
-            role: "user",
-            content: [
-              { type: "text", text: ENHANCE_PROMPT },
-              { type: "image_url", image_url: { url: dataUrl } },
+      const resp = await fetch(
+        "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-image:generateContent",
+        {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "x-goog-api-key": geminiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: ENHANCE_PROMPT }, { inline_data: { mime_type: mime, data: b64 } }],
+              },
             ],
-          }],
-        }),
-      });
+            generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+          }),
+        },
+      );
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
-        if (resp.status === 402) throw new Error("AI credits exhausted. Please add credits to continue.");
+        if (resp.status === 401)
+          throw new Error("Enhancement service authentication failed — check the Gemini API key.");
         if (resp.status === 429) throw new Error("Rate limit reached — try again in a moment.");
         throw new Error(`Enhancement failed (${resp.status}): ${errText.slice(0, 200)}`);
       }
@@ -92,7 +101,19 @@ export const enhancePhoto = createServerFn({ method: "POST" })
       clearTimeout(timer);
     }
 
-    const outB64: string | undefined = respJson?.data?.[0]?.b64_json;
+    // A blocked prompt or a generation stopped for safety reasons is neither
+    // "unchanged" (nothing to fix) nor a transient failure — surface it plainly.
+    const blockReason = respJson?.promptFeedback?.blockReason;
+    const finishReason = respJson?.candidates?.[0]?.finishReason;
+    if (blockReason || finishReason === "SAFETY") {
+      throw new Error(
+        "This photo couldn't be enhanced — it was blocked by Google's content safety filtering.",
+      );
+    }
+
+    const parts = respJson?.candidates?.[0]?.content?.parts as Array<any> | undefined;
+    const outB64: string | undefined = parts?.find((p: any) => p?.inlineData?.data)?.inlineData
+      ?.data;
     if (!outB64) {
       // Fall back to text signal — if the model refused/couldn't improve, treat as unchanged.
       return { enhancedPath: null, unchanged: true };
@@ -134,7 +155,8 @@ export const discardEnhancement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { photoId: string; table: "inspection_photos" | "listing_photos" }) => {
     if (!data?.photoId) throw new Error("photoId required");
-    if (data.table !== "inspection_photos" && data.table !== "listing_photos") throw new Error("invalid table");
+    if (data.table !== "inspection_photos" && data.table !== "listing_photos")
+      throw new Error("invalid table");
     return data;
   })
   .handler(async ({ data, context }) => {
@@ -163,7 +185,10 @@ function bytesToBase64(bytes: Uint8Array): string {
   let bin = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as unknown as number[]);
+    bin += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk)) as unknown as number[],
+    );
   }
   return btoa(bin);
 }
