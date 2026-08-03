@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { requireUser } from "../_shared/auth.ts";
 import { requirePlan, requireMonthlyLimit, getUserPlan } from "../_shared/plan.ts";
+import { STAGING_PROMPTS, STAGING_CREATIVITY } from "../_shared/decor8-staging-prompts.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -331,7 +332,32 @@ Deno.serve(async (req) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
 
-    console.log("[stage-listing-photo] calling Decor8", { reqId, designStyle, rt });
+    // Room-type-specific prompt/creativity overrides — only present for
+    // room types where Decor8's default behaviour has been observed to go
+    // wrong (kitchen/bathroom/laundryroom today). Added conditionally so
+    // every other room type's request body is byte-for-byte unchanged.
+    const stagingPrompt = STAGING_PROMPTS[rt];
+    const stagingCreativity = STAGING_CREATIVITY[rt];
+    const decor8Body: Record<string, unknown> = {
+      input_image_url: image_url,
+      room_type: rt,
+      design_style: designStyle,
+      num_images: 1,
+      // unverified — didn't appear in the current generate_designs_for_room
+      // parameter docs when last checked; confirm with Decor8 whether this
+      // is still a real field before relying on it.
+      num_captions: 0,
+    };
+    if (stagingPrompt) decor8Body.prompt = stagingPrompt;
+    if (stagingCreativity !== undefined) decor8Body.design_creativity = stagingCreativity;
+
+    console.log("[stage-listing-photo] calling Decor8", {
+      reqId,
+      designStyle,
+      rt,
+      hasPrompt: !!stagingPrompt,
+      designCreativity: stagingCreativity,
+    });
     console.time(`[stage-listing-photo:${reqId}] decor8-request`);
     const tDecor8Req0 = Date.now();
     const resp = await fetch("https://api.decor8.ai/generate_designs_for_room", {
@@ -341,16 +367,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        input_image_url: image_url,
-        room_type: rt,
-        design_style: designStyle,
-        num_images: 1,
-        // unverified — didn't appear in the current generate_designs_for_room
-        // parameter docs when last checked; confirm with Decor8 whether this
-        // is still a real field before relying on it.
-        num_captions: 0,
-      }),
+      body: JSON.stringify(decor8Body),
     }).finally(() => clearTimeout(timer));
     timings.decor8_request_ms = Date.now() - tDecor8Req0;
     console.timeEnd(`[stage-listing-photo:${reqId}] decor8-request`);
@@ -367,6 +384,21 @@ Deno.serve(async (req) => {
     timings.decor8_body_parse_ms = Date.now() - tDecor8Body0;
     console.timeEnd(`[stage-listing-photo:${reqId}] decor8-body-parse`);
     console.log("[stage-listing-photo] Decor8 raw response:", JSON.stringify(data).slice(0, 2000));
+
+    // REMOVE ME — temporary diagnostic for the prompt/design_creativity
+    // tuning cycle. Logs the FULL (untruncated) request + response for any
+    // call that included a prompt, so we can see whether Decor8 signals
+    // which interpretation mode (furnished vs empty-room) it used. Delete
+    // once kitchen/bathroom/laundry prompt tuning is confirmed working.
+    if (stagingPrompt) {
+      console.log("[stage-listing-photo] REMOVE ME: full Decor8 exchange for prompted request", {
+        reqId,
+        requestBody: decor8Body,
+        responseStatus: resp.status,
+        responseHeaders: Object.fromEntries(resp.headers.entries()),
+        responseJson: data,
+      });
+    }
     const images: any[] =
       data?.info?.images ?? data?.images ?? data?.output?.images ?? [];
     const stagedUrl: string | undefined =
