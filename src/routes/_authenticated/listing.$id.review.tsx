@@ -584,13 +584,14 @@ function ListingReview() {
       setUpgradeReason(gate.reason);
       return;
     }
-    if (!p.decluttered_url) {
-      try {
-        resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
-      } catch (e: any) {
-        toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
-        return;
-      }
+    // Room type is needed unconditionally now — Decor8's staging call itself
+    // requires it, not just the auto-declutter chain — so this can no longer
+    // be gated on !p.decluttered_url.
+    try {
+      resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
+    } catch (e: any) {
+      toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
+      return;
     }
     setStageModalFor(p);
   }
@@ -609,14 +610,15 @@ function ListingReview() {
   async function stagePhotoBulk(p: PhotoRow, styleKey: string): Promise<boolean> {
     setStagingId(p.id);
     try {
+      // Room type is needed unconditionally now — Decor8's staging call
+      // itself requires it, not just the auto-declutter chain — so this can
+      // no longer be gated on !p.decluttered_url.
       let roomType = "";
-      if (!p.decluttered_url) {
-        try {
-          roomType = resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
-        } catch (e: any) {
-          toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Clean up step failed");
-          return false;
-        }
+      try {
+        roomType = resolveRoomType(p.room_id ? roomNameById.get(p.room_id) : undefined);
+      } catch (e: any) {
+        toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
+        return false;
       }
       const {
         data: { user: _u },
@@ -1276,8 +1278,10 @@ function ListingReview() {
         onClose={() => setStageModalFor(null)}
         photo={stageModalFor ?? { id: "", photo_url: "" }}
         listingId={id}
+        // Resolved unconditionally — requestStage's precheck above already
+        // guarantees this can't throw for whatever photo opened this modal.
         roomType={
-          stageModalFor && !stageModalFor.decluttered_url
+          stageModalFor
             ? resolveRoomType(
                 stageModalFor.room_id ? roomNameById.get(stageModalFor.room_id) : undefined,
               )

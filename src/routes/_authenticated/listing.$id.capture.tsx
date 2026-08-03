@@ -283,13 +283,14 @@ function ListingCapture() {
       setUpgradeReason(gate.reason);
       return;
     }
-    if (!p.decluttered_url) {
-      try {
-        resolveRoomType((rooms ?? []).find((r) => r.id === p.room_id)?.name);
-      } catch (e: any) {
-        toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
-        return;
-      }
+    // Room type is needed unconditionally now — Decor8's staging call itself
+    // requires it, not just the auto-declutter chain — so this can no longer
+    // be gated on !p.decluttered_url.
+    try {
+      resolveRoomType((rooms ?? []).find((r) => r.id === p.room_id)?.name);
+    } catch (e: any) {
+      toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
+      return;
     }
     setStageModalFor(p);
   }
@@ -1171,8 +1172,10 @@ function ListingCapture() {
         onClose={() => setStageModalFor(null)}
         photo={stageModalFor ?? { id: "", photo_url: "" }}
         listingId={id}
+        // Resolved unconditionally — requestStage's precheck above already
+        // guarantees this can't throw for whatever photo opened this modal.
         roomType={
-          stageModalFor && !stageModalFor.decluttered_url
+          stageModalFor
             ? resolveRoomType((rooms ?? []).find((r) => r.id === stageModalFor.room_id)?.name)
             : ""
         }

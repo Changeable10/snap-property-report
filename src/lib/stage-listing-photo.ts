@@ -33,7 +33,11 @@ export async function stageListingPhoto(params: {
   photo: PhotoActionFields & { photo_url: string };
   listingId: string;
   styleKey: string;
-  /** Only used if a declutter pass is needed (photo isn't decluttered yet). */
+  /**
+   * Required unconditionally — sent straight through to the staging
+   * Decor8 call (not just used for an auto-declutter pass), so callers must
+   * resolve it regardless of whether the photo has already been decluttered.
+   */
   roomType: string;
   authUserId?: string;
 }): Promise<StageChainResult | StageChainError> {
@@ -62,6 +66,7 @@ export async function stageListingPhoto(params: {
       body: {
         image_url: url,
         style: params.styleKey,
+        room_type: params.roomType,
         listing_id: params.listingId,
         photo_id: params.photoId,
         photo_path: params.photo.photo_url,

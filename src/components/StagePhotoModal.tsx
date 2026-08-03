@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
   photo: PhotoActionFields & { id: string; photo_url: string };
   listingId: string;
-  /** Only used if photo.decluttered_url is absent — the chain declutters first. */
+  /** Required unconditionally — sent to the staging Decor8 call itself, not just used for an auto-declutter pass. */
   roomType: string;
   onApplied?: (stagedPath: string) => void;
   onDiscarded?: () => void;
