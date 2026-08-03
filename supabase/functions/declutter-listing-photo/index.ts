@@ -329,9 +329,11 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      // room_type intentionally NOT sent — remove_objects_from_room doesn't
+      // accept it (verified against Decor8's docs); rt is still logged above
+      // for diagnostic visibility only.
       body: JSON.stringify({
         input_image_url: image_url,
-        room_type: rt,
       }),
     }).finally(() => clearTimeout(timer));
     timings.decor8_request_ms = Date.now() - tDecor8Req0;

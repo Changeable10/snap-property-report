@@ -39,6 +39,19 @@ export function bestPhotoPath(photo: PhotoActionFields & { photo_url: string }):
   return photo.staged_url || photo.decluttered_url || photo.enhanced_url || photo.photo_url;
 }
 
+/**
+ * Source image for a NEW staging call — same precedence as bestPhotoPath but
+ * deliberately excludes staged_url. Re-staging (e.g. "Try another style")
+ * always restarts from the decluttered baseline (or enhanced/raw if no
+ * declutter has run), never builds on a prior staged output — see
+ * stage-listing-photo.ts for the full rationale. Keep this a separate
+ * function rather than special-casing bestPhotoPath, so the two precedences
+ * can't silently drift back together.
+ */
+export function bestSourceForStaging(photo: PhotoActionFields & { photo_url: string }): string {
+  return photo.decluttered_url || photo.enhanced_url || photo.photo_url;
+}
+
 export function bestPhotoBadge(photo: PhotoActionFields): string | null {
   return photo.staged_url
     ? "Staged"

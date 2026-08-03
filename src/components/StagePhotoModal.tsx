@@ -5,17 +5,16 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { stageListingPhoto, discardStagedPhoto } from "@/lib/stage-listing-photo";
+import { bestSourceForStaging, type PhotoActionFields } from "@/lib/photo-actions";
 import { incrementUsage } from "@/lib/use-usage";
 import { STAGING_STYLES } from "@/lib/use-staging-limit";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  photoId: string;
-  photoUrl: string;
-  declutteredUrl?: string | null;
+  photo: PhotoActionFields & { id: string; photo_url: string };
   listingId: string;
-  /** Only used if declutteredUrl is absent — the chain declutters first. */
+  /** Only used if photo.decluttered_url is absent — the chain declutters first. */
   roomType: string;
   onApplied?: (stagedPath: string) => void;
   onDiscarded?: () => void;
@@ -31,13 +30,16 @@ interface Props {
  * reviewed separately here, only the final staged photo is. Both Decor8
  * calls that actually run (declutter, if needed, and stage) are metered as
  * soon as they succeed, independent of accept/decline below.
+ *
+ * "Original" is deliberately bestSourceForStaging(photo), not the raw
+ * photo_url and not bestPhotoPath — it must show exactly what stageListingPhoto
+ * actually sent to Decor8 (decluttered > enhanced > raw, never a prior staged
+ * result), so before/after here reflects reality.
  */
 export function StagePhotoModal({
   open,
   onClose,
-  photoId,
-  photoUrl,
-  declutteredUrl,
+  photo,
   listingId,
   roomType,
   onApplied,
@@ -67,13 +69,14 @@ export function StagePhotoModal({
     (async () => {
       const { data } = await supabase.storage
         .from("inspection-photos")
-        .createSignedUrl(photoUrl, 3600);
+        .createSignedUrl(bestSourceForStaging(photo), 3600);
       if (!cancelled) setOrigUrl(data?.signedUrl ?? null);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, photoUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, photo.photo_url, photo.decluttered_url, photo.enhanced_url]);
 
   if (!open) return null;
 
@@ -87,9 +90,8 @@ export function StagePhotoModal({
         data: { user },
       } = await supabase.auth.getUser();
       const result = await stageListingPhoto({
-        photoId,
-        photoUrl,
-        declutteredUrl,
+        photoId: photo.id,
+        photo,
         listingId,
         styleKey,
         roomType,
@@ -120,7 +122,7 @@ export function StagePhotoModal({
   async function keepOriginal() {
     setDiscarding(true);
     try {
-      await discardStagedPhoto({ photoId, stagedUrl: stagedPath });
+      await discardStagedPhoto({ photoId: photo.id, stagedUrl: stagedPath });
       onDiscarded?.();
       onClose();
     } catch (e: any) {
@@ -217,7 +219,7 @@ export function StagePhotoModal({
                         <div className="flex flex-col items-center gap-2">
                           <Loader2 className="size-5 animate-spin text-teal" />
                           <span>
-                            {ranDeclutter || !declutteredUrl
+                            {ranDeclutter || !photo.decluttered_url
                               ? "Cleaning up, then staging…"
                               : "Staging…"}
                           </span>

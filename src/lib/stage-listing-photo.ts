@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { declutterListingPhoto } from "@/lib/declutter-photo";
+import { bestSourceForStaging, type PhotoActionFields } from "@/lib/photo-actions";
 
 export interface StageChainResult {
   ok: true;
@@ -19,11 +20,17 @@ export interface StageChainError {
  * single photo; callers do NOT gate on plan/credits or show any UI here).
  * Each Decor8 call that actually runs (declutter and/or stage) is metered
  * via staging_usage as it completes, same rule as declutterListingPhoto.
+ *
+ * Source image is chosen via bestSourceForStaging, NOT bestPhotoPath —
+ * re-staging (e.g. "Try another style") deliberately always restarts from
+ * the decluttered baseline (or enhanced/raw), never from a prior staged
+ * result. If you're tempted to make re-staging build on the last staged
+ * output instead, that's a real product decision, not a bug fix — don't
+ * make it silently here.
  */
 export async function stageListingPhoto(params: {
   photoId: string;
-  photoUrl: string;
-  declutteredUrl?: string | null;
+  photo: PhotoActionFields & { photo_url: string };
   listingId: string;
   styleKey: string;
   /** Only used if a declutter pass is needed (photo isn't decluttered yet). */
@@ -31,12 +38,12 @@ export async function stageListingPhoto(params: {
   authUserId?: string;
 }): Promise<StageChainResult | StageChainError> {
   try {
-    let sourcePath = params.declutteredUrl ?? params.photoUrl;
+    let sourcePath = bestSourceForStaging(params.photo);
     let declutteredPath: string | undefined;
-    if (!params.declutteredUrl) {
+    if (!params.photo.decluttered_url) {
       const declutterResult = await declutterListingPhoto({
         photoId: params.photoId,
-        photoUrl: params.photoUrl,
+        photoUrl: params.photo.photo_url,
         listingId: params.listingId,
         roomType: params.roomType,
         authUserId: params.authUserId,
@@ -57,7 +64,7 @@ export async function stageListingPhoto(params: {
         style: params.styleKey,
         listing_id: params.listingId,
         photo_id: params.photoId,
-        photo_path: params.photoUrl,
+        photo_path: params.photo.photo_url,
       },
     });
     if (error) {

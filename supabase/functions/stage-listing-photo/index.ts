@@ -346,6 +346,9 @@ Deno.serve(async (req) => {
         room_type: rt,
         design_style: designStyle,
         num_images: 1,
+        // unverified — didn't appear in the current generate_designs_for_room
+        // parameter docs when last checked; confirm with Decor8 whether this
+        // is still a real field before relying on it.
         num_captions: 0,
       }),
     }).finally(() => clearTimeout(timer));

@@ -43,6 +43,16 @@ export type Decor8RoomType = (typeof DECOR8_ROOM_TYPES)[number];
 // Free-text Snapsure room name -> Decor8 room_type, most specific patterns
 // first (e.g. "powder room" / "private office" must be checked before the
 // generic "bathroom" / "office" patterns they'd otherwise also match).
+//
+// Specific room types (kitchen, bathroom, bedroom, laundry, etc.) MUST be
+// checked before the generic living/dining catchalls. Real-world listing
+// room names very commonly combine an open-plan space with its specific
+// room, e.g. "Kitchen/Dining", "Open Plan Kitchen/Living", "Kitchen/Lounge"
+// — if living|lounge or dining were checked first, those would incorrectly
+// resolve to livingroom/diningroom and never reach the kitchen check,
+// silently sending the wrong room_type to Decor8 (a real kitchen would come
+// back staged as a living room). Keep kitchen/bathroom/bedroom above
+// living|lounge/dining in this list.
 const ROOM_NAME_MAP: Array<{ match: RegExp; type: Decor8RoomType }> = [
   { match: /toilet|\bwc\b|powder\s*room/i, type: "powderroom" },
   { match: /walk.?in.?(closet|wardrobe)/i, type: "walkincloset" },
@@ -50,7 +60,6 @@ const ROOM_NAME_MAP: Array<{ match: RegExp; type: Decor8RoomType }> = [
   { match: /board\s*room/i, type: "boardroom" },
   { match: /meeting\s*room/i, type: "meetingroom" },
   { match: /open\s*workspace/i, type: "openworkspace" },
-  { match: /open\s*plan/i, type: "openplan" },
   { match: /reading\s*nook/i, type: "readingnook" },
   { match: /sun\s*room|conservatory/i, type: "sunroom" },
   { match: /front\s*porch/i, type: "front_porch" },
@@ -62,8 +71,6 @@ const ROOM_NAME_MAP: Array<{ match: RegExp; type: Decor8RoomType }> = [
   { match: /kid|nursery/i, type: "kidsroom" },
   { match: /family\s*room/i, type: "familyroom" },
   { match: /laundry/i, type: "laundryroom" },
-  { match: /living|lounge/i, type: "livingroom" },
-  { match: /dining/i, type: "diningroom" },
   { match: /kitchen/i, type: "kitchen" },
   { match: /ensuite|bathroom/i, type: "bathroom" },
   { match: /bed\s*room|master/i, type: "bedroom" },
@@ -75,6 +82,12 @@ const ROOM_NAME_MAP: Array<{ match: RegExp; type: Decor8RoomType }> = [
   { match: /balcony|deck/i, type: "balcony" },
   { match: /cafe/i, type: "cafe" },
   { match: /foyer|entry|entrance|hall(way)?/i, type: "foyer" },
+  // Generic open-space catchalls — must stay after every specific room type
+  // above, so a combined name like "Kitchen/Dining" or "Open Plan
+  // Kitchen/Living" resolves to the specific room, not the open-plan label.
+  { match: /open\s*plan/i, type: "openplan" },
+  { match: /living|lounge/i, type: "livingroom" },
+  { match: /dining/i, type: "diningroom" },
 ];
 
 export class UnmappedRoomTypeError extends Error {

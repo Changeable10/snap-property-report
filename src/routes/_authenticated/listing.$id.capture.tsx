@@ -1169,9 +1169,7 @@ function ListingCapture() {
       <StagePhotoModal
         open={!!stageModalFor}
         onClose={() => setStageModalFor(null)}
-        photoId={stageModalFor?.id ?? ""}
-        photoUrl={stageModalFor?.photo_url ?? ""}
-        declutteredUrl={stageModalFor?.decluttered_url}
+        photo={stageModalFor ?? { id: "", photo_url: "" }}
         listingId={id}
         roomType={
           stageModalFor && !stageModalFor.decluttered_url

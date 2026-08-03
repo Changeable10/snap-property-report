@@ -623,8 +623,7 @@ function ListingReview() {
       } = await supabase.auth.getUser();
       const result = await stageListingPhoto({
         photoId: p.id,
-        photoUrl: p.photo_url,
-        declutteredUrl: p.decluttered_url,
+        photo: p,
         listingId: id,
         styleKey,
         roomType,
@@ -1275,9 +1274,7 @@ function ListingReview() {
       <StagePhotoModal
         open={!!stageModalFor}
         onClose={() => setStageModalFor(null)}
-        photoId={stageModalFor?.id ?? ""}
-        photoUrl={stageModalFor?.photo_url ?? ""}
-        declutteredUrl={stageModalFor?.decluttered_url}
+        photo={stageModalFor ?? { id: "", photo_url: "" }}
         listingId={id}
         roomType={
           stageModalFor && !stageModalFor.decluttered_url
