@@ -1257,6 +1257,18 @@ function StagedPhotoCard({
     "raw" | "enhanced" | "staged" | "colour_adjusted";
   const qc = useQueryClient();
 
+  // Clean up runs after Enhance in the typical flow (and Stage's
+  // auto-declutter chain always runs last), so decluttered_url must outrank
+  // enhanced_url here — matching bestPhotoPath/bestPhotoBadge's precedence.
+  const currentUrl = hasDeclutter ? declutteredUrl : hasEnhanced ? enhancedUrl : origUrl;
+  const currentLabel = hasDeclutter
+    ? "Cleaned up"
+    : hasEnhanced
+      ? hasAdjustments
+        ? "Adjusted"
+        : "Enhanced"
+      : "Original";
+
   const hasBeforeAfter = hasStaged;
   const [lightbox, setLightbox] = useState<"before" | "staged" | "current" | null>(null);
   const lightboxUrl =
@@ -1265,11 +1277,7 @@ function StagedPhotoCard({
       : lightbox === "staged"
         ? stagedUrl
         : lightbox === "current"
-          ? hasEnhanced
-            ? enhancedUrl
-            : hasDeclutter
-              ? declutteredUrl
-              : origUrl
+          ? currentUrl
           : null;
   const lightboxLabel =
     lightbox === "before"
@@ -1277,13 +1285,7 @@ function StagedPhotoCard({
       : lightbox === "staged"
         ? `Staged · ${photo.staging_style ?? ""}`
         : lightbox === "current"
-          ? hasEnhanced
-            ? hasAdjustments
-              ? "Adjusted"
-              : "Enhanced"
-            : hasDeclutter
-              ? "Cleaned up"
-              : "Original"
+          ? currentLabel
           : "";
 
   return (
@@ -1389,20 +1391,10 @@ function StagedPhotoCard({
           role="button"
           tabIndex={0}
         >
-          {(hasEnhanced ? enhancedUrl : hasDeclutter ? declutteredUrl : origUrl) ? (
-            <img
-              src={hasEnhanced ? enhancedUrl : hasDeclutter ? declutteredUrl : origUrl}
-              alt=""
-              className="size-full object-cover"
-            />
-          ) : null}
-          {hasEnhanced ? (
+          {currentUrl ? <img src={currentUrl} alt="" className="size-full object-cover" /> : null}
+          {hasEnhanced || hasDeclutter ? (
             <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
-              ✓ {hasAdjustments ? "Adjusted" : "Enhanced"}
-            </span>
-          ) : hasDeclutter ? (
-            <span className="absolute left-1 top-1 rounded bg-teal px-1.5 py-0.5 text-[9px] font-semibold text-teal-foreground">
-              ✓ Cleaned up
+              ✓ {currentLabel}
             </span>
           ) : null}
           <div

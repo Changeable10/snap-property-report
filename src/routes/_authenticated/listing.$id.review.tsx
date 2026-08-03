@@ -37,6 +37,8 @@ import {
   stageCreditsNeeded,
   gateCreditAction,
   gateDescription,
+  bestPhotoPath,
+  bestPhotoBadge,
 } from "@/lib/photo-actions";
 import { incrementUsage } from "@/lib/use-usage";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -1365,10 +1367,11 @@ function StagedCard({
   onKeepOriginal: () => void;
 }) {
   const [origUrl, setOrigUrl] = useState<string | undefined>();
-  const [stagedUrl, setStagedUrl] = useState<string | undefined>();
+  const [bestUrl, setBestUrl] = useState<string | undefined>();
   const [showStaged, setShowStaged] = useState(true);
   const [enhanceOpen, setEnhanceOpen] = useState(false);
   const qc = useQueryClient();
+  const bestPath = bestPhotoPath(photo);
   useEffect(() => {
     let cancel = false;
     supabase.storage
@@ -1383,23 +1386,19 @@ function StagedCard({
   }, [photo.photo_url]);
   useEffect(() => {
     let cancel = false;
-    if (photo.staged_url) {
-      supabase.storage
-        .from("inspection-photos")
-        .createSignedUrl(photo.staged_url, 3600)
-        .then(({ data }) => {
-          if (!cancel) setStagedUrl(data?.signedUrl);
-        });
-    } else {
-      setStagedUrl(undefined);
-    }
+    supabase.storage
+      .from("inspection-photos")
+      .createSignedUrl(bestPath, 3600)
+      .then(({ data }) => {
+        if (!cancel) setBestUrl(data?.signedUrl);
+      });
     return () => {
       cancel = true;
     };
-  }, [photo.staged_url]);
+  }, [bestPath]);
   const hasStaged = !!photo.staged_url;
-  const hasDeclutter = !!photo.decluttered_url;
-  const displaySrc = hasStaged && showStaged ? stagedUrl : origUrl;
+  const badge = bestPhotoBadge(photo);
+  const displaySrc = hasStaged && !showStaged ? origUrl : bestUrl;
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background">
@@ -1415,9 +1414,9 @@ function StagedCard({
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
             {showStaged ? `Staged · ${photo.staging_style ?? ""}` : "Original"}
           </span>
-        ) : hasDeclutter && !staging ? (
+        ) : badge && !staging ? (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
-            Cleaned up
+            {badge}
           </span>
         ) : null}
       </div>
@@ -1593,73 +1592,31 @@ function PhotoStagingTile({
   onDeclutter: () => void;
   onKeepOriginal: () => void;
 }) {
-  const [origUrl, setOrigUrl] = useState<string | undefined>();
-  const [stagedUrl, setStagedUrl] = useState<string | undefined>();
-  const [declutteredUrl, setDeclutteredUrl] = useState<string | undefined>();
+  const [displaySrc, setDisplaySrc] = useState<string | undefined>();
   const [enhanceOpen, setEnhanceOpen] = useState(false);
   const qc = useQueryClient();
+  const bestPath = bestPhotoPath(photo);
   useEffect(() => {
     let cancel = false;
     supabase.storage
       .from("inspection-photos")
-      .createSignedUrl(photo.photo_url, 3600)
+      .createSignedUrl(bestPath, 3600)
       .then(({ data }) => {
-        if (!cancel) setOrigUrl(data?.signedUrl);
+        if (!cancel) setDisplaySrc(data?.signedUrl);
       });
     return () => {
       cancel = true;
     };
-  }, [photo.photo_url]);
-  useEffect(() => {
-    let cancel = false;
-    if (photo.staged_url) {
-      supabase.storage
-        .from("inspection-photos")
-        .createSignedUrl(photo.staged_url, 3600)
-        .then(({ data }) => {
-          if (!cancel) setStagedUrl(data?.signedUrl);
-        });
-    } else {
-      setStagedUrl(undefined);
-    }
-    return () => {
-      cancel = true;
-    };
-  }, [photo.staged_url]);
-  useEffect(() => {
-    let cancel = false;
-    if (photo.decluttered_url) {
-      supabase.storage
-        .from("inspection-photos")
-        .createSignedUrl(photo.decluttered_url, 3600)
-        .then(({ data }) => {
-          if (!cancel) setDeclutteredUrl(data?.signedUrl);
-        });
-    } else {
-      setDeclutteredUrl(undefined);
-    }
-    return () => {
-      cancel = true;
-    };
-  }, [photo.decluttered_url]);
+  }, [bestPath]);
 
   const hasStaged = !!photo.staged_url;
-  const hasDeclutter = !!photo.decluttered_url;
-  const displaySrc = hasStaged ? stagedUrl : hasDeclutter ? declutteredUrl : origUrl;
+  const badge = bestPhotoBadge(photo);
   return (
     <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
       {displaySrc ? <img src={displaySrc} alt="" className="size-full object-cover" /> : null}
-      {hasStaged ? (
+      {badge ? (
         <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
-          Staged
-        </span>
-      ) : hasDeclutter ? (
-        <span className="absolute left-1.5 top-1.5 rounded-full bg-teal px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
-          Cleaned up
-        </span>
-      ) : photo.enhanced_url ? (
-        <span className="absolute left-1.5 top-1.5 rounded-full bg-teal/90 px-1.5 py-0.5 text-[10px] font-semibold text-teal-foreground">
-          Enhanced
+          {badge}
         </span>
       ) : null}
       {staging ? (

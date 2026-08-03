@@ -28,6 +28,28 @@ export function stageLabel(photo: PhotoActionFields): string {
 export const CLEAN_UP_LABEL = "Clean up";
 
 /**
+ * Which edit is "current" for display, newest first: Stage supersedes
+ * Clean up supersedes Enhance supersedes the raw capture. There's no
+ * timestamp on listing_photos to know true edit order, so this fixed
+ * precedence is the source of truth every card must agree on — Clean up
+ * runs after Enhance in the typical flow (and Stage's auto-declutter chain
+ * always runs last), so it must outrank enhanced_url, not the reverse.
+ */
+export function bestPhotoPath(photo: PhotoActionFields & { photo_url: string }): string {
+  return photo.staged_url || photo.decluttered_url || photo.enhanced_url || photo.photo_url;
+}
+
+export function bestPhotoBadge(photo: PhotoActionFields): string | null {
+  return photo.staged_url
+    ? "Staged"
+    : photo.decluttered_url
+      ? "Cleaned up"
+      : photo.enhanced_url
+        ? "Enhanced"
+        : null;
+}
+
+/**
  * Stage auto-chains a declutter pass first when the photo hasn't been
  * decluttered yet (see stageListingPhoto), so it costs 2 shared credits
  * instead of 1 in that case.
