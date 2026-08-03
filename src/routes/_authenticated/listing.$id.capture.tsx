@@ -1401,13 +1401,13 @@ function StagedPhotoCard({
             className="absolute bottom-1 right-1 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            {state !== "raw" ? (
+            {hasStaged || hasEnhanced ? (
               <button
                 type="button"
-                onClick={() => setClientOpen(state === "enhanced" ? "adjust" : "colour_adjust")}
+                onClick={() => setClientOpen(hasStaged ? "colour_adjust" : "adjust")}
                 className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
               >
-                {state === "enhanced" ? (hasAdjustments ? "Re-adjust" : "Adjust") : "Colour adjust"}
+                {hasStaged ? "Colour adjust" : hasAdjustments ? "Re-adjust" : "Adjust"}
               </button>
             ) : null}
             <button
@@ -1441,13 +1441,13 @@ function StagedPhotoCard({
         </div>
       )}
       <div className="space-y-1.5 p-2">
-        {state !== "raw" ? (
+        {hasStaged || hasEnhanced ? (
           <button
             type="button"
-            onClick={() => setClientOpen(state === "enhanced" ? "adjust" : "colour_adjust")}
+            onClick={() => setClientOpen(hasStaged ? "colour_adjust" : "adjust")}
             className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground"
           >
-            {state === "enhanced" ? (hasAdjustments ? "Re-adjust" : "Adjust") : "Colour adjust"}
+            {hasStaged ? "Colour adjust" : hasAdjustments ? "Re-adjust" : "Adjust"}
           </button>
         ) : null}
         <button
