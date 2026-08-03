@@ -23,17 +23,21 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePlan } from "@/lib/use-plan";
-import {
-  useStagingThisMonth,
-  STAGING_MONTHLY_LIMIT,
-  STAGING_STYLES,
-} from "@/lib/use-staging-limit";
+import { useStagingThisMonth, STAGING_MONTHLY_LIMIT } from "@/lib/use-staging-limit";
 import { resolveRoomType, UnmappedRoomTypeError } from "@/lib/decor8-room-type";
-import { declutterListingPhoto } from "@/lib/declutter-photo";
-import { incrementUsage } from "@/lib/use-usage";
+import { discardStagedPhoto } from "@/lib/stage-listing-photo";
+import {
+  enhanceLabel,
+  stageLabel,
+  CLEAN_UP_LABEL,
+  stageCreditsNeeded,
+  gateCreditAction,
+  gateDescription,
+} from "@/lib/photo-actions";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { EnhancePhotoModal } from "@/components/EnhancePhotoModal";
 import { DeclutterPhotoModal } from "@/components/DeclutterPhotoModal";
+import { StagePhotoModal } from "@/components/StagePhotoModal";
 import { DeletePhotoButton } from "@/components/DeletePhotoButton";
 import {
   ACCEPTED_IMAGE_ACCEPT_ATTR,
@@ -265,38 +269,38 @@ function ListingCapture() {
   // Declutter draws from this same monthly pool — there is no separate
   // credit bucket. A photo that needs decluttering before staging consumes 2
   // of these in one "Stage this room" action.
-  const outOfCredits = plan !== "free" && stagingRemaining < 1;
-  const [stagingId, setStagingId] = useState<string | null>(null);
-  const [styleModalFor, setStyleModalFor] = useState<ListingPhoto | null>(null);
+  const [stageModalFor, setStageModalFor] = useState<ListingPhoto | null>(null);
   const [declutterModalFor, setDeclutterModalFor] = useState<ListingPhoto | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<"free_plan" | "no_credits" | null>(null);
 
+  // Gates on the shared staging/clean-up credit pool, resolves the room type
+  // up front (so an unmappable room name fails loudly right away rather than
+  // after opening a modal), then opens StagePhotoModal — which owns the
+  // style choice, the Decor8 call(s), and the accept/decline UI itself.
   function requestStage(p: ListingPhoto) {
-    if (plan === "free") {
-      setShowUpgrade(true);
+    const gate = gateCreditAction(plan, stagingRemaining, stageCreditsNeeded(p));
+    if (!gate.ok) {
+      setUpgradeReason(gate.reason);
       return;
     }
-    const needed = p.decluttered_url ? 1 : 2;
-    if (stagingRemaining < needed) {
-      setShowUpgrade(true);
-      return;
+    if (!p.decluttered_url) {
+      try {
+        resolveRoomType((rooms ?? []).find((r) => r.id === p.room_id)?.name);
+      } catch (e: any) {
+        toast.error(e instanceof UnmappedRoomTypeError ? e.message : "Staging failed");
+        return;
+      }
     }
-    setStyleModalFor(p);
+    setStageModalFor(p);
   }
 
-  // Gates on plan/credits, resolves the room type up front (so an unmappable
-  // room name fails loudly right away rather than after opening a modal),
-  // then opens the standalone Clean up modal — which runs the actual Decor8
-  // call itself and presents before/after with accept/decline, matching
-  // Enhance's pattern. The chained declutter-then-stage step in stagePhoto
-  // below never opens this modal — it calls declutterListingPhoto directly.
+  // Same gating pattern for Clean up — opens the standalone Clean up modal,
+  // which runs the actual Decor8 call itself and presents before/after with
+  // accept/decline, matching Enhance's pattern.
   function requestDeclutter(p: ListingPhoto) {
-    if (plan === "free") {
-      setShowUpgrade(true);
-      return;
-    }
-    if (stagingRemaining < 1) {
-      setShowUpgrade(true);
+    const gate = gateCreditAction(plan, stagingRemaining, 1);
+    if (!gate.ok) {
+      setUpgradeReason(gate.reason);
       return;
     }
     try {
@@ -308,153 +312,14 @@ function ListingCapture() {
     setDeclutterModalFor(p);
   }
 
-  async function stagePhoto(p: ListingPhoto, styleKey: string) {
-    setStagingId(p.id);
-    try {
-      let sourcePath = p.decluttered_url ?? p.photo_url;
-      if (!p.decluttered_url) {
-        // Chained internal declutter step — no modal, no separate
-        // accept/decline; only the final staged result gets reviewed.
-        const roomType = resolveRoomType((rooms ?? []).find((r) => r.id === p.room_id)?.name);
-        const {
-          data: { user: _u },
-        } = await supabase.auth.getUser();
-        const declutterResult = await declutterListingPhoto({
-          photoId: p.id,
-          photoUrl: p.photo_url,
-          listingId: id,
-          roomType,
-          authUserId: _u?.id ?? authUserId,
-        });
-        if (!declutterResult.ok) {
-          toast.error(declutterResult.error ?? "Clean up step failed");
-          return;
-        }
-        sourcePath = declutterResult.path;
-        await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
-        await refetchStagingUsage();
-        void incrementUsage("staging");
-        await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
-      }
-      const { data: signed } = await supabase.storage
-        .from("inspection-photos")
-        .createSignedUrl(sourcePath, 3600);
-      const url = signed?.signedUrl;
-      if (!url) throw new Error("Signed URL failed");
-      const { data, error } = await supabase.functions.invoke("stage-listing-photo", {
-        body: {
-          image_url: url,
-          style: styleKey,
-          listing_id: id,
-          photo_id: p.id,
-          photo_path: p.photo_url,
-        },
-      });
-      if (error) {
-        const { unwrapFunctionsError } = await import("@/lib/email-client");
-        throw new Error(await unwrapFunctionsError(error, "Staging failed"));
-      }
-      console.log("[virtual-staging] stage-listing-photo response", data);
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const stagedPathFromServer = (data as any)?.staged_path as string | undefined;
-      if (stagedPathFromServer) {
-        await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
-        await refetchStagingUsage();
-        toast.success("Staged version ready");
-        return;
-      }
-      const stagedRemote = (data as any).staged_url as string;
-      console.log("[virtual-staging] remote stagedUrl", stagedRemote);
-      const resp = await fetch(stagedRemote);
-      if (!resp.ok) throw new Error("Failed to fetch staged image");
-      const blob = await resp.blob();
-      // Storage RLS requires first folder to equal auth.uid().
-      const {
-        data: { user: _u },
-      } = await supabase.auth.getUser();
-      const uid = _u?.id ?? authUserId;
-      if (!uid) throw new Error("Sign in required to save staged image");
-      const stagedPath = `${uid}/staging/${id}/${p.id}-staged.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from("inspection-photos")
-        .upload(stagedPath, blob, { contentType: "image/jpeg", upsert: true });
-      if (upErr) throw upErr;
-      const { error: dbErr } = await supabase
-        .from("listing_photos")
-        .update({ staged_url: stagedPath, staging_style: styleKey, photo_state: "staged" })
-        .eq("id", p.id);
-      if (dbErr) {
-        console.error("[virtual-staging] Failed to update photo", {
-          table: "listing_photos",
-          operation: "update",
-          error: dbErr,
-        });
-        throw new Error("Failed to update photo");
-      }
-      const {
-        data: { user: _authUser },
-        error: userErr,
-      } = await supabase.auth.getUser();
-      if (userErr)
-        console.error(
-          "[virtual-staging] Failed to read authenticated user before staging usage insert",
-          userErr,
-        );
-      const usageUserId = _authUser?.id ?? authUserId;
-      if (!usageUserId) throw new Error("Sign in required to save staging usage");
-      const { error: usageErr } = await supabase.from("staging_usage").insert({
-        user_id: usageUserId,
-        listing_photo_id: p.id,
-        style: styleKey,
-      });
-      if (usageErr) {
-        console.error("[virtual-staging] Failed to save staging usage", {
-          table: "staging_usage",
-          operation: "insert",
-          error: usageErr,
-        });
-        throw new Error("Failed to save staging usage");
-      }
-      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
-      await refetchStagingUsage();
-      void incrementUsage("staging");
-      await qc.invalidateQueries({ queryKey: ["usage-tracking"] });
-      toast.success("Staged version ready");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Staging failed");
-    } finally {
-      setStagingId(null);
-    }
-  }
-
-  async function handleStyleChosen(styleKey: string) {
-    const target = styleModalFor;
-    setStyleModalFor(null);
-    if (!target) return;
-    const needed = target.decluttered_url ? 1 : 2;
-    if (stagingRemaining < needed) {
-      setShowUpgrade(true);
-      return;
-    }
-    await stagePhoto(target, styleKey);
-  }
-
   async function keepOriginal(p: ListingPhoto) {
-    if (!p.staged_url) return;
     try {
-      await supabase.storage.from("inspection-photos").remove([p.staged_url]);
-    } catch {
-      /* ignore */
+      await discardStagedPhoto({ photoId: p.id, stagedUrl: p.staged_url });
+      await qc.invalidateQueries({ queryKey: ["listing-photos", id] });
+      toast.success("Kept original photo");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to remove staged version");
     }
-    const { error } = await supabase
-      .from("listing_photos")
-      .update({ staged_url: null, staging_style: null })
-      .eq("id", p.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["listing-photos", id] });
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1193,10 +1058,6 @@ function ListingCapture() {
                 <StagedPhotoCard
                   key={p.id}
                   photo={p}
-                  staging={stagingId === p.id}
-                  outOfCredits={outOfCredits}
-                  stagingRemaining={stagingRemaining}
-                  freePlan={plan === "free"}
                   onStage={() => requestStage(p)}
                   onDeclutter={() => requestDeclutter(p)}
                   onKeepOriginal={() => keepOriginal(p)}
@@ -1291,9 +1152,6 @@ function ListingCapture() {
         </div>
       </nav>
 
-      {styleModalFor ? (
-        <StyleModal onClose={() => setStyleModalFor(null)} onChoose={handleStyleChosen} />
-      ) : null}
       <DeclutterPhotoModal
         open={!!declutterModalFor}
         onClose={() => setDeclutterModalFor(null)}
@@ -1308,7 +1166,27 @@ function ListingCapture() {
         onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
         onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
       />
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} topUp="staging" />
+      <StagePhotoModal
+        open={!!stageModalFor}
+        onClose={() => setStageModalFor(null)}
+        photoId={stageModalFor?.id ?? ""}
+        photoUrl={stageModalFor?.photo_url ?? ""}
+        declutteredUrl={stageModalFor?.decluttered_url}
+        listingId={id}
+        roomType={
+          stageModalFor && !stageModalFor.decluttered_url
+            ? resolveRoomType((rooms ?? []).find((r) => r.id === stageModalFor.room_id)?.name)
+            : ""
+        }
+        onApplied={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
+        onDiscarded={() => qc.invalidateQueries({ queryKey: ["listing-photos", id] })}
+      />
+      <UpgradeModal
+        open={!!upgradeReason}
+        onClose={() => setUpgradeReason(null)}
+        description={upgradeReason ? gateDescription(upgradeReason) : undefined}
+        topUp="staging"
+      />
 
       {pendingNavDir ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
@@ -1354,20 +1232,12 @@ function ListingCapture() {
 
 function StagedPhotoCard({
   photo,
-  staging,
-  outOfCredits,
-  stagingRemaining,
-  freePlan,
   onStage,
   onDeclutter,
   onKeepOriginal,
   onDeleted,
 }: {
   photo: ListingPhoto;
-  staging: boolean;
-  outOfCredits: boolean;
-  stagingRemaining: number;
-  freePlan: boolean;
   onStage: () => void;
   onDeclutter: () => void;
   onKeepOriginal: () => void;
@@ -1386,19 +1256,6 @@ function StagedPhotoCard({
   const state = (photo.photo_state ?? (hasStaged ? "staged" : hasEnhanced ? "enhanced" : "raw")) as
     "raw" | "enhanced" | "staged" | "colour_adjusted";
   const qc = useQueryClient();
-  // A photo that hasn't been decluttered yet needs 2 credits when staged
-  // (declutter + stage, chained); already-decluttered or standalone
-  // clean-up only needs 1.
-  const disabled =
-    staging || (!hasStaged && (freePlan || stagingRemaining < (hasDeclutter ? 1 : 2)));
-  const declutterDisabled = staging || freePlan || stagingRemaining < 1;
-  const label = freePlan
-    ? "Upgrade for staging"
-    : outOfCredits && !hasStaged
-      ? "Upgrade for more credits"
-      : hasStaged
-        ? "Try another style"
-        : "Virtual staging";
 
   const hasBeforeAfter = hasStaged;
   const [lightbox, setLightbox] = useState<"before" | "staged" | "current" | null>(null);
@@ -1548,144 +1405,91 @@ function StagedPhotoCard({
               ✓ Cleaned up
             </span>
           ) : null}
-          {!staging && state === "raw" ? (
-            <div
-              className="absolute bottom-1 right-1 flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-            >
+          <div
+            className="absolute bottom-1 right-1 flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {state !== "raw" ? (
               <button
                 type="button"
-                onClick={() => setAiEnhanceOpen(true)}
-                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
-                aria-label="Enhance photo (uses monthly credit)"
-                title="AI enhance"
-              >
-                <Sparkles className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={onDeclutter}
-                disabled={declutterDisabled}
-                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Clean up photo"
-                title="Clean up"
-              >
-                <Eraser className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={onStage}
-                disabled={disabled}
-                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Stage photo"
-                title="Stage"
-              >
-                <Wand2 className="size-3.5" />
-              </button>
-            </div>
-          ) : !staging && state === "enhanced" ? (
-            <div
-              className="absolute bottom-1 right-1 flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setClientOpen("adjust")}
+                onClick={() => setClientOpen(state === "enhanced" ? "adjust" : "colour_adjust")}
                 className="rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
               >
-                {hasAdjustments ? "Re-adjust" : "Adjust"}
+                {state === "enhanced" ? (hasAdjustments ? "Re-adjust" : "Adjust") : "Colour adjust"}
               </button>
-              <button
-                type="button"
-                onClick={onStage}
-                disabled={disabled}
-                className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Stage photo"
-                title="Stage"
-              >
-                <Wand2 className="size-3.5" />
-              </button>
-            </div>
-          ) : null}
-          {!staging && (state === "staged" || state === "colour_adjusted") ? (
+            ) : null}
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setClientOpen("colour_adjust");
-              }}
-              className="absolute bottom-1 right-1 rounded-full bg-background/85 px-2 py-1 text-[10px] font-semibold text-teal shadow backdrop-blur-sm"
+              onClick={() => setAiEnhanceOpen(true)}
+              className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+              aria-label={enhanceLabel(photo)}
+              title={enhanceLabel(photo)}
             >
-              Colour adjust
-            </button>
-          ) : null}
-          {staging ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
-              <Loader2 className="size-5 animate-spin" />
-              <p className="text-[11px] font-medium">Staging your room…</p>
-            </div>
-          ) : null}
-        </div>
-      )}
-      <div className="space-y-1.5 p-2">
-        {hasStaged ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setClientOpen("colour_adjust")}
-              className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground"
-            >
-              Colour adjust
+              <Sparkles className="size-3.5" />
             </button>
             <button
               type="button"
-              onClick={onKeepOriginal}
-              className="flex min-h-8 w-full items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
+              onClick={onDeclutter}
+              className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+              aria-label={CLEAN_UP_LABEL}
+              title={CLEAN_UP_LABEL}
             >
-              Keep original
+              <Eraser className="size-3.5" />
             </button>
-          </>
-        ) : (
-          <>
             <button
               type="button"
               onClick={onStage}
-              disabled={disabled}
-              className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-xs font-semibold text-teal-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex size-7 items-center justify-center rounded-full bg-background/85 text-teal shadow backdrop-blur-sm"
+              aria-label={stageLabel(photo)}
+              title={stageLabel(photo)}
             >
-              {staging ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-              {staging ? "Staging…" : label}
+              <Wand2 className="size-3.5" />
             </button>
-            {state === "raw" ? (
-              <button
-                type="button"
-                onClick={onDeclutter}
-                disabled={declutterDisabled}
-                className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Eraser className="size-4" />
-                {hasDeclutter ? "Clean up again" : "Clean up"}
-              </button>
-            ) : null}
-            {state === "raw" ? (
-              <button
-                type="button"
-                onClick={() => setAiEnhanceOpen(true)}
-                className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-teal px-2 text-xs font-semibold text-teal"
-              >
-                <Sparkles className="size-4" /> Enhance
-              </button>
-            ) : state === "enhanced" ? (
-              <button
-                type="button"
-                onClick={() => setClientOpen("adjust")}
-                className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-teal px-2 text-xs font-semibold text-teal"
-              >
-                {hasAdjustments ? "Re-adjust" : "Adjust"}
-              </button>
-            ) : null}
-          </>
-        )}
+          </div>
+        </div>
+      )}
+      <div className="space-y-1.5 p-2">
+        {state !== "raw" ? (
+          <button
+            type="button"
+            onClick={() => setClientOpen(state === "enhanced" ? "adjust" : "colour_adjust")}
+            className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-[11px] font-semibold text-teal-foreground"
+          >
+            {state === "enhanced" ? (hasAdjustments ? "Re-adjust" : "Adjust") : "Colour adjust"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setAiEnhanceOpen(true)}
+          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-teal px-2 text-xs font-semibold text-teal"
+        >
+          <Sparkles className="size-4" /> {enhanceLabel(photo)}
+        </button>
+        <button
+          type="button"
+          onClick={onDeclutter}
+          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold text-foreground"
+        >
+          <Eraser className="size-4" />
+          {CLEAN_UP_LABEL}
+        </button>
+        <button
+          type="button"
+          onClick={onStage}
+          className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-md bg-teal px-2 text-xs font-semibold text-teal-foreground"
+        >
+          <Wand2 className="size-4" />
+          {stageLabel(photo)}
+        </button>
+        {hasStaged ? (
+          <button
+            type="button"
+            onClick={onKeepOriginal}
+            className="flex min-h-8 w-full items-center justify-center rounded-md border border-border px-2 text-[11px] font-semibold text-foreground"
+          >
+            Keep original
+          </button>
+        ) : null}
       </div>
       <EnhancePhotoModal
         open={aiEnhanceOpen}
@@ -1710,56 +1514,6 @@ function StagedPhotoCard({
           queryKey={["listing-photos"]}
         />
       ) : null}
-    </div>
-  );
-}
-
-function StyleModal({
-  onClose,
-  onChoose,
-}: {
-  onClose: () => void;
-  onChoose: (styleKey: string) => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="relative max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom)+5.25rem)] shadow-xl sm:rounded-2xl sm:pb-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
-        >
-          <X className="size-5" />
-        </button>
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-5 text-teal" />
-          <h3 className="pr-10 text-lg font-semibold text-foreground">Choose a style</h3>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          The AI will re-stage this room in your chosen style.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {STAGING_STYLES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => onChoose(s.key)}
-              className="flex min-h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-teal hover:bg-teal-light"
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
